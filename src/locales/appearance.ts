@@ -1,0 +1,42 @@
+export const appearanceMessages = {
+  "en": {
+    "Application background": "Application background",
+    "Sidebar background": "Sidebar background",
+    "Link application and sidebar backgrounds": "Link application and sidebar backgrounds",
+    "Link backgrounds": "Link backgrounds",
+    "Background intensity": "Background intensity",
+    "Background blur": "Background blur",
+    "Sidebar blur": "Sidebar blur",
+    "Interface font": "Interface font",
+    "Minecraft style": "Minecraft style",
+    "Headings": "Headings",
+    "Full interface": "Full interface",
+    "Ambient effects": "Ambient effects",
+    "Off": "Off",
+    "Automatic": "Automatic",
+    "Sakura": "Sakura",
+    "Snow": "Snow",
+    "Normal": "Normal",
+    "Default": "Default"
+  },
+  "ru": {
+    "Application background": "Фон приложения",
+    "Sidebar background": "Фон боковой панели",
+    "Link application and sidebar backgrounds": "Связывать фон приложения и панели",
+    "Link backgrounds": "Связать фоны",
+    "Background intensity": "Интенсивность фона",
+    "Background blur": "Размытие фона",
+    "Sidebar blur": "Размытие панели",
+    "Interface font": "Шрифт интерфейса",
+    "Minecraft style": "Стиль Minecraft",
+    "Headings": "Заголовки",
+    "Full interface": "Весь интерфейс",
+    "Ambient effects": "Атмосферные эффекты",
+    "Off": "Выключены",
+    "Automatic": "Автоматически",
+    "Sakura": "Сакура",
+    "Snow": "Снег",
+    "Normal": "Обычный",
+    "Default": "По умолчанию"
+  }
+} as const;

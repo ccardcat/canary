@@ -19,7 +19,7 @@
   font-family: Nunito;
   font-display: swap;
   src: url("/Nunito-Bold.ttf");
-  font-weight: 800;
+  font-weight: 700 900;
 }
 :root {
   font-family:
@@ -2834,3 +2834,61 @@ img {
 .download-panel .selectable {
   user-select: text;
 }
+
+@font-face { font-family:"Manrope"; src:url("/Manrope-Regular.ttf") format("truetype"); font-weight:400; font-display:swap; }
+@font-face { font-family:"Manrope"; src:url("/Manrope-SemiBold.ttf") format("truetype"); font-weight:600; font-display:swap; }
+@font-face { font-family:"Manrope"; src:url("/Manrope-Bold.ttf") format("truetype"); font-weight:700 900; font-display:swap; }
+@font-face { font-family:"Plus Jakarta Sans"; src:url("/PlusJakartaSans-Regular.ttf") format("truetype"); font-weight:400; font-display:swap; }
+@font-face { font-family:"Plus Jakarta Sans"; src:url("/PlusJakartaSans-SemiBold.ttf") format("truetype"); font-weight:600; font-display:swap; }
+@font-face { font-family:"Plus Jakarta Sans"; src:url("/PlusJakartaSans-Bold.ttf") format("truetype"); font-weight:700 900; font-display:swap; }
+@font-face { font-family:"Rubik"; src:url("/Rubik-Regular.ttf") format("truetype"); font-weight:400; font-display:swap; }
+@font-face { font-family:"Rubik"; src:url("/Rubik-SemiBold.ttf") format("truetype"); font-weight:600; font-display:swap; }
+@font-face { font-family:"Rubik"; src:url("/Rubik-Bold.ttf") format("truetype"); font-weight:700 900; font-display:swap; }
+@font-face { font-family:"Monocraft"; src:url("/Monocraft.ttf") format("truetype"); font-weight:400; font-display:swap; }
+@font-face { font-family:"Monocraft"; src:url("/Monocraft-SemiBold.ttf") format("truetype"); font-weight:600; font-display:swap; }
+@font-face { font-family:"Monocraft"; src:url("/Monocraft-Bold.ttf") format("truetype"); font-weight:700 900; font-display:swap; }
+@font-face { font-family:Monocraft; src:url("/Monocraft-Light.ttf") format("truetype"); font-weight:300; font-display:swap; }
+:root { font-family:var(--ui-font,Nunito),Nunito,"Segoe UI",sans-serif; }
+html,body,#root { background:transparent; }
+body { isolation:isolate; }
+button,input,select,textarea { font-family:inherit; }
+h1,h2,h3,h4,.hero-title { font-family:var(--heading-font,var(--ui-font,Nunito)),Nunito,"Segoe UI",sans-serif; }
+pre,code,.toast-details,.selectable { font-family:Consolas,"Cascadia Mono",monospace; }
+.window-titlebar { height:36px; position:fixed; inset:0 0 auto; z-index:80; display:flex; align-items:center; background:color-mix(in srgb,var(--surface) 93%,transparent); color:var(--muted); border-bottom:1px solid var(--line); box-shadow:inset 0 1px var(--highlight); transition:background .24s,color .24s,border-color .24s; }
+.window-drag { flex:1; height:100%; display:flex; align-items:center; gap:8px; padding-left:17px; user-select:none; font-size:12px; }
+.window-drag img { width:19px; height:19px; object-fit:contain; pointer-events:none; }
+.window-controls { display:flex; height:100%; }
+.window-controls button { display:grid; place-items:center; border:0; border-radius:0; width:46px; background:transparent; color:var(--text); padding:0; box-shadow:none; }
+.window-controls button:hover { background:var(--surface-3); }
+.window-controls button:active { background:var(--surface-2); }
+.window-controls .window-close:hover { background:#bb3748; color:white; }
+.canary-app { padding-top:36px; background:linear-gradient(120deg,color-mix(in srgb,var(--surface) 30%,transparent),transparent); }
+.sidebar,.content-shell { height:calc(100dvh - 36px); }
+.sidebar-art { background-image:var(--sidebar-art,url("/backgrounds/sidebar-bg.webp")); filter:blur(var(--sidebar-blur,12px)) saturate(.75); }
+:root[data-ambient="off"] .sidebar-art { animation:none; }
+.primary-button,.install-action,.account-button { border:1px solid var(--line-strong); background:linear-gradient(160deg,var(--surface-3),var(--surface-2)); color:var(--text); box-shadow:inset 0 1px var(--highlight),0 3px 10px #00000010; }
+.primary-button:hover,.install-action:hover { border-color:color-mix(in srgb,var(--accent) 50%,var(--line)); background:var(--surface-3); }
+.project-card { transition:transform .2s,box-shadow .2s,border-color .2s; }
+.project-card:hover { transform:translateY(-3px); }
+img { -webkit-user-drag:none; }
+:root[data-ui-font="Monocraft"] h1 { font-size:clamp(24px,2.4vw,34px); line-height:1.4; }
+:root[data-ui-font="Monocraft"][data-minecraft="full"] { font-size:13px; }
+:root[data-ui-font="Monocraft"][data-minecraft="full"] .nav-label { font-size:12px; }
+:root[data-ui-font="Monocraft"][data-minecraft="full"] .type-tabs button { font-size:11px; padding-inline:8px; }
+
+.window-titlebar,.sidebar,.project-card,.account-button,.settings-modal,.popover,.type-tabs { transition:background-color .24s var(--ease),color .24s var(--ease),border-color .24s var(--ease),box-shadow .2s var(--ease),transform .2s var(--ease); }
+.sidebar { transition:width .22s var(--ease),background-color .24s var(--ease),border-color .24s var(--ease); }
+.home-hero { box-shadow:inset 0 1px var(--highlight),0 16px 36px #00000024; }
+.home-hero .primary-button,.detail-actions .primary-button { background:linear-gradient(150deg,var(--surface-3),var(--surface-2));color:var(--text);border:1px solid var(--line-strong);box-shadow:inset 0 1px var(--highlight),0 3px 10px #00000018; }
+.progress i { transition:width .3s var(--ease); box-shadow:inset 0 1px var(--highlight); }
+:root[data-mode="amoled"] { --highlight:#ffffff08; --glass:#050505ed; }
+:root[data-ui-font="Monocraft"][data-minecraft="full"] .background-options button { font-size:10px; }
+@media(prefers-reduced-motion:reduce) { .project-card:hover { transform:none; } }
+:root[data-motion="reduced"] .project-card:hover { transform:none; }
+
+/* Keep floating Settings inside the client area, below window controls. */
+.modal-backdrop { top:36px; }
+.settings-modal { height:min(720px,calc(100dvh - 76px)); }
+:root:not([data-ambient="off"]) .hero-art { animation:wallpaper-drift 38s ease-in-out infinite alternate; }
+:root[data-motion="reduced"] .hero-art { animation:none!important; }
+@media(prefers-reduced-motion:reduce) { .hero-art { animation:none!important; } }

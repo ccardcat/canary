@@ -188,10 +188,11 @@ test("account repeated click, outside click and Escape; Settings trap and live l
   await page.getByRole("button", { name: "Settings", exact: true }).click();
   await page.getByRole("button", { name: "Light", exact: true }).click();
   await expect(page.locator("html")).toHaveAttribute("data-mode", "light");
-  const titleColor = await page
+  // Theme materials transition together; assert their settled color.
+  await expect.poll(() => page
     .locator(".settings-modal h2")
-    .evaluate((el) => getComputedStyle(el).color);
-  expect(titleColor).toBe("rgb(29, 36, 35)");
+    .evaluate((el) => getComputedStyle(el).color)
+  ).toBe("rgb(29, 36, 35)");
   await page.getByRole("button", { name: "Mint", exact: true }).click();
   expect(
     await page
@@ -285,7 +286,7 @@ test("System responds live, AMOLED remains black, and OS reduced motion stops am
       .locator("body")
       .evaluate((el) => getComputedStyle(el).getPropertyValue("--bg").trim()),
   ).toBe("#000");
-  await page.getByRole("button", { name: "System", exact: true }).click();
+  await page.locator(".mode-grid").getByRole("button", { name: "System", exact: true }).click();
   await page.emulateMedia({ colorScheme: "light" });
   await expect(page.locator("html")).toHaveAttribute("data-mode", "light");
   await expect(page.locator(".brand img")).toHaveAttribute(

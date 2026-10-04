@@ -3,6 +3,7 @@ import {
   Suspense,
   useCallback,
   useEffect,
+  useLayoutEffect,
   useRef,
   useState,
 } from "react";
@@ -48,6 +49,9 @@ import {
   Heart,
 } from "lucide-react";
 import "./App.css";
+import { cardSpotlight } from "./components/DesktopBehavior";
+import TitleBar from "./components/TitleBar";
+import { VisualPreferences, SidebarArtwork, VisualQuality } from "./components/VisualAppearance";
 import { en, ru, type Key, type T, categories } from "./locales";
 import {
   api,
@@ -186,7 +190,7 @@ function App() {
       small.removeEventListener("change", updateSmall);
     };
   }, []);
-  useEffect(() => {
+  useLayoutEffect(() => {
     document.documentElement.dataset.mode = resolvedMode;
     document.documentElement.dataset.accent = accent;
     document.documentElement.dataset.preset = preset;
@@ -409,9 +413,10 @@ function App() {
       reducedMotion={reduceMotion ? "always" : "user"}
       transition={{ duration: 0.2, ease: [0.2, 0.8, 0.2, 1] }}
     >
+      <TitleBar light={resolvedMode === "light"} russian={lang === "ru"} />
       <div className={"canary-app" + (busy ? " is-installing" : "")}>
         <aside className={sidebarOpen ? "sidebar" : "sidebar compact"}>
-          <div className="sidebar-art" aria-hidden="true" />
+          <SidebarArtwork />
           <div className="brand">
             <img
               src={
@@ -432,7 +437,7 @@ function App() {
                   key={id}
                   aria-label={t(id.toLowerCase() as Key)}
                   aria-current={activeNav === id ? "page" : undefined}
-                  title={t(id.toLowerCase() as Key)}
+                  data-tooltip={t(id.toLowerCase() as Key)}
                   className={activeNav === id ? "active" : ""}
                   onClick={() => navigation(id)}
                 >
@@ -454,7 +459,7 @@ function App() {
             <button
               onClick={() => setCompact(!compact)}
               aria-label={compact ? t("expand") : t("collapse")}
-              title={compact ? t("expand") : t("collapse")}
+              data-tooltip={compact ? t("expand") : t("collapse")}
             >
               <PanelLeftClose size={18} />
               <span className="nav-label">{t("collapse")}</span>
@@ -464,7 +469,7 @@ function App() {
                 setSettingsTab("language");
                 setSettingsOpen(true);
               }}
-              title={t("language")}
+              data-tooltip={t("language")}
             >
               <span className="language-code">{lang.toUpperCase()}</span>
               <span className="nav-label">{t("language")}</span>
@@ -518,6 +523,7 @@ function App() {
           {busy && progress && (
             <button
               className="install-strip"
+              aria-busy="true"
               onClick={() => navigation("Downloads")}
             >
               <Download size={16} />
@@ -1158,7 +1164,7 @@ function ProjectCard({
 }) {
   const art = artwork(p) || p.icon_url;
   return (
-    <article className="project-card">
+    <article className="project-card" onPointerMove={cardSpotlight}>
       <button
         className="card-visual"
         onClick={onOpen}
@@ -1189,7 +1195,7 @@ function ProjectCard({
           ))}
         </div>
         <div className="card-foot">
-          <span className="downloads" title={t("downloads")}>
+          <span className="downloads" data-tooltip={t("downloads")}>
             <Download size={13} />
             {Intl.NumberFormat(undefined, {
               notation: "compact",
@@ -1285,7 +1291,7 @@ function LibraryPage({
           </div>
           <div className="library-tabs">
             <button className="selected">{t("allInstances")}</button>
-            <button disabled title={t("planned")}>
+            <button disabled data-tooltip={t("planned")}>
               {t("favorites")}
             </button>
           </div>
@@ -1822,6 +1828,8 @@ function SettingsModal({
                     preset={preset}
                     setPreset={setPreset}
                   />
+                ) : tab === "advanced" ? (
+                  <VisualQuality russian={lang === "ru"} />
                 ) : tab === "language" ? (
                   <LanguageSettings t={t} lang={lang} setLang={setLang} />
                 ) : (
@@ -1887,7 +1895,7 @@ function Appearance({
 }) {
   const modeIcon = { dark: Moon, light: Sun, amoled: Moon, system: Monitor };
   const presets: Key[] =
-    mode === "light"
+    (mode === "light" || (mode === "system" && matchMedia("(prefers-color-scheme: light)").matches))
       ? ["white", "softLight", "frost", "warm"]
       : ["graphite", "black", "softDark", "midnight"];
   return (
@@ -1971,6 +1979,7 @@ function Appearance({
           <i />
         </button>
       </div>
+      <VisualPreferences russian={t("home") == "Главная"} />
       <p className="settings-note">{t("storedLocally")}</p>
     </div>
   );

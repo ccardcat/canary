@@ -13,8 +13,11 @@
     "windows": [
       {
         "title": "Canary",
-        "width": 800,
-        "height": 600
+        "width": 1280,
+        "height": 800,
+        "decorations": false,
+        "minWidth": 760,
+        "minHeight": 540
       }
     ],
     "security": {
@@ -33,5 +36,3 @@
     ]
   }
 }
-
-
