@@ -16,6 +16,11 @@ on:
         default: windows
         type: choice
         options: [windows, windows-and-linux]
+      reuse_run:
+        description: Optional successful build run ID (retry publication without rebuilding)
+        required: false
+        default: ''
+        type: string
 
 env:
   RELEASE_TAG: ${{ inputs.tag || github.ref_name }}
@@ -58,6 +63,7 @@ jobs:
           git push origin refs/notes/releases
 
   build:
+    if: inputs.reuse_run == ''
     strategy:
       fail-fast: false
       matrix:
@@ -118,22 +124,25 @@ jobs:
           ref: ${{ env.RELEASE_TAG }}
           fetch-depth: 0
       - name: Download installers
-        if: needs.build.result == 'success'
+        if: needs.build.result == 'success' || inputs.reuse_run != ''
         uses: actions/download-artifact@v4
         with:
-          path: artifacts
+          path: ${{ runner.temp }}/canary-installers
           merge-multiple: true
+          github-token: ${{ github.token }}
+          run-id: ${{ inputs.reuse_run || github.run_id }}
       - name: Publish complete release
         id: publish
-        if: needs.build.result == 'success'
+        if: needs.build.result == 'success' || inputs.reuse_run != ''
         shell: bash
         run: |
-          mkdir assets
-          find artifacts -type f \( -name '*.deb' -o -name '*.AppImage' -o -name '*.exe' -o -name '*.msi' \) -exec cp {} assets/ \;
+          exec > >(tee publication.log) 2>&1
+          export CANARY_RELEASE_ASSETS="$(mktemp -d "$RUNNER_TEMP/canary-release.XXXXXX")"
+          find "$RUNNER_TEMP/canary-installers" -type f \( -name '*.deb' -o -name '*.AppImage' -o -name '*.exe' -o -name '*.msi' \) -exec cp {} "$CANARY_RELEASE_ASSETS/" \;
           python3 - <<'PY'
           import os
           from pathlib import Path
-          names = [p.name for p in Path('assets').iterdir()]
+          names = [p.name for p in Path(os.environ['CANARY_RELEASE_ASSETS']).iterdir()]
           windows_only = os.environ['WINDOWS_ONLY'] == 'true'
           required = ('.exe', '.msi') if windows_only else ('.deb', '.AppImage', '.exe', '.msi')
           for suffix in required:
@@ -144,8 +153,8 @@ jobs:
               notes = notes.replace('for Windows x64 and Linux x64.', 'for Windows x64.')
           Path('release-notes.md').write_text(notes)
           PY
-          (cd assets && sha256sum * > SHA256SUMS)
-          gh release create "$RELEASE_TAG" assets/* --draft --verify-tag --title "Canary $RELEASE_TAG" --notes-file release-notes.md
+          (cd "$CANARY_RELEASE_ASSETS" && sha256sum * > SHA256SUMS)
+          gh release create "$RELEASE_TAG" "$CANARY_RELEASE_ASSETS"/* --draft --verify-tag --title "Canary $RELEASE_TAG" --notes-file release-notes.md
           gh release edit "$RELEASE_TAG" --draft=false --latest
       - name: Record publication result
         if: always()
@@ -156,6 +165,7 @@ jobs:
         run: |
           python3 - <<'PY'
           import json, os, subprocess
+          from pathlib import Path
           status = 'published' if os.environ['PUBLISH_RESULT'] == 'success' else 'failed'
           receipt = {'tag': os.environ['RELEASE_TAG'], 'commit': subprocess.check_output(['git', 'rev-parse', 'HEAD'], text=True).strip(), 'status': status,
                      'build': os.environ['BUILD_RESULT'], 'publish': os.environ['PUBLISH_RESULT'],
@@ -165,6 +175,8 @@ jobs:
               receipt['release_url'] = release['html_url']
               receipt['assets'] = [{'name': a['name'], 'size': a['size'], 'url': a['browser_download_url'], 'digest': a.get('digest')} for a in release['assets']]
           else:
+              if Path('publication.log').exists():
+                  receipt['publication_log'] = Path('publication.log').read_text(errors='replace')[-24000:]
               try:
                   root = f"repos/{os.environ['GITHUB_REPOSITORY']}/actions/runs/{os.environ['GITHUB_RUN_ID']}"
                   jobs = json.loads(subprocess.check_output(['gh', 'api', root + '/jobs']))['jobs']

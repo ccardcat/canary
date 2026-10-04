@@ -55,6 +55,8 @@ Pushing a `v<version>` tag matching `package.json` and the Tauri configuration b
 
 If a tag push does not trigger Actions, open **Actions → Desktop release → Run workflow**, select branch `main`, enter the existing tag (initially `v0.1.0`), and choose `windows` or `windows-and-linux`. The manual run defaults to Windows EXE/MSI and publishes the selected platform builds after they pass. It builds the tagged source, even when the workflow is launched from `main`.
 
+If installers built successfully but publication failed, enter that run's numeric ID in `reuse_run` to retry publication from its saved artifacts without compiling again. Keep the same tag and platform selection as the original run.
+
 The publication receipt is saved in `refs/notes/releases` on the tagged commit, including the workflow URL, release URL and asset metadata. This allows checking publication through Git when the cloud environment cannot access the GitHub REST API:
 
 ```sh
