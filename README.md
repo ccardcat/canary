@@ -59,5 +59,5 @@ The publication receipt is saved in `refs/notes/releases` on the tagged commit, 
 
 ```sh
 git fetch origin refs/notes/releases:refs/notes/releases
-git notes --ref=releases show v0.1.0
+git notes --ref=releases show 'v0.1.0^{}'
 ```
