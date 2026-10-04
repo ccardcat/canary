@@ -1,0 +1,138 @@
+name: Desktop release
+
+on:
+  push:
+    tags: ['v*']
+
+permissions:
+  contents: read
+
+concurrency:
+  group: desktop-release
+  cancel-in-progress: false
+
+jobs:
+  build:
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - os: ubuntu-22.04
+            bundles: deb,appimage
+            platform: linux-x64
+          - os: windows-latest
+            bundles: nsis,msi
+            platform: windows-x64
+    runs-on: ${{ matrix.os }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '24'
+          cache: npm
+      - uses: dtolnay/rust-toolchain@stable
+      - uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: src-tauri -> target
+      - name: Install Linux prerequisites
+        if: runner.os == 'Linux'
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y libwebkit2gtk-4.1-dev libayatana-appindicator3-dev librsvg2-dev patchelf
+      - run: npm ci
+      - name: Check release version
+        shell: bash
+        run: |
+          node --input-type=module -e 'import fs from "node:fs"; const p=JSON.parse(fs.readFileSync("package.json")); const t=JSON.parse(fs.readFileSync("src-tauri/tauri.conf.json")); if (`v${p.version}` !== process.env.GITHUB_REF_NAME || p.version !== t.version) throw Error("Release tag must match application version");'
+      - name: Rust regression tests
+        run: cargo test --locked --manifest-path src-tauri/Cargo.toml --lib
+      - name: Build installers
+        env:
+          APPIMAGE_EXTRACT_AND_RUN: '1'
+        run: npm run tauri build -- --ci --bundles ${{ matrix.bundles }} -- --locked
+      - name: Upload installers
+        uses: actions/upload-artifact@v4
+        with:
+          name: canary-${{ matrix.platform }}
+          if-no-files-found: error
+          path: |
+            src-tauri/target/release/bundle/deb/*.deb
+            src-tauri/target/release/bundle/appimage/*.AppImage
+            src-tauri/target/release/bundle/nsis/*.exe
+            src-tauri/target/release/bundle/msi/*.msi
+
+  publish:
+    needs: build
+    if: always()
+    runs-on: ubuntu-22.04
+    permissions:
+      contents: write
+    env:
+      GH_TOKEN: ${{ github.token }}
+      GH_REPO: ${{ github.repository }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - name: Download installers
+        if: needs.build.result == 'success'
+        uses: actions/download-artifact@v4
+        with:
+          path: artifacts
+          merge-multiple: true
+      - name: Publish complete release
+        id: publish
+        if: needs.build.result == 'success'
+        shell: bash
+        run: |
+          mkdir assets
+          find artifacts -type f \( -name '*.deb' -o -name '*.AppImage' -o -name '*.exe' -o -name '*.msi' \) -exec cp {} assets/ \;
+          python3 - <<'PY'
+          from pathlib import Path
+          names = [p.name for p in Path('assets').iterdir()]
+          for suffix in ('.deb', '.AppImage', '.exe', '.msi'):
+              assert any(n.endswith(suffix) for n in names), f'Missing installer: {suffix}'
+          PY
+          (cd assets && sha256sum * > SHA256SUMS)
+          gh release create "$GITHUB_REF_NAME" assets/* --draft --verify-tag --title "Canary $GITHUB_REF_NAME" --notes-file docs/RELEASE.md
+          gh release edit "$GITHUB_REF_NAME" --draft=false --latest
+      - name: Record publication result
+        if: always()
+        env:
+          BUILD_RESULT: ${{ needs.build.result }}
+          PUBLISH_RESULT: ${{ steps.publish.outcome }}
+        shell: bash
+        run: |
+          python3 - <<'PY'
+          import json, os, subprocess
+          status = 'published' if os.environ['PUBLISH_RESULT'] == 'success' else 'failed'
+          receipt = {'tag': os.environ['GITHUB_REF_NAME'], 'commit': os.environ['GITHUB_SHA'], 'status': status,
+                     'build': os.environ['BUILD_RESULT'], 'publish': os.environ['PUBLISH_RESULT'],
+                     'run_url': f"https://github.com/{os.environ['GITHUB_REPOSITORY']}/actions/runs/{os.environ['GITHUB_RUN_ID']}"}
+          if status == 'published':
+              release = json.loads(subprocess.check_output(['gh', 'api', f"repos/{os.environ['GITHUB_REPOSITORY']}/releases/tags/{os.environ['GITHUB_REF_NAME']}"]))
+              receipt['release_url'] = release['html_url']
+              receipt['assets'] = [{'name': a['name'], 'size': a['size'], 'url': a['browser_download_url'], 'digest': a.get('digest')} for a in release['assets']]
+          else:
+              try:
+                  root = f"repos/{os.environ['GITHUB_REPOSITORY']}/actions/runs/{os.environ['GITHUB_RUN_ID']}"
+                  jobs = json.loads(subprocess.check_output(['gh', 'api', root + '/jobs']))['jobs']
+                  receipt['jobs'] = [{'name': j['name'], 'conclusion': j['conclusion'], 'url': j['html_url']} for j in jobs]
+                  logs = []
+                  for job in jobs:
+                      if job['conclusion'] == 'failure':
+                          logs.append(subprocess.check_output(['gh', 'api', f"repos/{os.environ['GITHUB_REPOSITORY']}/actions/jobs/{job['id']}/logs"], text=True)[-20000:])
+                  receipt['failure_log'] = '\n'.join(logs)
+              except subprocess.CalledProcessError as e:
+                  receipt['failure_log'] = str(e)
+          with open('release-status.json', 'w') as f:
+              json.dump(receipt, f, indent=2)
+          PY
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          if git ls-remote --exit-code origin refs/notes/releases; then
+            git fetch origin refs/notes/releases:refs/notes/releases
+          fi
+          git notes --ref=releases add -f -F release-status.json "$GITHUB_SHA"
+          git push origin refs/notes/releases
+          test "$PUBLISH_RESULT" = success

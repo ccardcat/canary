@@ -48,3 +48,14 @@ The prepared cloud environment has native dependencies under `/workspace/.toolch
 In this headless machine, WebKit's GPU compositing crashed its web process during animated navigation. `WEBKIT_DISABLE_COMPOSITING_MODE=1` selects software rendering for Xvfb. Cargo's target runner can map the extracted WebKit helpers while `npm run tauri dev` remains outside PRoot. Keep TLS verification enabled.
 
 See [validation notes](docs/QA.md) for the verified scenario and remaining platform limits.
+
+## Releases
+
+Pushing a `v<version>` tag matching `package.json` and the Tauri configuration builds Windows x64 EXE/MSI and Linux x64 DEB/AppImage through GitHub Actions. The workflow publishes a GitHub Release only after both platform builds pass, with `SHA256SUMS` and [release notes](docs/RELEASE.md). No signing certificate is configured.
+
+The publication receipt is saved in `refs/notes/releases` on the tagged commit, including the workflow URL, release URL and asset metadata. This allows checking publication through Git when the cloud environment cannot access the GitHub REST API:
+
+```sh
+git fetch origin refs/notes/releases:refs/notes/releases
+git notes --ref=releases show v0.1.0
+```
