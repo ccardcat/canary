@@ -1,8 +1,104 @@
-export type ContentType='modpack'|'mod'|'resourcepack'|'datapack'|'shader'|'server';
-export interface Project {project_id:string;slug?:string;title:string;description:string;icon_url?:string;downloads:number;author?:string;project_type?:ContentType;categories?:string[];versions?:string[];gallery?:string[];featured_gallery?:string;follows?:number;date_modified?:string;instance_path?:string;version_id?:string;version_name?:string;loaders?:string[];installed_at?:string}
-export interface Version {id:string;name:string;version_number:string;game_versions:string[];loaders:string[];changelog:string|null;date_published:string;dependencies:{project_id:string|null;version_id:string|null;dependency_type:string}[];files:{filename:string;url:string}[]}
-export interface Detail {id:string;slug:string;title:string;description:string;body:string;icon_url?:string;project_type:ContentType;downloads:number;followers:number;published:string;updated:string;categories:string[];game_versions:string[];loaders:string[];gallery:{url:string;title?:string;featured:boolean}[];source_url?:string;issues_url?:string}
-export async function api<T>(path:string,signal?:AbortSignal):Promise<T>{const r=await fetch('https://api.modrinth.com/v2/'+path,{signal});if(!r.ok)throw Error(`Modrinth HTTP ${r.status}`);return r.json()}
-export function searchProjects(type:ContentType,q:string,sort:string,offset:number,filters:{loader:string;game:string;category:string;environment:string},signal:AbortSignal){const facets:string[][]=[[type==='datapack'?'categories:datapack':'project_type:'+type]];if(type==='datapack')facets.push(['project_type:mod']);if(filters.loader)facets.push(['categories:'+filters.loader]);if(filters.game)facets.push(['versions:'+filters.game]);if(filters.category)facets.push(['categories:'+filters.category]);if(filters.environment)facets.push([filters.environment+':required']);return api<{hits:Project[];total_hits:number}>('search?'+new URLSearchParams({query:q,index:sort,offset:String(offset),limit:'12',facets:JSON.stringify(facets)}),signal)}
-export const artwork=(p:Project)=>p.featured_gallery||p.gallery?.[0];
-export function readStored<T>(key:string,fallback:T):T{try{const value=localStorage.getItem(key);return value?JSON.parse(value):fallback}catch{return fallback}}
+export type ContentType =
+  "modpack" | "mod" | "resourcepack" | "datapack" | "shader" | "server";
+export interface Project {
+  project_id: string;
+  slug?: string;
+  title: string;
+  description: string;
+  icon_url?: string;
+  downloads: number;
+  author?: string;
+  project_type?: ContentType;
+  categories?: string[];
+  versions?: string[];
+  gallery?: string[];
+  featured_gallery?: string;
+  follows?: number;
+  date_modified?: string;
+  instance_path?: string;
+  version_id?: string;
+  version_name?: string;
+  loaders?: string[];
+  installed_at?: string;
+}
+export interface Version {
+  id: string;
+  name: string;
+  version_number: string;
+  game_versions: string[];
+  loaders: string[];
+  changelog: string | null;
+  date_published: string;
+  dependencies: {
+    project_id: string | null;
+    version_id: string | null;
+    dependency_type: string;
+  }[];
+  files: { filename: string; url: string }[];
+}
+export interface Detail {
+  id: string;
+  slug: string;
+  title: string;
+  description: string;
+  body: string;
+  icon_url?: string;
+  project_type: ContentType;
+  downloads: number;
+  followers: number;
+  published: string;
+  updated: string;
+  categories: string[];
+  game_versions: string[];
+  loaders: string[];
+  gallery: { url: string; title?: string; featured: boolean }[];
+  source_url?: string;
+  issues_url?: string;
+}
+export async function api<T>(path: string, signal?: AbortSignal): Promise<T> {
+  const r = await fetch("https://api.modrinth.com/v2/" + path, { signal });
+  if (!r.ok) throw Error(`Modrinth HTTP ${r.status}`);
+  return r.json();
+}
+export function searchProjects(
+  type: ContentType,
+  q: string,
+  sort: string,
+  offset: number,
+  filters: {
+    loader: string;
+    game: string;
+    category: string;
+    environment: string;
+  },
+  signal: AbortSignal,
+) {
+  const facets: string[][] = [
+    [type === "datapack" ? "categories:datapack" : "project_type:" + type],
+  ];
+  if (type === "datapack") facets.push(["project_type:mod"]);
+  if (filters.loader) facets.push(["categories:" + filters.loader]);
+  if (filters.game) facets.push(["versions:" + filters.game]);
+  if (filters.category) facets.push(["categories:" + filters.category]);
+  if (filters.environment) facets.push([filters.environment + ":required"]);
+  return api<{ hits: Project[]; total_hits: number }>(
+    "search?" +
+      new URLSearchParams({
+        query: q,
+        index: sort,
+        offset: String(offset),
+        limit: "12",
+        facets: JSON.stringify(facets),
+      }),
+    signal,
+  );
+}
+export const artwork = (p: Project) => p.featured_gallery || p.gallery?.[0];
+export function readStored<T>(key: string, fallback: T): T {
+  try {
+    const value = localStorage.getItem(key);
+    return value ? JSON.parse(value) : fallback;
+  } catch {
+    return fallback;
+  }
+}

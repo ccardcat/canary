@@ -20,3 +20,5 @@ Thumbs.db
 
 *.tmp
 *.temp
+playwright-report/
+test-results/

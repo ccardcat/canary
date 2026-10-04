@@ -1,38 +1,2042 @@
-import {useCallback,useEffect,useRef,useState} from 'react';
-import {invoke} from '@tauri-apps/api/core';import {listen} from '@tauri-apps/api/event';
-import {Activity,Boxes,ChevronDown,ChevronLeft,ChevronRight,Compass,Download,ExternalLink,GalleryHorizontalEnd,House,Image,Layers3,Library as LibraryIcon,ListFilter,Package,PanelLeftClose,PanelLeftOpen,Plus,Puzzle,Search,Server,Settings as SettingsIcon,SlidersHorizontal,SquareArrowOutUpRight,UserRound,X,Sun,Moon,Monitor,Palette,Info,Heart} from 'lucide-react';
-import './App.css';import {en,ru,type Key,type T,categories} from './locales';import {api,artwork,readStored,searchProjects,type ContentType,type Detail,type Project,type Version} from './services/modrinth';
+import {
+  lazy,
+  Suspense,
+  useCallback,
+  useEffect,
+  useRef,
+  useState,
+} from "react";
+import { AnimatePresence, MotionConfig, motion } from "motion/react";
+import { useDiscovery } from "./hooks/useDiscovery";
+import { diagnostics, type Progress } from "./services/installation";
+import { externalLink } from "./services/links";
+import RemoteImage from "./components/RemoteImage";
+const Markdown = lazy(() => import("./components/Markdown"));
+import { isTauri, invoke } from "@tauri-apps/api/core";
+import { listen } from "@tauri-apps/api/event";
+import {
+  Activity,
+  Boxes,
+  ChevronDown,
+  ChevronLeft,
+  ChevronRight,
+  Compass,
+  Download,
+  ExternalLink,
+  GalleryHorizontalEnd,
+  House,
+  Image,
+  Layers3,
+  Library as LibraryIcon,
+  ListFilter,
+  Package,
+  PanelLeftClose,
+  Plus,
+  Puzzle,
+  Search,
+  Server,
+  Settings as SettingsIcon,
+  SlidersHorizontal,
+  SquareArrowOutUpRight,
+  UserRound,
+  X,
+  Sun,
+  Moon,
+  Monitor,
+  Palette,
+  Info,
+  Heart,
+} from "lucide-react";
+import "./App.css";
+import { en, ru, type Key, type T, categories } from "./locales";
+import {
+  api,
+  artwork,
+  readStored,
+  searchProjects,
+  type ContentType,
+  type Detail,
+  type Project,
+  type Version,
+} from "./services/modrinth";
 
-type Page='Home'|'Discover'|'Library'|'Downloads'|'Screenshots'|'Activity'|'Settings';type Mode='dark'|'light'|'amoled'|'system';type Accent='monochrome'|'white'|'gray'|'mint'|'emerald'|'aqua'|'blue'|'purple'|'rose'|'orange';type Progress={stage:string;file:string;completed:number;total:number;downloaded:number;bytes_total:number;percent:number};
-const nav:Record<Page,typeof House>={Home:House,Discover:Compass,Library:LibraryIcon,Downloads:Download,Screenshots:Image,Activity,Settings:SettingsIcon};
-const types:{id:ContentType;icon:typeof Boxes;key:Key}[]=[{id:'modpack',icon:Boxes,key:'modpack'},{id:'mod',icon:Puzzle,key:'mod'},{id:'resourcepack',icon:Layers3,key:'resourcepack'},{id:'datapack',icon:Package,key:'datapack'},{id:'shader',icon:GalleryHorizontalEnd,key:'shader'},{id:'server',icon:Server,key:'server'}];
-const accentColors:Record<Accent,string>={monochrome:'#e9efec',white:'#ffffff',gray:'#aeb9b5',mint:'#72d6ac',emerald:'#47c98b',aqua:'#61cfe0',blue:'#83a8ed',purple:'#b29aed',rose:'#ed9bad',orange:'#e8ae79'};
-const modes:Mode[]=['dark','light','amoled','system'];
-function getInitialLanguage(){const saved=localStorage.getItem('canary-language');if(saved==='ru'||saved==='en')return saved;return navigator.language.toLowerCase().startsWith('ru')?'ru':'en'}
-function App(){const[lang,setLang]=useState<'en'|'ru'>(getInitialLanguage);const dict=lang==='ru'?ru:en;const t=useCallback<T>((key:Key)=>dict[key]??en[key],[dict]);const[page,setPage]=useState<Page>('Home');const[type,setType]=useState<ContentType>('modpack');const[projects,setProjects]=useState<Project[]>([]);const[total,setTotal]=useState(0);const[query,setQuery]=useState('');const[sort,setSort]=useState('downloads');const[offset,setOffset]=useState(0);const[loading,setLoading]=useState(false);const[filterOpen,setFilterOpen]=useState(false);const[filters,setFilters]=useState({loader:'',game:'',category:'',environment:''});const[lib,setLib]=useState<Project[]>(()=>readStored<Project[]>('canary-library',[]));const[progress,setProgress]=useState<Progress|null>(null);const[error,setError]=useState<{message:string;details?:string}|null>(null);const[detail,setDetail]=useState<Detail|null>(null);const[versions,setVersions]=useState<Version[]>([]);const[selectedVersion,setSelectedVersion]=useState('');const[settingsOpen,setSettingsOpen]=useState(false);const[settingsTab,setSettingsTab]=useState<'appearance'|'language'|'account'|'canary'|'advanced'|'about'>('appearance');const[accountOpen,setAccountOpen]=useState(false);const[mode,setMode]=useState<Mode>(()=>(localStorage.getItem('canary-mode') as Mode)||'dark');const[accent,setAccent]=useState<Accent>(()=>(localStorage.getItem('canary-accent') as Accent)||'monochrome');const[compact,setCompact]=useState(false);const[reduceMotion,setReduceMotion]=useState(()=>localStorage.getItem('canary-motion')==='reduced');const[sidebarOpen,setSidebarOpen]=useState(true);const accountRef=useRef<HTMLDivElement>(null);const filterRef=useRef<HTMLDivElement>(null);const searchAbort=useRef<AbortController|null>(null);
- useEffect(()=>{localStorage.setItem('canary-language',lang)},[lang]);useEffect(()=>{localStorage.setItem('canary-mode',mode)},[mode]);useEffect(()=>{localStorage.setItem('canary-accent',accent)},[accent]);useEffect(()=>{localStorage.setItem('canary-motion',reduceMotion?'reduced':'full')},[reduceMotion]);useEffect(()=>{document.documentElement.dataset.mode=mode==='system'?(window.matchMedia('(prefers-color-scheme: light)').matches?'light':'dark'):mode;document.documentElement.dataset.accent=accent;document.documentElement.dataset.motion=reduceMotion?'reduced':'full'},[mode,accent,reduceMotion]);useEffect(()=>{const close=(e:MouseEvent)=>{if(accountRef.current&&!accountRef.current.contains(e.target as Node))setAccountOpen(false);if(filterRef.current&&!filterRef.current.contains(e.target as Node))setFilterOpen(false)};const esc=(e:KeyboardEvent)=>{if(e.key==='Escape'){setAccountOpen(false);setFilterOpen(false);if(detail)setDetail(null);else if(settingsOpen)setSettingsOpen(false)}};document.addEventListener('mousedown',close);document.addEventListener('keydown',esc);return()=>{document.removeEventListener('mousedown',close);document.removeEventListener('keydown',esc)}},[detail,settingsOpen]);
- const load=useCallback(async(reset=false)=>{if(type==='server'){setProjects([]);setTotal(0);return}searchAbort.current?.abort();const controller=new AbortController();searchAbort.current=controller;setLoading(true);try{const data=await searchProjects(type,query,sort,reset?0:offset,filters,controller.signal);setProjects(reset?data.hits:[...projects,...data.hits]);setTotal(data.total_hits);if(reset)setOffset(0)}catch(e){if((e as Error).name!=='AbortError')setError({message:t('networkError'),details:String(e)})}finally{setLoading(false)}},[type,query,sort,offset,filters,t,projects]);useEffect(()=>{load(true)},[type,sort,filters]);useEffect(()=>{const timer=setTimeout(()=>{if(page==='Discover')load(true)},240);return()=>clearTimeout(timer)},[query]);useEffect(()=>{const unlisten=listen<Progress>('install-progress',e=>setProgress(e.payload));return()=>{unlisten.then(f=>f())}},[]);
- function saveLibrary(next:Project[]){setLib(next);localStorage.setItem('canary-library',JSON.stringify(next))}
- async function openProject(p:Project){try{const d=await api<Detail>(`project/${p.project_id}`);setDetail(d);setVersions(await api<Version[]>(`project/${p.project_id}/version`));setSelectedVersion('')}catch(e){setError({message:t('networkError'),details:String(e)})}}
- async function install(p:Project,versionId?:string){setError(null);setProgress({stage:t('fetching'),file:'',completed:0,total:0,downloaded:0,bytes_total:0,percent:0});try{const list=versionId?versions:(versions.length?versions:await api<Version[]>(`project/${p.project_id}/version`));const version=list.find(v=>v.id===versionId)||list[0];if(!version?.id)throw Error('No compatible Modrinth version');await invoke('install_modpack',{projectId:p.project_id,versionId:version.id,name:p.title});saveLibrary([...lib.filter(x=>x.project_id!==p.project_id),{...p,version_id:version.id,version_name:version.version_number,installed_at:new Date().toISOString()}]);setDetail(null);setPage('Library')}catch(e){setError({message:t('installErrorSub'),details:String(e)})}}
- const logoSrc=mode==='light'?'/branding/canary-bird-black.png':'/branding/canary-bird-white.png';const isInstalled=(id:string)=>lib.some(x=>x.project_id===id);const changeLang=(value:'en'|'ru')=>{setLang(value);setError(null)};const navigation=(next:Page)=>{if(next==='Settings'){setSettingsOpen(true);setSettingsTab('appearance')}else{setPage(next);if(next==='Discover')setDetail(null)}setAccountOpen(false)};
- return <div className="canary-app"><aside className={sidebarOpen?'sidebar':'sidebar compact'}><div className="brand"><img src={logoSrc} draggable={false}/>{sidebarOpen&&<span>Canary</span>}</div><nav>{(Object.keys(nav) as Page[]).map(id=>{const I=nav[id];return <button aria-label={t(id.toLowerCase() as Key)} title={t(id.toLowerCase() as Key)} className={page===id&&!detail?'active':''} onClick={()=>navigation(id)} key={id}><I size={19}/>{sidebarOpen&&<span>{t(id.toLowerCase() as Key)}</span>}</button>})}</nav><div className="sidebar-bottom"><button onClick={()=>setSidebarOpen(!sidebarOpen)} title={sidebarOpen?t('collapse'):t('expand')}>{sidebarOpen?<PanelLeftClose size={18}/>:<PanelLeftOpen size={18}/>} {sidebarOpen&&<span>{t('canary')}</span>}</button><button onClick={()=>{setSettingsTab('language');setSettingsOpen(true)}}><span className="language-code">{lang.toUpperCase()}</span>{sidebarOpen&&<span>{t('language')}</span>}</button></div></aside><main className="content-shell"><header className="topbar"><div className="topbar-heading"><div className="breadcrumb">CANARY <span>/</span> {detail?t('view'):t(page.toLowerCase() as Key)}</div>{page==='Home'&&!detail?<h1>{t('welcome')}</h1>:detail?<h1>{detail.title}</h1>:<h1>{t(page.toLowerCase() as Key)}</h1>}</div><div className="top-actions"><div className="account-wrap" ref={accountRef}><button className="account-button" onClick={()=>setAccountOpen(!accountOpen)} aria-expanded={accountOpen}><div className="account-avatar"><UserRound size={16}/></div><div><small>{t('account')}</small><b>{t('noAccount')}</b></div><ChevronDown className={accountOpen?'rotated':''} size={16}/></button>{accountOpen&&<AccountPopover t={t} onClose={()=>setAccountOpen(false)}/>}</div></div></header>{detail?<DetailPage detail={detail} versions={versions} selected={selectedVersion} setSelected={setSelectedVersion} onBack={()=>setDetail(null)} onInstall={()=>install({project_id:detail.id,title:detail.title,description:detail.description,icon_url:detail.icon_url,downloads:detail.downloads},selectedVersion)} installed={isInstalled(detail.id)} t={t}/>:page==='Home'?<HomePage t={t} lib={lib} projects={projects} onDiscover={()=>navigation('Discover')} onOpen={openProject}/>:page==='Discover'?<DiscoverPage t={t} type={type} setType={setType} projects={projects} loading={loading} query={query} setQuery={setQuery} filters={filters} setFilters={setFilters} filterOpen={filterOpen} setFilterOpen={setFilterOpen} filterRef={filterRef} sort={sort} setSort={setSort} total={total} offset={offset} setOffset={setOffset} load={load} onOpen={openProject} onInstall={install} installed={isInstalled}/>:page==='Library'?<LibraryPage t={t} lib={lib} query={query} setQuery={setQuery} onOpen={openProject} onDiscover={()=>navigation('Discover')}/>:page==='Downloads'?<DownloadsPage t={t} progress={progress} error={error}/>:page==='Screenshots'?<EmptyPage icon={Image} title={t('screenshots')} text={t('noScreensSub')} t={t}/>:page==='Activity'?<EmptyPage icon={Activity} title={t('noActivity')} text={t('noActivitySub')} t={t}/>:<EmptyPage icon={SettingsIcon} title={t('appearance')} text={t('appearanceSub')} t={t} onAction={()=>setSettingsOpen(true)}/>}</main>{settingsOpen&&<SettingsModal t={t} tab={settingsTab} setTab={setSettingsTab} onClose={()=>setSettingsOpen(false)} lang={lang} setLang={changeLang} mode={mode} setMode={setMode} accent={accent} setAccent={setAccent} compact={compact} setCompact={setCompact} reduceMotion={reduceMotion} setReduceMotion={setReduceMotion}/>}</div>}
-function AccountPopover({t,onClose}:{t:T;onClose:()=>void}){return <div className="popover account-popover" role="dialog"><div className="popover-title"><span>{t('account')}</span><span className="status-dot"/></div><div className="account-empty"><div className="big-avatar"><UserRound size={21}/></div><b>{t('noAccount')}</b><p>{t('accountSub')}</p></div><button className="popover-action" onClick={onClose}><Plus size={17}/>{t('addAccount')}<span className="planned">{t('planned')}</span></button></div>}
-function HomePage({t,lib,projects,onDiscover,onOpen}:{t:T;lib:Project[];projects:Project[];onDiscover:()=>void;onOpen:(p:Project)=>void}){return <section className="home-page"><div className="home-hero"><div><div className="overline">CANARY / {t('home').toUpperCase()}</div><h2>{t('discoverTitle')}</h2><p>{t('discoverSub')}</p><button className="primary-button" onClick={onDiscover}><Compass size={17}/>{t('browse')}</button></div><div className="hero-mark"><img src="/branding/canary-white.png" draggable={false}/></div></div><div className="home-section-head"><div><h3>{t('continue')}</h3><p>{lib.length?t('installedCount'):t('noPlay')}</p></div><button className="quiet-button" onClick={onDiscover}>{t('discover')}<ChevronRight size={15}/></button></div>{lib.length?<div className="home-row">{lib.slice(0,3).map(p=><MiniCard key={p.project_id} p={p} onOpen={onOpen}/>)}</div>:<div className="home-empty"><LibraryIcon size={20}/><span>{t('emptyLibrarySub')}</span><button onClick={onDiscover}>{t('browse')}</button></div>}<div className="home-section-head"><div><h3>{t('trending')}</h3><p>{t('sub')}</p></div></div>{projects.length?<div className="home-row">{projects.slice(0,3).map(p=><MiniCard key={p.project_id} p={p} onOpen={onOpen}/>)}</div>:<div className="home-empty"><Compass size={20}/><span>{t('loadingSub')}</span></div>}</section>}
-function MiniCard({p,onOpen}:{p:Project;onOpen:(p:Project)=>void}){return <button className="mini-card" onClick={()=>onOpen(p)}><div className="mini-art">{p.icon_url&&<img src={p.icon_url} loading="lazy" draggable={false}/>}</div><div><b>{p.title}</b><small>{Intl.NumberFormat().format(p.downloads)} downloads</small></div><ChevronRight size={15}/></button>}
-function DiscoverPage({t,type,setType,projects,loading,query,setQuery,filters,setFilters,filterOpen,setFilterOpen,filterRef,sort,setSort,total,offset,setOffset,load,onOpen,onInstall,installed}:{t:T;type:ContentType;setType:(x:ContentType)=>void;projects:Project[];loading:boolean;query:string;setQuery:(x:string)=>void;filters:{loader:string;game:string;category:string;environment:string};setFilters:(x:{loader:string;game:string;category:string;environment:string})=>void;filterOpen:boolean;setFilterOpen:(x:boolean)=>void;filterRef:React.RefObject<HTMLDivElement|null>;sort:string;setSort:(x:string)=>void;total:number;offset:number;setOffset:(x:number)=>void;load:(reset?:boolean)=>void;onOpen:(p:Project)=>void;onInstall:(p:Project)=>void;installed:(id:string)=>boolean}){return <section className="discover-page"><div className="discover-intro"><div><div className="overline">CANARY / MODRINTH</div><h2>{t('discoverTitle')}</h2><p>{t('discoverSub')}</p></div><div className="provider-badge"><span className="provider-dot"/> Modrinth</div></div><div className="type-tabs">{types.map(({id,icon:Icon,key})=><button className={type===id?'selected':''} onClick={()=>setType(id)} key={id}><Icon size={16}/>{t(key)}</button>)}</div><div className="discover-toolbar"><div className="search-field"><Search size={18}/><input value={query} onChange={e=>setQuery(e.target.value)} placeholder={t('search')}/>{query&&<button onClick={()=>setQuery('')}><X size={14}/></button>}</div><div className="filter-wrap" ref={filterRef}><button className="control-button" onClick={()=>setFilterOpen(!filterOpen)}><ListFilter size={17}/>{t('filters')}<span className="filter-count">{Object.values(filters).filter(Boolean).length||''}</span></button>{filterOpen&&<FilterPopover t={t} filters={filters} setFilters={setFilters} type={type}/>}</div><div className="sort-wrap"><select value={sort} onChange={e=>setSort(e.target.value)} aria-label={t('sort')}><option value="downloads">{t('popular')}</option><option value="relevance">{t('relevance')}</option><option value="updated">{t('updated')}</option><option value="newest">{t('newest')}</option><option value="follows">{t('follows')}</option></select><ChevronDown size={14}/></div></div>{type==='server'?<div className="notice-empty"><Server size={25}/><h3>{t('serverUnavailable')}</h3><p>{t('serverUnavailableSub')}</p></div>:<><div className="results-line"><span>{t('results')}</span><small>{total.toLocaleString()} · Modrinth</small></div>{loading&&!projects.length?<SkeletonGrid/>:projects.length?<div className="project-grid">{projects.map(p=><ProjectCard key={p.project_id} p={p} t={t} type={type} installed={installed(p.project_id)} onOpen={()=>onOpen(p)} onInstall={()=>onInstall(p)}/>)}</div>:<div className="notice-empty"><Search size={25}/><h3>{t('noResults')}</h3><p>{t('noResultsSub')}</p></div>}<div className="pagination"><button disabled={offset===0||loading} onClick={()=>{const next=Math.max(0,offset-12);setOffset(next);load(true)}}><ChevronLeft size={15}/>{t('previous')}</button><span>{t('page')} {Math.floor(offset/12)+1}</span><button disabled={offset+12>=total||loading} onClick={()=>{const next=offset+12;setOffset(next);load(true)}}>{t('next')}<ChevronRight size={15}/></button></div></>}</section>}
-function FilterPopover({t,filters,setFilters,type}:{t:T;filters:{loader:string;game:string;category:string;environment:string};setFilters:(x:{loader:string;game:string;category:string;environment:string})=>void;type:ContentType}){const update=(key:keyof typeof filters,value:string)=>setFilters({...filters,[key]:value});return <div className="popover filter-popover"><div className="filter-head"><b>{t('filters')}</b><button onClick={()=>setFilters({loader:'',game:'',category:'',environment:''})}>{t('reset')}</button></div><label>{t('gameVersion')}<select value={filters.game} onChange={e=>update('game',e.target.value)}><option value="">{t('any')}</option>{['1.21.1','1.21','1.20.1','1.20','1.19.2','1.16.5'].map(x=><option key={x}>{x}</option>)}</select></label>{type!=='resourcepack'&&type!=='shader'&&<label>{t('loader')}<select value={filters.loader} onChange={e=>update('loader',e.target.value)}><option value="">{t('any')}</option>{['fabric','forge','neoforge','quilt'].map(x=><option key={x}>{x[0].toUpperCase()+x.slice(1)}</option>)}</select></label>}<label>{t('category')}<select value={filters.category} onChange={e=>update('category',e.target.value)}><option value="">{t('any')}</option>{Object.entries(categories).slice(0,10).map(([value,key])=><option value={value} key={value}>{t(key)}</option>)}</select></label>{type==='mod'&&<label>{t('environment')}<select value={filters.environment} onChange={e=>update('environment',e.target.value)}><option value="">{t('any')}</option><option value="client">{t('client')}</option><option value="server">{t('serverSide')}</option></select></label>}</div>}
-function ProjectCard({p,t,type,installed,onOpen,onInstall}:{p:Project;t:T;type:ContentType;installed:boolean;onOpen:()=>void;onInstall:()=>void}){const visual=type==='modpack'&&Boolean(artwork(p));return <article className={'project-card '+(visual?'art-card':'icon-card')}><button className="card-visual" onClick={onOpen}>{visual&&<div className="card-bg" style={{backgroundImage:`url(${artwork(p)})`}}/>}<div className="card-icon-wrap"><img src={p.icon_url||'/branding/canary-bird-white.png'} loading="lazy" draggable={false}/></div><span className="card-provider">MODRINTH</span></button><div className="card-body"><div className="card-kind">{type==='modpack'?t('modpack').toUpperCase():t(type).toUpperCase()}</div><button className="card-title" onClick={onOpen}>{p.title}</button><p>{p.description||t('noDescription')}</p><div className="chips"><span>{p.versions?.[0]||'Minecraft'}</span>{p.categories?.slice(0,2).map(c=><span key={c}>{categories[c]?t(categories[c]):c}</span>)}</div><div className="card-foot"><span className="downloads"><Download size={13}/>{Intl.NumberFormat().format(p.downloads||0)}</span><button className="compact-action" onClick={onOpen}>{t('view')}<SquareArrowOutUpRight size={13}/></button>{type==='modpack'&&<button className={installed?'compact-action installed':'compact-action'} onClick={onInstall}>{installed?t('installed'):t('install')} {!installed&&<Plus size={13}/>}</button>}</div></div></article>}
-function SkeletonGrid(){return <div className="project-grid">{Array.from({length:6}).map((_,i)=><div className="skeleton-card" key={i}><div/><span/><span/><small/></div>)}</div>}
-function LibraryPage({t,lib,query,setQuery,onOpen,onDiscover}:{t:T;lib:Project[];query:string;setQuery:(x:string)=>void;onOpen:(p:Project)=>void;onDiscover:()=>void}){const shown=lib.filter(p=>p.title.toLowerCase().includes(query.toLowerCase()));return <section className="library-page"><div className="library-intro"><div><div className="overline">CANARY / {t('library').toUpperCase()}</div><h2>{t('emptyLibrary').replace(/\.$/,'')}</h2><p>{lib.length?`${lib.length} ${t('installedCount').toLowerCase()}`:t('emptyLibrarySub')}</p></div><button className="primary-button" onClick={onDiscover}><Compass size={17}/>{t('browse')}</button></div>{lib.length>0&&<div className="library-toolbar"><div className="search-field"><Search size={17}/><input value={query} onChange={e=>setQuery(e.target.value)} placeholder={t('searchLibrary')}/></div><div className="library-tabs"><button className="selected">{t('allInstances')}</button><button>{t('favorites')}</button></div></div>}{shown.length?<div className="project-grid library-grid">{shown.map(p=><ProjectCard key={p.project_id} p={p} t={t} type="modpack" installed onOpen={()=>onOpen(p)} onInstall={()=>undefined}/>)}</div>:<div className="library-empty"><LibraryIcon size={34}/><h3>{t('emptyLibrary')}</h3><p>{t('emptyLibrarySub')}</p><button className="primary-button" onClick={onDiscover}>{t('browse')}</button></div>}</section>}
-function DetailPage({detail,versions,selected,setSelected,onBack,onInstall,installed,t}:{detail:Detail;versions:Version[];selected:string;setSelected:(x:string)=>void;onBack:()=>void;onInstall:()=>void;installed:boolean;t:T}){const gallery=detail.gallery?.filter(x=>x.url).slice(0,4)||[];return <section className="detail-page"><button className="back-button" onClick={onBack}><ChevronLeft size={17}/>{t('back')}</button><div className="detail-hero"><div className="detail-visual">{detail.icon_url&&<img src={detail.icon_url} draggable={false}/>}</div><div className="detail-heading"><div className="overline">MODRINTH / {detail.project_type.toUpperCase()}</div><h2>{detail.title}</h2><p>{detail.description}</p><div className="detail-meta"><span><Download size={14}/>{Intl.NumberFormat().format(detail.downloads)}</span><span><Heart size={14}/>{Intl.NumberFormat().format(detail.followers)}</span><span>{detail.loaders?.[0]||'Minecraft'}</span></div><div className="detail-actions">{installed?<button className="primary-button" onClick={onBack}><LibraryIcon size={16}/>{t('openLibrary')}</button>:<><select value={selected} onChange={e=>setSelected(e.target.value)}><option value="">{t('selection')}</option>{versions.map(v=><option value={v.id} key={v.id}>{v.version_number} · {v.loaders.join(', ')}</option>)}</select><button className="primary-button" onClick={onInstall} disabled={!versions.length}><Download size={16}/>{t('install')}</button></>}</div></div></div><div className="detail-tabs"><span className="selected">{t('description')}</span><span>{t('versions')} · {versions.length}</span><span>{t('gallery')} · {gallery.length}</span></div><div className="detail-content"><div><h3>{t('description')}</h3><p className="detail-body">{detail.body||t('noDescription')}</p>{gallery.length>0&&<div className="gallery-strip">{gallery.map(g=><img src={g.url} key={g.url} loading="lazy" draggable={false}/>)}</div>}</div><aside className="detail-side"><b>{t('lastUpdated')}</b><span>{new Date(detail.updated).toLocaleDateString()}</span><b>{t('gameVersion')}</b><span>{detail.game_versions?.slice(0,5).join(' · ')||t('any')}</span><b>{t('category')}</b><span>{detail.categories?.map(c=>categories[c]?t(categories[c]):c).join(' · ')||t('any')}</span>{detail.source_url&&<a href={detail.source_url}><ExternalLink size={13}/>{t('source')}</a>}</aside></div></section>}
-function DownloadsPage({t,progress,error}:{t:T;progress:Progress|null;error:{message:string;details?:string}|null}){return <section className="downloads-page"><div className="overline">CANARY / {t('downloads').toUpperCase()}</div><h2>{progress?t('installation'):t('noDownloads')}</h2><p>{progress?t('loadingSub'):t('noDownloadsSub')}</p>{progress?<div className="download-panel"><div className="download-stage"><Download size={19}/><div><b>{progress.stage}</b><span>{progress.file||t('manifest')}</span></div><strong>{Math.round(progress.percent)}%</strong></div><div className="progress"><i style={{width:`${progress.percent}%`}}/></div><small>{progress.completed} / {progress.total} {t('files')} · {progress.downloaded?`${(progress.downloaded/1024/1024).toFixed(1)} MB ${t('bytes').toLowerCase()}`:''}</small></div>:<div className="empty-surface"><Download size={30}/></div>}{error&&<div className="inline-error"><b>{t('installError')}</b><span>{error.message}</span></div>}</section>}
-function EmptyPage({icon:Icon,title,text,t,onAction}:{icon:typeof Image;title:string;text:string;t:T;onAction?:()=>void}){return <section className="empty-page"><div className="empty-surface"><Icon size={30}/><h2>{title}</h2><p>{text}</p>{onAction&&<button className="primary-button" onClick={onAction}><SettingsIcon size={16}/>{t('appearance')}</button>}</div></section>}
-function SettingsModal({t,tab,setTab,onClose,lang,setLang,mode,setMode,accent,setAccent,compact,setCompact,reduceMotion,setReduceMotion}:{t:T;tab:string;setTab:(x:any)=>void;onClose:()=>void;lang:'en'|'ru';setLang:(x:'en'|'ru')=>void;mode:Mode;setMode:(x:Mode)=>void;accent:Accent;setAccent:(x:Accent)=>void;compact:boolean;setCompact:(x:boolean)=>void;reduceMotion:boolean;setReduceMotion:(x:boolean)=>void}){const sections:[string,Key,typeof Palette][]=[['appearance','appearance',Palette],['language','language',SlidersHorizontal],['accountSettings','accountSettings',UserRound],['canary','canary',Download],['advanced','advanced',SettingsIcon],['about','about',Info]];return <div className="modal-backdrop" onMouseDown={e=>{if(e.target===e.currentTarget)onClose()}}><div className="settings-modal" role="dialog" aria-modal="true"><div className="settings-top"><div><div className="overline">CANARY</div><h2>{t('settings')}</h2></div><button onClick={onClose} title={t('close')}><X size={19}/></button></div><div className="settings-layout"><nav className="settings-nav">{sections.map(([id,key,I])=><button key={id} className={tab===id?'active':''} onClick={()=>setTab(id)}><I size={17}/>{t(key)}</button>)}</nav><div className="settings-content">{tab==='appearance'&&<Appearance t={t} mode={mode} setMode={setMode} accent={accent} setAccent={setAccent} compact={compact} setCompact={setCompact} reduceMotion={reduceMotion} setReduceMotion={setReduceMotion}/>} {tab==='language'&&<LanguageSettings t={t} lang={lang} setLang={setLang}/>} {tab==='accountSettings'&&<SettingsInfo t={t} icon={UserRound} title={t('accountTitle')} text={t('accountSub')}/>} {tab==='canary'&&<SettingsInfo t={t} icon={Download} title={t('downloads')} text={t('noDownloadsSub')}/>} {tab==='advanced'&&<SettingsInfo t={t} icon={SettingsIcon} title={t('advanced')} text={t('advancedSub')}/>} {tab==='about'&&<SettingsInfo t={t} icon={Info} title="Canary" text={`${t('aboutSub')} ${t('version')} 0.1.0 · ${t('provider')}: Modrinth`}/>}</div></div></div></div>}
-function Appearance({t,mode,setMode,accent,setAccent,compact,setCompact,reduceMotion,setReduceMotion}:{t:T;mode:Mode;setMode:(x:Mode)=>void;accent:Accent;setAccent:(x:Accent)=>void;compact:boolean;setCompact:(x:boolean)=>void;reduceMotion:boolean;setReduceMotion:(x:boolean)=>void}){const modeIcon={dark:Moon,light:Sun,amoled:Moon,system:Monitor};const accentKeys:Accent[]=['monochrome','white','gray','mint','emerald','aqua','blue','purple','rose','orange'];return <div className="appearance-settings"><div className="setting-intro"><div className="overline">DISPLAY / {t('appearance').toUpperCase()}</div><h3>{t('appearance')}</h3><p>{t('appearanceSub')}</p></div><h4>{t('mode')}</h4><div className="mode-grid">{modes.map(m=>{const I=modeIcon[m];return <button className={mode===m?'selected':''} onClick={()=>setMode(m)} key={m}><I size={18}/><span>{t(m)}</span></button>})}</div><h4>{t('accent')}</h4><div className="accent-grid">{accentKeys.map(a=><button className={accent===a?'selected':''} onClick={()=>setAccent(a)} key={a}><i style={{background:accentColors[a]}}/><span>{t(a)}</span></button>)}</div><div className="toggle-setting"><div><b>{t('compact')}</b><span>{t('compactSub')}</span></div><button className={compact?'toggle on':'toggle'} onClick={()=>setCompact(!compact)}><i/></button></div><div className="toggle-setting"><div><b>{t('reduceMotion')}</b><span>{t('reduceMotionSub')}</span></div><button className={reduceMotion?'toggle on':'toggle'} onClick={()=>setReduceMotion(!reduceMotion)}><i/></button></div><p className="settings-note">{t('storedLocally')}</p></div>}
-function LanguageSettings({t,lang,setLang}:{t:T;lang:'en'|'ru';setLang:(x:'en'|'ru')=>void}){return <div className="language-settings"><div className="setting-intro"><div className="overline">DISPLAY / {t('language').toUpperCase()}</div><h3>{t('language')}</h3><p>{t('languageSub')}</p></div><div className="language-cards"><button className={lang==='ru'?'selected':''} onClick={()=>setLang('ru')}><span>А</span><div><b>Русский</b><small>Русский интерфейс</small></div></button><button className={lang==='en'?'selected':''} onClick={()=>setLang('en')}><span>A</span><div><b>English</b><small>English interface</small></div></button></div></div>}
-function SettingsInfo({t,icon:Icon,title,text}:{t:T;icon:typeof UserRound;title:string;text:string}){return <div className="settings-info"><Icon size={28}/><div className="setting-intro"><div className="overline">CANARY</div><h3>{title}</h3><p>{text}</p></div><span className="planned-badge">{t('planned')}</span></div>}
+type Page =
+  | "Home"
+  | "Discover"
+  | "Library"
+  | "Downloads"
+  | "Screenshots"
+  | "Activity"
+  | "Settings";
+type Mode = "dark" | "light" | "amoled" | "system";
+type Accent =
+  | "monochrome"
+  | "white"
+  | "gray"
+  | "mint"
+  | "emerald"
+  | "aqua"
+  | "blue"
+  | "purple"
+  | "rose"
+  | "orange";
+const nav: Record<Page, typeof House> = {
+  Home: House,
+  Discover: Compass,
+  Library: LibraryIcon,
+  Downloads: Download,
+  Screenshots: Image,
+  Activity,
+  Settings: SettingsIcon,
+};
+const types: { id: ContentType; icon: typeof Boxes; key: Key }[] = [
+  { id: "modpack", icon: Boxes, key: "modpack" },
+  { id: "mod", icon: Puzzle, key: "mod" },
+  { id: "resourcepack", icon: Layers3, key: "resourcepack" },
+  { id: "datapack", icon: Package, key: "datapack" },
+  { id: "shader", icon: GalleryHorizontalEnd, key: "shader" },
+  { id: "server", icon: Server, key: "server" },
+];
+const accentColors: Record<Accent, string> = {
+  monochrome: "#e9efec",
+  white: "#ffffff",
+  gray: "#aeb9b5",
+  mint: "#72d6ac",
+  emerald: "#47c98b",
+  aqua: "#61cfe0",
+  blue: "#83a8ed",
+  purple: "#b29aed",
+  rose: "#ed9bad",
+  orange: "#e8ae79",
+};
+const modes: Mode[] = ["dark", "light", "amoled", "system"];
+function getInitialLanguage() {
+  const saved = localStorage.getItem("canary-language");
+  if (saved === "ru" || saved === "en") return saved;
+  return navigator.language.toLowerCase().startsWith("ru") ? "ru" : "en";
+}
+function App() {
+  const [lang, setLang] = useState<"en" | "ru">(getInitialLanguage);
+  const dict = lang === "ru" ? ru : en;
+  const t = useCallback<T>((key) => dict[key] ?? en[key], [dict]);
+  const [page, setPage] = useState<Page>("Home");
+  const discovery = useDiscovery();
+  const [community, setCommunity] = useState<Project[]>([]);
+  const [communityError, setCommunityError] = useState(false);
+  const [libraryQuery, setLibraryQuery] = useState("");
+  const [filterOpen, setFilterOpen] = useState(false);
+  const [lib, setLib] = useState<Project[]>(() =>
+    readStored("canary-library", []),
+  );
+  const [progress, setProgress] = useState<Progress | null>(null);
+  const [busy, setBusy] = useState(false);
+  const progressRef = useRef<Progress | null>(null);
+  const installing = useRef(false);
+  const [error, setError] = useState<{
+    message: string;
+    details?: string;
+    retry?: () => void;
+    title?: string;
+  } | null>(null);
+  const [success, setSuccess] = useState(false);
+  const [detail, setDetail] = useState<Detail | null>(null);
+  const [versions, setVersions] = useState<Version[]>([]);
+  const [selectedVersion, setSelectedVersion] = useState("");
+  const [detailLoading, setDetailLoading] = useState(false);
+  const detailAbort = useRef<AbortController | null>(null);
+  const [settingsOpen, setSettingsOpen] = useState(false);
+  const [settingsTab, setSettingsTab] = useState("appearance");
+  const [accountOpen, setAccountOpen] = useState(false);
+  const [mode, setMode] = useState<Mode>(
+    () => (localStorage.getItem("canary-mode") as Mode) || "dark",
+  );
+  const [accent, setAccent] = useState<Accent>(
+    () => (localStorage.getItem("canary-accent") as Accent) || "monochrome",
+  );
+  const [compact, setCompact] = useState(
+    () => localStorage.getItem("canary-compact") === "true",
+  );
+  const [reduceMotion, setReduceMotion] = useState(
+    () => localStorage.getItem("canary-motion") === "reduced",
+  );
+  const [systemLight, setSystemLight] = useState(
+    () => matchMedia("(prefers-color-scheme: light)").matches,
+  );
+  const [narrow, setNarrow] = useState(
+    () => matchMedia("(max-width: 900px)").matches,
+  );
+  const [preset, setPreset] = useState(
+    () => localStorage.getItem("canary-preset") || "graphite",
+  );
+  const resolvedMode =
+    mode === "system" ? (systemLight ? "light" : "dark") : mode;
+  const sidebarOpen = !compact && !narrow;
+  const accountRef = useRef<HTMLDivElement>(null);
+  const filterRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    const light = matchMedia("(prefers-color-scheme: light)");
+    const small = matchMedia("(max-width: 900px)");
+    const updateLight = () => setSystemLight(light.matches);
+    const updateSmall = () => setNarrow(small.matches);
+    light.addEventListener("change", updateLight);
+    small.addEventListener("change", updateSmall);
+    return () => {
+      light.removeEventListener("change", updateLight);
+      small.removeEventListener("change", updateSmall);
+    };
+  }, []);
+  useEffect(() => {
+    document.documentElement.dataset.mode = resolvedMode;
+    document.documentElement.dataset.accent = accent;
+    document.documentElement.dataset.preset = preset;
+    document.documentElement.dataset.motion = reduceMotion ? "reduced" : "full";
+    document.documentElement.lang = lang;
+    localStorage.setItem("canary-language", lang);
+    localStorage.setItem("canary-mode", mode);
+    localStorage.setItem("canary-accent", accent);
+    localStorage.setItem("canary-preset", preset);
+    localStorage.setItem("canary-compact", String(compact));
+    localStorage.setItem("canary-motion", reduceMotion ? "reduced" : "full");
+  }, [mode, resolvedMode, accent, preset, compact, reduceMotion, lang]);
+  useEffect(() => {
+    const controller = new AbortController();
+    searchProjects(
+      "modpack",
+      "",
+      "downloads",
+      0,
+      { loader: "", game: "", category: "", environment: "" },
+      controller.signal,
+    )
+      .then((data) => setCommunity(data.hits.slice(0, 3)))
+      .catch(() => {
+        if (!controller.signal.aborted) setCommunityError(true);
+      });
+    return () => controller.abort();
+  }, []);
+  useEffect(() => {
+    if (!isTauri()) return;
+    let disposed = false;
+    let unsubscribe: (() => void) | undefined;
+    listen<Progress>("install-progress", (event) => {
+      if (installing.current) {
+        progressRef.current = event.payload;
+        setProgress(event.payload);
+      }
+    })
+      .then((fn) => {
+        if (disposed) fn();
+        else unsubscribe = fn;
+      })
+      .catch((e) =>
+        setError({ message: t("networkError"), details: String(e) }),
+      );
+    return () => {
+      disposed = true;
+      unsubscribe?.();
+    };
+  }, [t]);
+  useEffect(() => {
+    const close = (e: MouseEvent) => {
+      if (!accountRef.current?.contains(e.target as Node))
+        setAccountOpen(false);
+      if (!filterRef.current?.contains(e.target as Node)) setFilterOpen(false);
+    };
+    const esc = (e: KeyboardEvent) => {
+      if (e.key !== "Escape") return;
+      if (settingsOpen) setSettingsOpen(false);
+      else if (accountOpen) setAccountOpen(false);
+      else if (filterOpen) setFilterOpen(false);
+      else if (error) setError(null);
+      else if (detail) setDetail(null);
+    };
+    document.addEventListener("mousedown", close);
+    document.addEventListener("keydown", esc);
+    return () => {
+      document.removeEventListener("mousedown", close);
+      document.removeEventListener("keydown", esc);
+    };
+  }, [settingsOpen, accountOpen, filterOpen, error, detail]);
+  useEffect(() => {
+    if (!success) return;
+    const timer = setTimeout(() => setSuccess(false), 6000);
+    return () => clearTimeout(timer);
+  }, [success]);
+  useEffect(() => () => detailAbort.current?.abort(), []);
+  useEffect(() => {
+    document.querySelector(".content-shell")?.scrollTo({ top: 0 });
+  }, [page, detail?.id]);
+
+  async function openProject(p: Project) {
+    detailAbort.current?.abort();
+    const controller = new AbortController();
+    detailAbort.current = controller;
+    setDetailLoading(true);
+    setVersions([]);
+    setSelectedVersion("");
+    try {
+      const [d, v] = await Promise.all([
+        api<Detail>(`project/${p.project_id}`, controller.signal),
+        api<Version[]>(`project/${p.project_id}/version`, controller.signal),
+      ]);
+      if (!controller.signal.aborted) {
+        setDetail(d);
+        setVersions(v);
+        setSelectedVersion(
+          (d.project_type === "modpack"
+            ? v.find((version) =>
+                version.files.some((file) => file.filename.endsWith(".mrpack")),
+              )
+            : v[0]
+          )?.id || "",
+        );
+      }
+    } catch (e) {
+      if (!controller.signal.aborted)
+        setError({
+          message: t("networkError"),
+          details: String(e),
+          retry: () => void openProject(p),
+        });
+    } finally {
+      if (!controller.signal.aborted) setDetailLoading(false);
+    }
+  }
+  async function install(p: Project, versionId?: string) {
+    if (installing.current || lib.some((x) => x.project_id === p.project_id))
+      return;
+    if (!isTauri()) {
+      setError({ title: t("installError"), message: t("nativeRequired") });
+      return;
+    }
+    installing.current = true;
+    setBusy(true);
+    setError(null);
+    setSuccess(false);
+    const base: Progress = {
+      stage: "fetch_version",
+      status: "running",
+      file: "",
+      completed: 0,
+      total: 0,
+      downloaded: 0,
+      bytes_total: 0,
+      percent: 0,
+    };
+    progressRef.current = base;
+    setProgress(base);
+    let stage = "fetch_version";
+    let current = base;
+    try {
+      // Never reuse versions from a different open project.
+      const list = await api<Version[]>(`project/${p.project_id}/version`);
+      const version = versionId
+        ? list.find((v) => v.id === versionId)
+        : list.find((v) => v.files.some((f) => f.filename.endsWith(".mrpack")));
+      if (!version) throw Error("No compatible Modrinth .mrpack version");
+      const instancePath = await invoke<string>("install_modpack", {
+        projectId: p.project_id,
+        versionId: version.id,
+        name: p.title,
+      });
+      stage = "add_to_library";
+      current = { ...(progressRef.current || base), stage, percent: 99 };
+      setProgress(current);
+      console.info("[install][add_to_library] starting", p.project_id);
+      const next = [
+        ...lib.filter((x) => x.project_id !== p.project_id),
+        {
+          ...p,
+          instance_path: instancePath,
+          version_id: version.id,
+          version_name: version.version_number,
+          installed_at: new Date().toISOString(),
+        },
+      ];
+      // A failed storage write must not report a successful library insertion.
+      localStorage.setItem("canary-library", JSON.stringify(next));
+      setLib(next);
+      console.info("[install][add_to_library] success", instancePath);
+      setProgress({
+        ...current,
+        stage: "finalize",
+        status: "success",
+        percent: 100,
+      });
+      console.info("[install][finalize] success");
+      setSuccess(true);
+      setDetail(null);
+      setPage("Library");
+    } catch (e) {
+      console.error(
+        `[install][${typeof e === "object" && e && "stage" in e ? e.stage : stage}] failure`,
+        e,
+      );
+      setProgress((prev) =>
+        prev
+          ? { ...prev, status: "failure" }
+          : { ...current, status: "failure" },
+      );
+      setError({
+        title: t("installError"),
+        message: t("installErrorSub"),
+        details: diagnostics(e, stage),
+        retry: () => void install(p, versionId),
+      });
+    } finally {
+      installing.current = false;
+      setBusy(false);
+    }
+  }
+  const isInstalled = (id: string) => lib.some((x) => x.project_id === id);
+  const navigation = (next: Page) => {
+    if (next === "Settings") {
+      setSettingsOpen(true);
+      setSettingsTab("appearance");
+    } else {
+      detailAbort.current?.abort();
+      setDetailLoading(false);
+      setDetail(null);
+      setPage(next);
+    }
+    setAccountOpen(false);
+    setFilterOpen(false);
+  };
+  const activeNav = settingsOpen ? "Settings" : page;
+  return (
+    <MotionConfig
+      reducedMotion={reduceMotion ? "always" : "user"}
+      transition={{ duration: 0.2, ease: [0.2, 0.8, 0.2, 1] }}
+    >
+      <div className={"canary-app" + (busy ? " is-installing" : "")}>
+        <aside className={sidebarOpen ? "sidebar" : "sidebar compact"}>
+          <div className="sidebar-art" aria-hidden="true" />
+          <div className="brand">
+            <img
+              src={
+                resolvedMode === "light"
+                  ? "/branding/canary-bird-black.png"
+                  : "/branding/canary-bird-white.png"
+              }
+              alt=""
+              draggable={false}
+            />
+            <span>Canary</span>
+          </div>
+          <nav aria-label={t("navigation")}>
+            {(Object.keys(nav) as Page[]).map((id) => {
+              const Icon = nav[id];
+              return (
+                <button
+                  key={id}
+                  aria-label={t(id.toLowerCase() as Key)}
+                  aria-current={activeNav === id ? "page" : undefined}
+                  title={t(id.toLowerCase() as Key)}
+                  className={activeNav === id ? "active" : ""}
+                  onClick={() => navigation(id)}
+                >
+                  {activeNav === id && (
+                    <motion.span
+                      className="nav-capsule"
+                      layoutId="sidebar-active"
+                    />
+                  )}
+                  <Icon size={19} />
+                  <span className="nav-label">
+                    {t(id.toLowerCase() as Key)}
+                  </span>
+                </button>
+              );
+            })}
+          </nav>
+          <div className="sidebar-bottom">
+            <button
+              onClick={() => setCompact(!compact)}
+              aria-label={compact ? t("expand") : t("collapse")}
+              title={compact ? t("expand") : t("collapse")}
+            >
+              <PanelLeftClose size={18} />
+              <span className="nav-label">{t("collapse")}</span>
+            </button>
+            <button
+              onClick={() => {
+                setSettingsTab("language");
+                setSettingsOpen(true);
+              }}
+              title={t("language")}
+            >
+              <span className="language-code">{lang.toUpperCase()}</span>
+              <span className="nav-label">{t("language")}</span>
+            </button>
+          </div>
+        </aside>
+        <main className="content-shell">
+          <header className="topbar">
+            <div className="topbar-heading">
+              <div className="breadcrumb">
+                CANARY <span>/</span>{" "}
+                {detail ? t("view") : t(page.toLowerCase() as Key)}
+              </div>
+              <h1>
+                {detail
+                  ? detail.title
+                  : page === "Home"
+                    ? t("welcome")
+                    : t(page.toLowerCase() as Key)}
+              </h1>
+              {page === "Home" && !detail && (
+                <p className="topbar-sub">{t("sub")}</p>
+              )}
+            </div>
+            <div className="account-wrap" ref={accountRef}>
+              <button
+                className="account-button"
+                onClick={() => setAccountOpen(!accountOpen)}
+                aria-expanded={accountOpen}
+                aria-label={t("account")}
+              >
+                <div className="account-avatar">
+                  <UserRound size={16} />
+                </div>
+                <div className="account-label">
+                  <small>{t("account")}</small>
+                  <b>{t("noAccount")}</b>
+                </div>
+                <ChevronDown
+                  className={accountOpen ? "rotated" : ""}
+                  size={16}
+                />
+              </button>
+              <AnimatePresence>
+                {accountOpen && (
+                  <AccountPopover t={t} onClose={() => setAccountOpen(false)} />
+                )}
+              </AnimatePresence>
+            </div>
+          </header>
+          {busy && progress && (
+            <button
+              className="install-strip"
+              onClick={() => navigation("Downloads")}
+            >
+              <Download size={16} />
+              <span>{t("installing")}</span>
+              <div className="progress">
+                <i style={{ width: `${progress.percent}%` }} />
+              </div>
+              <b>{Math.round(progress.percent)}%</b>
+            </button>
+          )}
+          {detailLoading && (
+            <div className="loading-detail" role="status">
+              {t("loading")}
+            </div>
+          )}
+          <AnimatePresence mode="wait" initial={false}>
+            <motion.div
+              className="page-transition"
+              key={detail ? `project-${detail.id}` : page}
+              initial={{ opacity: 0, y: 8 }}
+              animate={{ opacity: 1, y: 0 }}
+              exit={{ opacity: 0, y: -6 }}
+            >
+              {detail ? (
+                <DetailPage
+                  detail={detail}
+                  versions={versions}
+                  selected={selectedVersion}
+                  setSelected={setSelectedVersion}
+                  onBack={() => setDetail(null)}
+                  onLibrary={() => navigation("Library")}
+                  onInstall={() =>
+                    install(
+                      {
+                        project_id: detail.id,
+                        title: detail.title,
+                        description: detail.description,
+                        icon_url: detail.icon_url,
+                        downloads: detail.downloads,
+                      },
+                      selectedVersion,
+                    )
+                  }
+                  installed={isInstalled(detail.id)}
+                  busy={busy}
+                  t={t}
+                />
+              ) : page === "Home" ? (
+                <HomePage
+                  t={t}
+                  lib={lib}
+                  projects={community}
+                  communityError={communityError}
+                  onDiscover={() => navigation("Discover")}
+                  onOpen={openProject}
+                  onInstall={install}
+                  installed={isInstalled}
+                  busy={busy}
+                />
+              ) : page === "Discover" ? (
+                <DiscoverPage
+                  t={t}
+                  {...discovery}
+                  filterOpen={filterOpen}
+                  setFilterOpen={setFilterOpen}
+                  filterRef={filterRef}
+                  onOpen={openProject}
+                  onInstall={install}
+                  installed={isInstalled}
+                  busy={busy}
+                />
+              ) : page === "Library" ? (
+                <LibraryPage
+                  t={t}
+                  lib={lib}
+                  query={libraryQuery}
+                  setQuery={setLibraryQuery}
+                  onOpen={openProject}
+                  onDiscover={() => navigation("Discover")}
+                />
+              ) : page === "Downloads" ? (
+                <DownloadsPage t={t} progress={progress} error={error} />
+              ) : page === "Screenshots" ? (
+                <EmptyPage
+                  icon={Image}
+                  title={t("screenshots")}
+                  text={t("noScreensSub")}
+                  t={t}
+                />
+              ) : (
+                <EmptyPage
+                  icon={Activity}
+                  title={t("noActivity")}
+                  text={t("noActivitySub")}
+                  t={t}
+                />
+              )}
+            </motion.div>
+          </AnimatePresence>
+        </main>
+        <AnimatePresence>
+          {settingsOpen && (
+            <SettingsModal
+              t={t}
+              tab={settingsTab}
+              setTab={setSettingsTab}
+              onClose={() => setSettingsOpen(false)}
+              lang={lang}
+              setLang={setLang}
+              mode={mode}
+              setMode={setMode}
+              accent={accent}
+              setAccent={setAccent}
+              compact={compact}
+              setCompact={setCompact}
+              reduceMotion={reduceMotion}
+              setReduceMotion={setReduceMotion}
+              preset={preset}
+              setPreset={setPreset}
+            />
+          )}
+        </AnimatePresence>
+        <AnimatePresence>
+          {error && (
+            <ErrorToast
+              key="error"
+              error={error}
+              t={t}
+              onClose={() => setError(null)}
+            />
+          )}
+        </AnimatePresence>
+        <AnimatePresence>
+          {success && (
+            <motion.div
+              className="toast success-toast"
+              role="status"
+              initial={{ opacity: 0, y: 12, scale: 0.98 }}
+              animate={{ opacity: 1, y: 0, scale: 1 }}
+              exit={{ opacity: 0, y: 8 }}
+            >
+              <LibraryIcon size={18} />
+              <span>{t("success")}</span>
+              <button aria-label={t("close")} onClick={() => setSuccess(false)}>
+                <X size={16} />
+              </button>
+            </motion.div>
+          )}
+        </AnimatePresence>
+      </div>
+    </MotionConfig>
+  );
+}
+function AccountPopover({ t, onClose }: { t: T; onClose: () => void }) {
+  return (
+    <motion.div
+      className="popover account-popover"
+      role="dialog"
+      aria-label={t("account")}
+      initial={{ opacity: 0, y: -6, scale: 0.98 }}
+      animate={{ opacity: 1, y: 0, scale: 1 }}
+      exit={{ opacity: 0, y: -4, scale: 0.98 }}
+    >
+      <div className="popover-title">
+        <span>{t("account")}</span>
+        <span className="status-dot" />
+      </div>
+      <div className="account-empty">
+        <div className="big-avatar">
+          <UserRound size={21} />
+        </div>
+        <b>{t("noAccount")}</b>
+        <p>{t("accountSub")}</p>
+      </div>
+      <button className="popover-action" onClick={onClose}>
+        <Plus size={17} />
+        {t("addAccount")}
+        <span className="planned">{t("planned")}</span>
+      </button>
+    </motion.div>
+  );
+}
+function HomePage({
+  t,
+  lib,
+  projects,
+  communityError,
+  onDiscover,
+  onOpen,
+  onInstall,
+  installed,
+  busy,
+}: {
+  t: T;
+  lib: Project[];
+  projects: Project[];
+  communityError: boolean;
+  onDiscover: () => void;
+  onOpen: (p: Project) => void;
+  onInstall: (p: Project) => void;
+  installed: (id: string) => boolean;
+  busy: boolean;
+}) {
+  return (
+    <section className="home-page">
+      <div className="home-hero">
+        <div className="hero-art" aria-hidden="true" />
+        <div className="hero-content">
+          <div className="overline">CANARY / {t("home").toUpperCase()}</div>
+          <h2>{t("discoverTitle")}</h2>
+          <p>{t("discoverSub")}</p>
+          <button className="primary-button" onClick={onDiscover}>
+            <Compass size={17} />
+            {t("browse")}
+          </button>
+          <div className="hero-caption">
+            <span className="status-dot" />
+            {t("heroCaption")}
+          </div>
+        </div>
+      </div>
+      <div className="home-section-head">
+        <div>
+          <h3>{t("continue")}</h3>
+          <p>{lib.length ? t("noPlay") : t("emptyContinue")}</p>
+        </div>
+      </div>
+      {lib.length ? (
+        <div className="home-row">
+          {lib.slice(0, 3).map((p) => (
+            <MiniCard key={p.project_id} p={p} t={t} onOpen={onOpen} />
+          ))}
+        </div>
+      ) : (
+        <div className="home-empty">
+          <div className="empty-emblem">
+            <LibraryIcon size={22} />
+          </div>
+          <div>
+            <b>{t("emptyContinue")}</b>
+            <p>{t("emptyLibrarySub")}</p>
+          </div>
+          <button className="quiet-button" onClick={onDiscover}>
+            {t("discover")}
+            <ChevronRight size={15} />
+          </button>
+        </div>
+      )}
+      <div className="home-section-head">
+        <div>
+          <h3>{t("trending")}</h3>
+          <p>{t("communitySub")}</p>
+        </div>
+        <button className="quiet-button" onClick={onDiscover}>
+          {t("showAll")}
+          <ChevronRight size={15} />
+        </button>
+      </div>
+      {projects.length ? (
+        <div className="home-community">
+          {projects.map((p) => (
+            <ProjectCard
+              key={p.project_id}
+              p={p}
+              t={t}
+              type="modpack"
+              installed={installed(p.project_id)}
+              busy={busy}
+              onOpen={() => onOpen(p)}
+              onInstall={() => onInstall(p)}
+            />
+          ))}
+        </div>
+      ) : (
+        <div className="home-empty" role="status">
+          <Compass size={20} />
+          <span>{t(communityError ? "networkError" : "loadingSub")}</span>
+        </div>
+      )}
+    </section>
+  );
+}
+function MiniCard({
+  p,
+  t,
+  onOpen,
+}: {
+  p: Project;
+  t: T;
+  onOpen: (p: Project) => void;
+}) {
+  return (
+    <button className="mini-card" onClick={() => onOpen(p)}>
+      <RemoteImage src={p.icon_url} className="mini-art" />
+      <div>
+        <b>{p.title}</b>
+        <small>
+          {t("installed")} · {p.version_name}
+        </small>
+      </div>
+      <ChevronRight size={15} />
+    </button>
+  );
+}
+function DiscoverPage({
+  t,
+  type,
+  setType,
+  projects,
+  loading,
+  error,
+  retry,
+  query,
+  setQuery,
+  filters,
+  setFilters,
+  filterOpen,
+  setFilterOpen,
+  filterRef,
+  sort,
+  setSort,
+  total,
+  page,
+  setPage,
+  onOpen,
+  onInstall,
+  installed,
+  busy,
+}: {
+  t: T;
+  type: ContentType;
+  setType: (x: ContentType) => void;
+  projects: Project[];
+  loading: boolean;
+  error: string | null;
+  retry: () => void;
+  query: string;
+  setQuery: (x: string) => void;
+  filters: {
+    loader: string;
+    game: string;
+    category: string;
+    environment: string;
+  };
+  setFilters: (x: {
+    loader: string;
+    game: string;
+    category: string;
+    environment: string;
+  }) => void;
+  filterOpen: boolean;
+  setFilterOpen: (x: boolean) => void;
+  filterRef: React.RefObject<HTMLDivElement | null>;
+  sort: string;
+  setSort: (x: string) => void;
+  total: number;
+  page: number;
+  setPage: (x: number) => void;
+  onOpen: (p: Project) => void;
+  onInstall: (p: Project) => void;
+  installed: (id: string) => boolean;
+  busy: boolean;
+}) {
+  const pages = Math.max(1, Math.ceil(total / 12));
+  return (
+    <section className="discover-page">
+      <div className="discover-intro">
+        <p>{t("discoverSub")}</p>
+        <div className="provider-badge">
+          <span className="provider-dot" />
+          Modrinth
+        </div>
+      </div>
+      <div className="type-tabs" role="tablist" aria-label={t("contentTypes")}>
+        {types.map(({ id, icon: Icon, key }) => (
+          <button
+            role="tab"
+            aria-selected={type === id}
+            className={type === id ? "selected" : ""}
+            onClick={() => setType(id)}
+            key={id}
+          >
+            {type === id && (
+              <motion.span
+                className="segment-capsule"
+                layoutId="discover-tab"
+              />
+            )}
+            <Icon size={16} />
+            <span>{t(key)}</span>
+          </button>
+        ))}
+      </div>
+      <div className="discover-toolbar">
+        <div className="search-field">
+          <Search size={18} />
+          <input
+            aria-label={t("search")}
+            value={query}
+            onChange={(e) => setQuery(e.target.value)}
+            placeholder={t("search")}
+          />
+          {query && (
+            <button aria-label={t("reset")} onClick={() => setQuery("")}>
+              <X size={14} />
+            </button>
+          )}
+        </div>
+        <div className="filter-wrap" ref={filterRef}>
+          <button
+            className="control-button"
+            aria-expanded={filterOpen}
+            onClick={() => setFilterOpen(!filterOpen)}
+          >
+            <ListFilter size={17} />
+            {t("filters")}
+            <span className="filter-count">
+              {Object.values(filters).filter(Boolean).length || ""}
+            </span>
+          </button>
+          <AnimatePresence>
+            {filterOpen && (
+              <FilterPopover
+                t={t}
+                filters={filters}
+                setFilters={setFilters}
+                type={type}
+              />
+            )}
+          </AnimatePresence>
+        </div>
+        <div className="sort-wrap">
+          <select
+            value={sort}
+            onChange={(e) => setSort(e.target.value)}
+            aria-label={t("sort")}
+          >
+            <option value="downloads">{t("popular")}</option>
+            <option value="relevance">{t("relevance")}</option>
+            <option value="updated">{t("updated")}</option>
+            <option value="newest">{t("newest")}</option>
+            <option value="follows">{t("follows")}</option>
+          </select>
+          <ChevronDown size={14} />
+        </div>
+      </div>
+      {type === "server" ? (
+        <div className="notice-empty">
+          <Server size={25} />
+          <h3>{t("serverUnavailable")}</h3>
+          <p>{t("serverUnavailableSub")}</p>
+        </div>
+      ) : (
+        <>
+          <div className="results-line">
+            <span>{t("results")}</span>
+            <small aria-live="polite">
+              {loading ? t("loading") : total.toLocaleString()}
+            </small>
+          </div>
+          <div aria-busy={loading}>
+            {loading ? (
+              <SkeletonGrid />
+            ) : error ? (
+              <div className="notice-empty" role="alert">
+                <h3>{t("networkError")}</h3>
+                <button className="quiet-button" onClick={retry}>
+                  {t("retry")}
+                </button>
+                <details className="selectable">
+                  <summary>{t("details")}</summary>
+                  {error}
+                </details>
+              </div>
+            ) : projects.length ? (
+              <div className="project-grid">
+                {projects.map((p) => (
+                  <ProjectCard
+                    key={p.project_id}
+                    p={p}
+                    t={t}
+                    type={type}
+                    installed={installed(p.project_id)}
+                    busy={busy}
+                    onOpen={() => onOpen(p)}
+                    onInstall={() => onInstall(p)}
+                  />
+                ))}
+              </div>
+            ) : (
+              <div className="notice-empty">
+                <Search size={25} />
+                <h3>{t("noResults")}</h3>
+                <p>{t("noResultsSub")}</p>
+              </div>
+            )}
+          </div>
+          <div className="pagination" aria-label={t("page")}>
+            <button
+              disabled={page === 1 || loading}
+              onClick={() => setPage(page - 1)}
+            >
+              <ChevronLeft size={15} />
+              {t("previous")}
+            </button>
+            <span aria-live="polite" data-testid="page-label">
+              {t("page")} {page} / {pages}
+            </span>
+            <button
+              disabled={page >= pages || loading}
+              onClick={() => setPage(page + 1)}
+            >
+              {t("next")}
+              <ChevronRight size={15} />
+            </button>
+          </div>
+        </>
+      )}
+    </section>
+  );
+}
+function FilterPopover({
+  t,
+  filters,
+  setFilters,
+  type,
+}: {
+  t: T;
+  filters: {
+    loader: string;
+    game: string;
+    category: string;
+    environment: string;
+  };
+  setFilters: (x: {
+    loader: string;
+    game: string;
+    category: string;
+    environment: string;
+  }) => void;
+  type: ContentType;
+}) {
+  const update = (key: keyof typeof filters, value: string) =>
+    setFilters({ ...filters, [key]: value });
+  return (
+    <motion.div
+      className="popover filter-popover"
+      initial={{ opacity: 0, y: -6, scale: 0.98 }}
+      animate={{ opacity: 1, y: 0, scale: 1 }}
+      exit={{ opacity: 0, y: -4, scale: 0.98 }}
+    >
+      <div className="filter-head">
+        <b>{t("filters")}</b>
+        <button
+          onClick={() =>
+            setFilters({ loader: "", game: "", category: "", environment: "" })
+          }
+        >
+          {t("reset")}
+        </button>
+      </div>
+      <label>
+        {t("gameVersion")}
+        <select
+          value={filters.game}
+          onChange={(e) => update("game", e.target.value)}
+        >
+          <option value="">{t("any")}</option>
+          {["1.21.1", "1.21", "1.20.1", "1.20", "1.19.2", "1.16.5"].map((x) => (
+            <option key={x}>{x}</option>
+          ))}
+        </select>
+      </label>
+      {type !== "resourcepack" && type !== "shader" && (
+        <label>
+          {t("loader")}
+          <select
+            value={filters.loader}
+            onChange={(e) => update("loader", e.target.value)}
+          >
+            <option value="">{t("any")}</option>
+            {["fabric", "forge", "neoforge", "quilt"].map((x) => (
+              <option key={x} value={x}>
+                {x[0].toUpperCase() + x.slice(1)}
+              </option>
+            ))}
+          </select>
+        </label>
+      )}
+      <label>
+        {t("category")}
+        <select
+          value={filters.category}
+          onChange={(e) => update("category", e.target.value)}
+        >
+          <option value="">{t("any")}</option>
+          {Object.entries(categories)
+            .slice(0, 10)
+            .map(([value, key]) => (
+              <option value={value} key={value}>
+                {t(key)}
+              </option>
+            ))}
+        </select>
+      </label>
+      {type === "mod" && (
+        <label>
+          {t("environment")}
+          <select
+            value={filters.environment}
+            onChange={(e) => update("environment", e.target.value)}
+          >
+            <option value="">{t("any")}</option>
+            <option value="client">{t("client")}</option>
+            <option value="server">{t("serverSide")}</option>
+          </select>
+        </label>
+      )}
+    </motion.div>
+  );
+}
+function ProjectCard({
+  p,
+  t,
+  type,
+  installed,
+  busy = false,
+  onOpen,
+  onInstall,
+}: {
+  p: Project;
+  t: T;
+  type: ContentType;
+  installed: boolean;
+  busy?: boolean;
+  onOpen: () => void;
+  onInstall: () => void;
+}) {
+  const art = artwork(p) || p.icon_url;
+  return (
+    <article className="project-card">
+      <button
+        className="card-visual"
+        onClick={onOpen}
+        aria-label={`${t("view")}: ${p.title}`}
+      >
+        {art && (
+          <div
+            className={
+              "card-bg " + (artwork(p) ? "gallery-art" : "blurred-icon")
+            }
+            style={{ backgroundImage: `url(${art})` }}
+          />
+        )}
+        <div className="card-icon-wrap">
+          <RemoteImage src={p.icon_url} alt="" />
+        </div>
+      </button>
+      <div className="card-body">
+        <div className="card-kind">{t(type)}</div>
+        <button className="card-title" onClick={onOpen}>
+          {p.title}
+        </button>
+        <p>{p.description || t("noDescription")}</p>
+        <div className="chips">
+          <span>{p.versions?.[p.versions.length - 1] || "Minecraft"}</span>
+          {p.categories?.slice(0, 2).map((c) => (
+            <span key={c}>{categories[c] ? t(categories[c]) : c}</span>
+          ))}
+        </div>
+        <div className="card-foot">
+          <span className="downloads" title={t("downloads")}>
+            <Download size={13} />
+            {Intl.NumberFormat(undefined, {
+              notation: "compact",
+              maximumFractionDigits: 1,
+            }).format(p.downloads || 0)}
+          </span>
+          <button className="compact-action" onClick={onOpen}>
+            {t("view")}
+            <SquareArrowOutUpRight size={13} />
+          </button>
+          {type === "modpack" && (
+            <button
+              className={
+                installed
+                  ? "compact-action installed"
+                  : "compact-action install-action"
+              }
+              disabled={installed || busy}
+              onClick={onInstall}
+            >
+              {installed
+                ? t("installed")
+                : busy
+                  ? t("installing")
+                  : t("install")}
+              {!installed && <Plus size={13} />}
+            </button>
+          )}
+        </div>
+        <span className="card-provider">Modrinth</span>
+      </div>
+    </article>
+  );
+}
+function SkeletonGrid() {
+  return (
+    <div className="project-grid">
+      {Array.from({ length: 6 }).map((_, i) => (
+        <div className="skeleton-card" key={i}>
+          <div />
+          <span />
+          <span />
+          <small />
+        </div>
+      ))}
+    </div>
+  );
+}
+function LibraryPage({
+  t,
+  lib,
+  query,
+  setQuery,
+  onOpen,
+  onDiscover,
+}: {
+  t: T;
+  lib: Project[];
+  query: string;
+  setQuery: (x: string) => void;
+  onOpen: (p: Project) => void;
+  onDiscover: () => void;
+}) {
+  const shown = lib.filter((p) =>
+    p.title.toLowerCase().includes(query.toLowerCase()),
+  );
+  return (
+    <section className="library-page">
+      <div className="library-intro">
+        <div>
+          <div className="overline">CANARY / {t("library").toUpperCase()}</div>
+          <h2>{lib.length ? t("library") : t("emptyLibrary")}</h2>
+          <p>
+            {lib.length
+              ? `${lib.length} ${t("installedCount").toLowerCase()}`
+              : t("emptyLibrarySub")}
+          </p>
+        </div>
+        <button className="primary-button" onClick={onDiscover}>
+          <Compass size={17} />
+          {t("browse")}
+        </button>
+      </div>
+      {lib.length > 0 && (
+        <div className="library-toolbar">
+          <div className="search-field">
+            <Search size={17} />
+            <input
+              value={query}
+              onChange={(e) => setQuery(e.target.value)}
+              placeholder={t("searchLibrary")}
+            />
+          </div>
+          <div className="library-tabs">
+            <button className="selected">{t("allInstances")}</button>
+            <button disabled title={t("planned")}>
+              {t("favorites")}
+            </button>
+          </div>
+        </div>
+      )}
+      {shown.length ? (
+        <div className="project-grid library-grid">
+          {shown.map((p) => (
+            <ProjectCard
+              key={p.project_id}
+              p={p}
+              t={t}
+              type="modpack"
+              installed
+              onOpen={() => onOpen(p)}
+              onInstall={() => undefined}
+            />
+          ))}
+        </div>
+      ) : (
+        <div className="library-empty">
+          <LibraryIcon size={34} />
+          <h3>{t("emptyLibrary")}</h3>
+          <p>{t("emptyLibrarySub")}</p>
+          <button className="primary-button" onClick={onDiscover}>
+            {t("browse")}
+          </button>
+        </div>
+      )}
+    </section>
+  );
+}
+function DetailPage({
+  detail,
+  versions,
+  selected,
+  setSelected,
+  onBack,
+  onLibrary,
+  onInstall,
+  installed,
+  busy,
+  t,
+}: {
+  detail: Detail;
+  versions: Version[];
+  selected: string;
+  setSelected: (x: string) => void;
+  onBack: () => void;
+  onLibrary: () => void;
+  onInstall: () => void;
+  installed: boolean;
+  busy: boolean;
+  t: T;
+}) {
+  const [tab, setTab] = useState("description");
+  const gallery = detail.gallery?.filter((x) => x.url) || [];
+  const available =
+    detail.project_type === "modpack"
+      ? versions.filter((v) =>
+          v.files.some((f) => f.filename.endsWith(".mrpack")),
+        )
+      : versions;
+  const art =
+    gallery.find((g) => g.featured)?.url || gallery[0]?.url || detail.icon_url;
+  return (
+    <section className="detail-page">
+      <button className="back-button" onClick={onBack}>
+        <ChevronLeft size={17} />
+        {t("back")}
+      </button>
+      <div className="detail-hero">
+        {art && (
+          <div
+            className="detail-art"
+            aria-hidden="true"
+            style={{ backgroundImage: `url(${art})` }}
+          />
+        )}
+        <div className="detail-visual">
+          <RemoteImage src={detail.icon_url} />
+        </div>
+        <div className="detail-heading">
+          <div className="overline">{t(detail.project_type)}</div>
+          <h2>{detail.title}</h2>
+          <p>{detail.description}</p>
+          <div className="detail-meta">
+            <span>
+              <Download size={14} />
+              {Intl.NumberFormat().format(detail.downloads)}
+            </span>
+            <span>
+              <Heart size={14} />
+              {Intl.NumberFormat().format(detail.followers)}
+            </span>
+            <span>Modrinth</span>
+          </div>
+          <div className="detail-actions">
+            {detail.project_type !== "modpack" ? (
+              <button
+                className="primary-button"
+                onClick={() =>
+                  externalLink(
+                    `https://modrinth.com/${detail.project_type}/${detail.slug}`,
+                  )
+                }
+              >
+                <ExternalLink size={16} />
+                {t("projectSite")}
+              </button>
+            ) : installed ? (
+              <button className="primary-button" onClick={onLibrary}>
+                <LibraryIcon size={16} />
+                {t("openLibrary")}
+              </button>
+            ) : (
+              <>
+                <label className="version-control">
+                  <span>{t("selectedVersion")}</span>
+                  <select
+                    aria-label={t("selectedVersion")}
+                    value={selected}
+                    onChange={(e) => setSelected(e.target.value)}
+                    disabled={busy}
+                  >
+                    <option value="">{t("selection")}</option>
+                    {available.map((v) => (
+                      <option value={v.id} key={v.id}>
+                        {v.version_number} · {v.game_versions.join(", ")} ·{" "}
+                        {v.loaders.join(", ")}
+                      </option>
+                    ))}
+                  </select>
+                </label>
+                <button
+                  className="primary-button"
+                  onClick={onInstall}
+                  disabled={
+                    busy ||
+                    !selected ||
+                    !available.some((v) => v.id === selected)
+                  }
+                >
+                  <Download size={16} />
+                  {t(busy ? "installing" : "install")}
+                </button>
+              </>
+            )}
+          </div>
+          {!available.length && <small>{t("noVersions")}</small>}
+        </div>
+      </div>
+      <div className="detail-tabs" role="tablist" aria-label={t("view")}>
+        {["description", "versions", "gallery"].map((key) => (
+          <button
+            role="tab"
+            aria-selected={tab === key}
+            className={tab === key ? "selected" : ""}
+            onClick={() => setTab(key)}
+            key={key}
+          >
+            {t(key as Key)}
+            {key === "versions"
+              ? ` · ${versions.length}`
+              : key === "gallery"
+                ? ` · ${gallery.length}`
+                : ""}
+          </button>
+        ))}
+      </div>
+      <div className="detail-content">
+        <motion.div
+          key={tab}
+          initial={{ opacity: 0, y: 6 }}
+          animate={{ opacity: 1, y: 0 }}
+        >
+          {tab === "description" ? (
+            <Suspense fallback={<p role="status">{t("loading")}</p>}>
+              <Markdown body={detail.body || t("noDescription")} />
+            </Suspense>
+          ) : tab === "gallery" ? (
+            gallery.length ? (
+              <div className="gallery-strip">
+                {gallery.map((g) => (
+                  <RemoteImage key={g.url} src={g.url} alt={g.title} />
+                ))}
+              </div>
+            ) : (
+              <p>{t("noGallery")}</p>
+            )
+          ) : (
+            <div className="version-list">
+              {versions.map((v) => (
+                <details key={v.id}>
+                  <summary>
+                    <b>{v.version_number}</b>
+                    <span>{v.game_versions.join(" · ")}</span>
+                    <small>
+                      {new Date(v.date_published).toLocaleDateString()}
+                    </small>
+                  </summary>
+                  <Suspense fallback={<p role="status">{t("loading")}</p>}>
+                    <Markdown body={v.changelog || t("noDescription")} />
+                  </Suspense>
+                </details>
+              ))}
+            </div>
+          )}
+        </motion.div>
+        <aside className="detail-side">
+          <b>{t("lastUpdated")}</b>
+          <span>{new Date(detail.updated).toLocaleDateString()}</span>
+          <b>{t("gameVersion")}</b>
+          <span>{detail.game_versions?.slice(-6).join(" · ") || t("any")}</span>
+          <b>{t("category")}</b>
+          <span>
+            {detail.categories
+              ?.map((c) => (categories[c] ? t(categories[c]) : c))
+              .join(" · ") || t("any")}
+          </span>
+          {detail.source_url && (
+            <button
+              className="text-link"
+              onClick={() => externalLink(detail.source_url!)}
+            >
+              <ExternalLink size={13} />
+              {t("source")}
+            </button>
+          )}
+        </aside>
+      </div>
+    </section>
+  );
+}
+function ErrorToast({
+  error,
+  t,
+  onClose,
+}: {
+  error: {
+    title?: string;
+    message: string;
+    details?: string;
+    retry?: () => void;
+  };
+  t: T;
+  onClose: () => void;
+}) {
+  const [showDetails, setShowDetails] = useState(false);
+  const [copied, setCopied] = useState(false);
+  const [copyError, setCopyError] = useState(false);
+  const copy = async () => {
+    try {
+      await navigator.clipboard.writeText(error.details || error.message);
+      setCopied(true);
+      setCopyError(false);
+    } catch {
+      setCopyError(true);
+    }
+  };
+  return (
+    <motion.div
+      className="toast error-toast"
+      role="alert"
+      initial={{ opacity: 0, y: 12, scale: 0.98 }}
+      animate={{ opacity: 1, y: 0, scale: 1 }}
+      exit={{ opacity: 0, y: 8, scale: 0.98 }}
+    >
+      <div className="toast-head">
+        <b>{error.title || t("error")}</b>
+        <button onClick={onClose} aria-label={t("dismiss")}>
+          <X size={17} />
+        </button>
+      </div>
+      <p>{error.message}</p>
+      <div className="toast-actions">
+        {error.retry && (
+          <button className="quiet-button" onClick={error.retry}>
+            {t("retry")}
+          </button>
+        )}
+        {error.details && (
+          <button
+            className="quiet-button"
+            onClick={() => setShowDetails(!showDetails)}
+          >
+            {t(showDetails ? "hideDetails" : "details")}
+          </button>
+        )}
+      </div>
+      {showDetails && (
+        <div className="toast-details">
+          <pre>{error.details}</pre>
+          <button className="quiet-button" onClick={copy}>
+            {t(copied ? "copied" : "copy")}
+          </button>
+          {copyError && <p>{t("copyFallback")}</p>}
+        </div>
+      )}
+    </motion.div>
+  );
+}
+function DownloadsPage({
+  t,
+  progress,
+  error,
+}: {
+  t: T;
+  progress: Progress | null;
+  error: { message: string; details?: string } | null;
+}) {
+  return (
+    <section className="downloads-page">
+      <div className="overline">CANARY / {t("downloads").toUpperCase()}</div>
+      <h2>
+        {progress?.status === "success"
+          ? t("completed")
+          : progress
+            ? t("installation")
+            : t("noDownloads")}
+      </h2>
+      <p>{progress ? t("loadingSub") : t("noDownloadsSub")}</p>
+      {progress ? (
+        <div className="download-panel">
+          <div className="download-stage">
+            <Download size={19} />
+            <div>
+              <b>
+                {t(
+                  (progress.stage in en
+                    ? progress.stage
+                    : "installation") as Key,
+                )}
+              </b>
+              <span className="selectable">
+                {progress.file ||
+                  t(progress.status === "success" ? "success" : "loadingSub")}
+              </span>
+            </div>
+            <strong>{Math.round(progress.percent)}%</strong>
+          </div>
+          <div className="progress">
+            <i style={{ width: `${progress.percent}%` }} />
+          </div>
+          <small>
+            {progress.completed} / {progress.total} {t("files")} ·{" "}
+            {progress.downloaded
+              ? `${(progress.downloaded / 1024 / 1024).toFixed(1)} MB ${t("bytes").toLowerCase()}`
+              : ""}
+          </small>
+        </div>
+      ) : (
+        <div className="empty-surface">
+          <Download size={30} />
+        </div>
+      )}
+      {error && (
+        <div className="inline-error">
+          <b>{t("installError")}</b>
+          <span>{error.message}</span>
+        </div>
+      )}
+    </section>
+  );
+}
+function EmptyPage({
+  icon: Icon,
+  title,
+  text,
+  t,
+  onAction,
+}: {
+  icon: typeof Image;
+  title: string;
+  text: string;
+  t: T;
+  onAction?: () => void;
+}) {
+  return (
+    <section className="empty-page">
+      <div className="empty-surface">
+        <Icon size={30} />
+        <h2>{title}</h2>
+        <p>{text}</p>
+        {onAction && (
+          <button className="primary-button" onClick={onAction}>
+            <SettingsIcon size={16} />
+            {t("appearance")}
+          </button>
+        )}
+      </div>
+    </section>
+  );
+}
+function SettingsModal({
+  t,
+  tab,
+  setTab,
+  onClose,
+  lang,
+  setLang,
+  mode,
+  setMode,
+  accent,
+  setAccent,
+  compact,
+  setCompact,
+  reduceMotion,
+  setReduceMotion,
+  preset,
+  setPreset,
+}: {
+  t: T;
+  tab: string;
+  setTab: (x: string) => void;
+  onClose: () => void;
+  lang: "en" | "ru";
+  setLang: (x: "en" | "ru") => void;
+  mode: Mode;
+  setMode: (x: Mode) => void;
+  accent: Accent;
+  setAccent: (x: Accent) => void;
+  compact: boolean;
+  setCompact: (x: boolean) => void;
+  reduceMotion: boolean;
+  setReduceMotion: (x: boolean) => void;
+  preset: string;
+  setPreset: (x: string) => void;
+}) {
+  const panel = useRef<HTMLDivElement>(null);
+  useEffect(() => {
+    const previous = document.activeElement as HTMLElement | null;
+    panel.current?.querySelector<HTMLElement>("button")?.focus();
+    const trap = (event: KeyboardEvent) => {
+      if (event.key !== "Tab") return;
+      const elements = [
+        ...(panel.current?.querySelectorAll<HTMLElement>(
+          "button:not(:disabled),select,input,a[href],[tabindex='0']",
+        ) || []),
+      ];
+      const first = elements[0],
+        last = elements[elements.length - 1];
+      if (event.shiftKey && document.activeElement === first) {
+        event.preventDefault();
+        last?.focus();
+      } else if (!event.shiftKey && document.activeElement === last) {
+        event.preventDefault();
+        first?.focus();
+      }
+    };
+    document.addEventListener("keydown", trap);
+    return () => {
+      document.removeEventListener("keydown", trap);
+      previous?.focus();
+    };
+  }, []);
+  const sections: [string, Key, typeof Palette][] = [
+    ["appearance", "appearance", Palette],
+    ["language", "language", SlidersHorizontal],
+    ["accountSettings", "accountSettings", UserRound],
+    ["canary", "canary", Download],
+    ["advanced", "advanced", SettingsIcon],
+    ["about", "about", Info],
+  ];
+  return (
+    <motion.div
+      className="modal-backdrop"
+      initial={{ opacity: 0 }}
+      animate={{ opacity: 1 }}
+      exit={{ opacity: 0 }}
+      onMouseDown={(e) => {
+        if (e.target === e.currentTarget) onClose();
+      }}
+    >
+      <motion.div
+        className="settings-modal"
+        ref={panel}
+        role="dialog"
+        aria-label={t("settings")}
+        aria-modal="true"
+        initial={{ opacity: 0, scale: 0.98, y: 8 }}
+        animate={{ opacity: 1, scale: 1, y: 0 }}
+        exit={{ opacity: 0, scale: 0.98, y: 8 }}
+        transition={{ duration: 0.26 }}
+      >
+        <div className="settings-top">
+          <div>
+            <div className="overline">CANARY</div>
+            <h2>{t("settings")}</h2>
+          </div>
+          <button onClick={onClose} aria-label={t("close")}>
+            <X size={19} />
+          </button>
+        </div>
+        <div className="settings-layout">
+          <nav className="settings-nav" aria-label={t("settings")}>
+            {sections.map(([id, key, Icon]) => (
+              <button
+                key={id}
+                className={tab === id ? "active" : ""}
+                aria-current={tab === id ? "page" : undefined}
+                onClick={() => setTab(id)}
+              >
+                {tab === id && (
+                  <motion.span
+                    className="nav-capsule"
+                    layoutId="settings-active"
+                  />
+                )}
+                <Icon size={17} />
+                <span>{t(key)}</span>
+              </button>
+            ))}
+          </nav>
+          <div className="settings-content">
+            <AnimatePresence mode="wait" initial={false}>
+              <motion.div
+                key={tab}
+                initial={{ opacity: 0, y: 6 }}
+                animate={{ opacity: 1, y: 0 }}
+                exit={{ opacity: 0, y: -4 }}
+              >
+                {tab === "appearance" ? (
+                  <Appearance
+                    t={t}
+                    mode={mode}
+                    setMode={setMode}
+                    accent={accent}
+                    setAccent={setAccent}
+                    compact={compact}
+                    setCompact={setCompact}
+                    reduceMotion={reduceMotion}
+                    setReduceMotion={setReduceMotion}
+                    preset={preset}
+                    setPreset={setPreset}
+                  />
+                ) : tab === "language" ? (
+                  <LanguageSettings t={t} lang={lang} setLang={setLang} />
+                ) : (
+                  <SettingsInfo
+                    t={t}
+                    icon={
+                      tab === "accountSettings"
+                        ? UserRound
+                        : tab === "canary"
+                          ? Download
+                          : Info
+                    }
+                    title={
+                      tab === "accountSettings"
+                        ? t("accountTitle")
+                        : tab === "about"
+                          ? "Canary"
+                          : t(tab as Key)
+                    }
+                    text={
+                      tab === "accountSettings"
+                        ? t("accountSub")
+                        : tab === "canary"
+                          ? t("noDownloadsSub")
+                          : tab === "advanced"
+                            ? t("advancedSub")
+                            : `${t("aboutSub")} ${t("version")} 0.1.0 · Modrinth`
+                    }
+                  />
+                )}
+              </motion.div>
+            </AnimatePresence>
+          </div>
+        </div>
+      </motion.div>
+    </motion.div>
+  );
+}
+function Appearance({
+  t,
+  mode,
+  setMode,
+  accent,
+  setAccent,
+  compact,
+  setCompact,
+  reduceMotion,
+  setReduceMotion,
+  preset,
+  setPreset,
+}: {
+  t: T;
+  mode: Mode;
+  setMode: (x: Mode) => void;
+  accent: Accent;
+  setAccent: (x: Accent) => void;
+  compact: boolean;
+  setCompact: (x: boolean) => void;
+  reduceMotion: boolean;
+  setReduceMotion: (x: boolean) => void;
+  preset: string;
+  setPreset: (x: string) => void;
+}) {
+  const modeIcon = { dark: Moon, light: Sun, amoled: Moon, system: Monitor };
+  const presets: Key[] =
+    mode === "light"
+      ? ["white", "softLight", "frost", "warm"]
+      : ["graphite", "black", "softDark", "midnight"];
+  return (
+    <div className="appearance-settings">
+      <div className="setting-intro">
+        <div className="overline">CANARY / {t("appearance").toUpperCase()}</div>
+        <h3>{t("appearance")}</h3>
+        <p>{t("appearanceSub")}</p>
+      </div>
+      <h4>{t("mode")}</h4>
+      <div className="mode-grid">
+        {modes.map((m) => {
+          const Icon = modeIcon[m];
+          return (
+            <button
+              className={mode === m ? "selected" : ""}
+              aria-pressed={mode === m}
+              onClick={() => setMode(m)}
+              key={m}
+            >
+              <Icon size={18} />
+              <span>{t(m)}</span>
+            </button>
+          );
+        })}
+      </div>
+      <h4>{t("preset")}</h4>
+      <div className="preset-grid">
+        {presets.map((p) => (
+          <button
+            key={p}
+            aria-pressed={preset === p}
+            className={preset === p ? "selected" : ""}
+            onClick={() => setPreset(p)}
+          >
+            {t(p)}
+          </button>
+        ))}
+      </div>
+      <h4>{t("accent")}</h4>
+      <div className="accent-grid">
+        {(Object.keys(accentColors) as Accent[]).map((a) => (
+          <button
+            className={accent === a ? "selected" : ""}
+            aria-pressed={accent === a}
+            onClick={() => setAccent(a)}
+            key={a}
+          >
+            <i style={{ background: accentColors[a] }} />
+            <span>{t(a === "white" ? "accentWhite" : a)}</span>
+          </button>
+        ))}
+      </div>
+      <div className="toggle-setting">
+        <div>
+          <b>{t("compact")}</b>
+          <span>{t("compactSub")}</span>
+        </div>
+        <button
+          className={compact ? "toggle on" : "toggle"}
+          role="switch"
+          aria-label={t("compact")}
+          aria-checked={compact}
+          onClick={() => setCompact(!compact)}
+        >
+          <i />
+        </button>
+      </div>
+      <div className="toggle-setting">
+        <div>
+          <b>{t("reduceMotion")}</b>
+          <span>{t("reduceMotionSub")}</span>
+        </div>
+        <button
+          className={reduceMotion ? "toggle on" : "toggle"}
+          role="switch"
+          aria-label={t("reduceMotion")}
+          aria-checked={reduceMotion}
+          onClick={() => setReduceMotion(!reduceMotion)}
+        >
+          <i />
+        </button>
+      </div>
+      <p className="settings-note">{t("storedLocally")}</p>
+    </div>
+  );
+}
+function LanguageSettings({
+  t,
+  lang,
+  setLang,
+}: {
+  t: T;
+  lang: "en" | "ru";
+  setLang: (x: "en" | "ru") => void;
+}) {
+  return (
+    <div className="language-settings">
+      <div className="setting-intro">
+        <div className="overline">DISPLAY / {t("language").toUpperCase()}</div>
+        <h3>{t("language")}</h3>
+        <p>{t("languageSub")}</p>
+      </div>
+      <div className="language-cards">
+        <button
+          className={lang === "ru" ? "selected" : ""}
+          onClick={() => setLang("ru")}
+        >
+          <span>А</span>
+          <div>
+            <b>Русский</b>
+            <small>Русский интерфейс</small>
+          </div>
+        </button>
+        <button
+          className={lang === "en" ? "selected" : ""}
+          onClick={() => setLang("en")}
+        >
+          <span>A</span>
+          <div>
+            <b>English</b>
+            <small>English interface</small>
+          </div>
+        </button>
+      </div>
+    </div>
+  );
+}
+function SettingsInfo({
+  t,
+  icon: Icon,
+  title,
+  text,
+}: {
+  t: T;
+  icon: typeof UserRound;
+  title: string;
+  text: string;
+}) {
+  return (
+    <div className="settings-info">
+      <Icon size={28} />
+      <div className="setting-intro">
+        <div className="overline">CANARY</div>
+        <h3>{title}</h3>
+        <p>{text}</p>
+      </div>
+      <span className="planned-badge">{t("planned")}</span>
+    </div>
+  );
+}
 export default App;
-
-
-
