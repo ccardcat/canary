@@ -53,6 +53,8 @@ See [validation notes](docs/QA.md) for the verified scenario and remaining platf
 
 Pushing a `v<version>` tag matching `package.json` and the Tauri configuration builds Windows x64 EXE/MSI and Linux x64 DEB/AppImage through GitHub Actions. The workflow publishes a GitHub Release only after both platform builds pass, with `SHA256SUMS` and [release notes](docs/RELEASE.md). No signing certificate is configured.
 
+If a tag push does not trigger Actions, open **Actions → Desktop release → Run workflow**, select branch `main`, enter the existing tag (initially `v0.1.0`), and choose `windows` or `windows-and-linux`. The manual run defaults to Windows EXE/MSI and publishes the selected platform builds after they pass. It builds the tagged source, even when the workflow is launched from `main`.
+
 The publication receipt is saved in `refs/notes/releases` on the tagged commit, including the workflow URL, release URL and asset metadata. This allows checking publication through Git when the cloud environment cannot access the GitHub REST API:
 
 ```sh

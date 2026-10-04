@@ -3,6 +3,23 @@ name: Desktop release
 on:
   push:
     tags: ['v*']
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: Existing release tag
+        required: true
+        default: v0.1.0
+        type: string
+      platform:
+        description: Platforms to build
+        required: true
+        default: windows
+        type: choice
+        options: [windows, windows-and-linux]
+
+env:
+  RELEASE_TAG: ${{ inputs.tag || github.ref_name }}
+  WINDOWS_ONLY: ${{ github.event_name == 'workflow_dispatch' && inputs.platform == 'windows' }}
 
 permissions:
   contents: read
@@ -12,20 +29,44 @@ concurrency:
   cancel-in-progress: false
 
 jobs:
+  record-start:
+    runs-on: ubuntu-22.04
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ env.RELEASE_TAG }}
+          fetch-depth: 0
+      - name: Record started build
+        shell: bash
+        run: |
+          python3 - <<'PY'
+          import json, os, subprocess
+          receipt = {'tag': os.environ['RELEASE_TAG'], 'commit': subprocess.check_output(['git', 'rev-parse', 'HEAD'], text=True).strip(),
+                     'status': 'building', 'windows_only': os.environ['WINDOWS_ONLY'] == 'true',
+                     'run_url': f"https://github.com/{os.environ['GITHUB_REPOSITORY']}/actions/runs/{os.environ['GITHUB_RUN_ID']}"}
+          with open('release-status.json', 'w') as f:
+              json.dump(receipt, f, indent=2)
+          PY
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          if git ls-remote --exit-code origin refs/notes/releases; then
+            git fetch origin refs/notes/releases:refs/notes/releases
+          fi
+          git notes --ref=releases add -f -F release-status.json HEAD
+          git push origin refs/notes/releases
+
   build:
     strategy:
       fail-fast: false
       matrix:
-        include:
-          - os: ubuntu-22.04
-            bundles: deb,appimage
-            platform: linux-x64
-          - os: windows-latest
-            bundles: nsis,msi
-            platform: windows-x64
+        include: ${{ fromJSON(github.event_name == 'workflow_dispatch' && inputs.platform == 'windows' && '[{"os":"windows-latest","bundles":"nsis,msi","platform":"windows-x64"}]' || '[{"os":"ubuntu-22.04","bundles":"deb,appimage","platform":"linux-x64"},{"os":"windows-latest","bundles":"nsis,msi","platform":"windows-x64"}]') }}
     runs-on: ${{ matrix.os }}
     steps:
       - uses: actions/checkout@v4
+        with:
+          ref: ${{ env.RELEASE_TAG }}
       - uses: actions/setup-node@v4
         with:
           node-version: '24'
@@ -43,7 +84,7 @@ jobs:
       - name: Check release version
         shell: bash
         run: |
-          node --input-type=module -e 'import fs from "node:fs"; const p=JSON.parse(fs.readFileSync("package.json")); const t=JSON.parse(fs.readFileSync("src-tauri/tauri.conf.json")); if (`v${p.version}` !== process.env.GITHUB_REF_NAME || p.version !== t.version) throw Error("Release tag must match application version");'
+          node --input-type=module -e 'import fs from "node:fs"; const p=JSON.parse(fs.readFileSync("package.json")); const t=JSON.parse(fs.readFileSync("src-tauri/tauri.conf.json")); if (`v${p.version}` !== process.env.RELEASE_TAG || p.version !== t.version) throw Error("Release tag must match application version");'
       - name: Rust regression tests
         run: cargo test --locked --manifest-path src-tauri/Cargo.toml --lib
       - name: Build installers
@@ -62,17 +103,19 @@ jobs:
             src-tauri/target/release/bundle/msi/*.msi
 
   publish:
-    needs: build
+    needs: [build, record-start]
     if: always()
     runs-on: ubuntu-22.04
     permissions:
       contents: write
+      actions: read
     env:
       GH_TOKEN: ${{ github.token }}
       GH_REPO: ${{ github.repository }}
     steps:
       - uses: actions/checkout@v4
         with:
+          ref: ${{ env.RELEASE_TAG }}
           fetch-depth: 0
       - name: Download installers
         if: needs.build.result == 'success'
@@ -88,14 +131,22 @@ jobs:
           mkdir assets
           find artifacts -type f \( -name '*.deb' -o -name '*.AppImage' -o -name '*.exe' -o -name '*.msi' \) -exec cp {} assets/ \;
           python3 - <<'PY'
+          import os
           from pathlib import Path
           names = [p.name for p in Path('assets').iterdir()]
-          for suffix in ('.deb', '.AppImage', '.exe', '.msi'):
+          windows_only = os.environ['WINDOWS_ONLY'] == 'true'
+          required = ('.exe', '.msi') if windows_only else ('.deb', '.AppImage', '.exe', '.msi')
+          for suffix in required:
               assert any(n.endswith(suffix) for n in names), f'Missing installer: {suffix}'
+          notes = Path('docs/RELEASE.md').read_text()
+          if windows_only:
+              notes = '\n'.join(line for line in notes.splitlines() if not line.startswith('- **Linux:**'))
+              notes = notes.replace('for Windows x64 and Linux x64.', 'for Windows x64.')
+          Path('release-notes.md').write_text(notes)
           PY
           (cd assets && sha256sum * > SHA256SUMS)
-          gh release create "$GITHUB_REF_NAME" assets/* --draft --verify-tag --title "Canary $GITHUB_REF_NAME" --notes-file docs/RELEASE.md
-          gh release edit "$GITHUB_REF_NAME" --draft=false --latest
+          gh release create "$RELEASE_TAG" assets/* --draft --verify-tag --title "Canary $RELEASE_TAG" --notes-file release-notes.md
+          gh release edit "$RELEASE_TAG" --draft=false --latest
       - name: Record publication result
         if: always()
         env:
@@ -106,11 +157,11 @@ jobs:
           python3 - <<'PY'
           import json, os, subprocess
           status = 'published' if os.environ['PUBLISH_RESULT'] == 'success' else 'failed'
-          receipt = {'tag': os.environ['GITHUB_REF_NAME'], 'commit': os.environ['GITHUB_SHA'], 'status': status,
+          receipt = {'tag': os.environ['RELEASE_TAG'], 'commit': subprocess.check_output(['git', 'rev-parse', 'HEAD'], text=True).strip(), 'status': status,
                      'build': os.environ['BUILD_RESULT'], 'publish': os.environ['PUBLISH_RESULT'],
                      'run_url': f"https://github.com/{os.environ['GITHUB_REPOSITORY']}/actions/runs/{os.environ['GITHUB_RUN_ID']}"}
           if status == 'published':
-              release = json.loads(subprocess.check_output(['gh', 'api', f"repos/{os.environ['GITHUB_REPOSITORY']}/releases/tags/{os.environ['GITHUB_REF_NAME']}"]))
+              release = json.loads(subprocess.check_output(['gh', 'api', f"repos/{os.environ['GITHUB_REPOSITORY']}/releases/tags/{os.environ['RELEASE_TAG']}"]))
               receipt['release_url'] = release['html_url']
               receipt['assets'] = [{'name': a['name'], 'size': a['size'], 'url': a['browser_download_url'], 'digest': a.get('digest')} for a in release['assets']]
           else:
@@ -133,6 +184,6 @@ jobs:
           if git ls-remote --exit-code origin refs/notes/releases; then
             git fetch origin refs/notes/releases:refs/notes/releases
           fi
-          git notes --ref=releases add -f -F release-status.json "$GITHUB_SHA"
+          git notes --ref=releases add -f -F release-status.json HEAD
           git push origin refs/notes/releases
           test "$PUBLISH_RESULT" = success
