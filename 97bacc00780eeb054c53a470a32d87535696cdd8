@@ -1,7 +1,29 @@
 {
   "tag": "v0.1.0",
   "commit": "97bacc00780eeb054c53a470a32d87535696cdd8",
-  "status": "building",
-  "windows_only": true,
-  "run_url": "https://github.com/ccardcat/canary/actions/runs/37212831673"
+  "status": "published",
+  "build": "success",
+  "publish": "success",
+  "run_url": "https://github.com/ccardcat/canary/actions/runs/37212831673",
+  "release_url": "https://github.com/ccardcat/canary/releases/tag/v0.1.0",
+  "assets": [
+    {
+      "name": "Canary_0.1.0_x64-setup.exe",
+      "size": 6003690,
+      "url": "https://github.com/ccardcat/canary/releases/download/v0.1.0/Canary_0.1.0_x64-setup.exe",
+      "digest": "sha256:8939637e78efb4921eefc73f1dbc0a262abe77fe3314393a9290f24822f3333a"
+    },
+    {
+      "name": "Canary_0.1.0_x64_en-US.msi",
+      "size": 6905856,
+      "url": "https://github.com/ccardcat/canary/releases/download/v0.1.0/Canary_0.1.0_x64_en-US.msi",
+      "digest": "sha256:4dac59468e15840d0a55dab6d4d51f3892ccd084b3bc7a28e665341f222f240d"
+    },
+    {
+      "name": "SHA256SUMS",
+      "size": 186,
+      "url": "https://github.com/ccardcat/canary/releases/download/v0.1.0/SHA256SUMS",
+      "digest": "sha256:71e77692f48254a06166e3b9ac771a507c826574847e5d0eedbb366acf062b8d"
+    }
+  ]
 }
