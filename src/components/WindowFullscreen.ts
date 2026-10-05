@@ -8,6 +8,7 @@ export function useWindowFullscreen(onError:()=>void){
   if(!isTauri())return;
   const win=getCurrentWindow();let previous:Previous|null=null;let mounted=true;let busy=false;let dispose:(()=>void)|undefined;
   const root=document.documentElement;
+  root.dataset.windowTransition="false";
   const sync=async()=>{const fullscreen=await win.isFullscreen();const maximized=await win.isMaximized();if(mounted){root.dataset.windowFullscreen=String(fullscreen);root.dataset.windowState=fullscreen?"fullscreen":maximized?"maximized":"normal";}};
   const acknowledged=async(value:boolean)=>{await win.setFullscreen(value);for(let n=0;n<60;n++){if(await win.isFullscreen()===value)return;await new Promise(resolve=>setTimeout(resolve,50));}throw Error("Fullscreen transition was not acknowledged");};
   const transition=async(exitOnly=false)=>{

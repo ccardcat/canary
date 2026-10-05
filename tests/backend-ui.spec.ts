@@ -241,6 +241,7 @@ test("storage cleanup requires confirmation and RAM warning leaves account defau
 });
 
 test("rapid F11 is locked and a maximized window restores without replacing geometry",async({page})=>{
+ await expect(page.locator("html")).toHaveAttribute("data-window-state","normal");await expect(page.locator("html")).toHaveAttribute("data-window-transition","false");
  await page.evaluate(()=>{(globalThis as any).__backendTest.fullscreenDelay=200;(globalThis as any).__backendTest.maximized=true;for(let n=0;n<6;n++)document.dispatchEvent(new KeyboardEvent("keydown",{key:"F11",bubbles:true}));});
  await expect(page.locator("html")).toHaveAttribute("data-window-fullscreen","true");await expect(page.locator("html")).toHaveAttribute("data-window-transition","false");
  await page.keyboard.press("F11");await expect(page.locator("html")).toHaveAttribute("data-window-state","maximized");
