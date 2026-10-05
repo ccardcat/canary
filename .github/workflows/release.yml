@@ -97,6 +97,10 @@ jobs:
         env:
           APPIMAGE_EXTRACT_AND_RUN: '1'
         run: npm run tauri build -- --ci --bundles ${{ matrix.bundles }} -- --locked
+      - name: Prepare Windows WebView2 runtime
+        if: runner.os == 'Windows'
+        shell: pwsh
+        run: ./.github/scripts/setup-webview2.ps1 *>&1 | Tee-Object -FilePath webview2-runtime.log
       - name: Windows native window and material QA
         if: runner.os == 'Windows'
         run: node .github/scripts/window-smoke.mjs

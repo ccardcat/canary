@@ -1,6 +1,8 @@
-# Canary 0.1.3 — отчёт по дополнительному ТЗ
+# Canary 0.1.4 — отчёт по дополнительному ТЗ
 
-Основа: `main`, `e6d5565`, после `git pull --ff-only`. Реализация внесена в существующий React/Tauri/Rust launcher. Основные изменения: `7309c70`, `df1a450`, `53fc497`, `a894006`, `6a72538`, `cffdd66`. Версия package/Tauri/Cargo согласована: **0.1.3**. Проверки предыдущей 0.1.2 не считаются проверками новой версии.
+Основа: `main`, `e6d5565`, после `git pull --ff-only`. Реализация внесена в существующий React/Tauri/Rust launcher. Основные изменения: `7309c70`, `df1a450`, `53fc497`, `a894006`, `6a72538`, `cffdd66`. Функции и визуальные доказательства ниже проверены для 0.1.3; **0.1.4** содержит тот же app code и исправленную Windows CI-подготовку. Версия package/Tauri/Cargo согласована. Проверки предыдущей 0.1.2 не считаются проверками новой версии.
+
+Для 0.1.3 Windows compilation/check/test уже подтверждены: **55 passed, 6 ignored**, EXE/MSI успешно собраны. Нативная smoke-проверка остановилась до взаимодействия с UI: `ECONNREFUSED 127.0.0.1:9384`. Это не подтверждение успешной или неуспешной работы F11/Mica; driver не смог подключиться. В 0.1.4 CI отдельно проверяет/устанавливает официальный Evergreen WebView2 runtime, использует изолированный browser data folder и собирает native startup diagnostics. Точная причина отсутствующего порта на исходном runner не объявляется установленной без этих диагностик. `v0.1.3` сохранён, его Release не публикуется при failed QA; новая публикация использует отдельный `v0.1.4`.
 
 ## F11
 
@@ -115,6 +117,6 @@ JSON-отчёт нативной геометрии: [native-window.json](qa/0.1
 - Live CurseForge требует официального API key, переданного безопасно в окружение launcher; текущие controlled-response tests не заменяют такую проверку.
 - Реальная Windows visual/material/DPI/gameplay QA и публикация installers требуют успешного hosted Windows runner. Actions по ответу пользователя выполняется; окончательные результаты ещё не подтверждены.
 - В Linux Xvfb/WebKit software rendering тяжёлый режим High с 24 частицами дал median rAF interval 234 ms и p95 304 ms на 180 кадрах. Старый Low с blur 4 px дал 101/137 ms на 60 кадрах; Low без blur — 152/222 ms во время очередной release compilation. Отключение blur подтверждено, но улучшение FPS этим экспериментом не доказано: нагрузка CPU менялась. Это реальная медленная headless конфигурация; отсутствие серьёзных задержек и Windows GPU FPS пока не подтверждены. Данные: [software-rendering.json](qa/0.1.3/software-rendering.json).
-- Старый `v0.1.2` не перемещается. Новый `v0.1.3` должен публиковаться отдельным release workflow с EXE/MSI/DEB/AppImage и checksums; наличие source tag не равно опубликованному Release.
+- Старые `v0.1.2` и `v0.1.3` не перемещаются. Новый `v0.1.4` должен публиковаться отдельным release workflow с EXE/MSI/DEB/AppImage и checksums; наличие source tag не равно опубликованному Release.
 
 Сетевые/аккаунтные требования не маскируются fake success или offline identity.

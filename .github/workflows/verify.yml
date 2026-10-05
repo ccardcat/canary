@@ -88,6 +88,10 @@ jobs:
           APPIMAGE_EXTRACT_AND_RUN: '1'
         shell: bash
         run: set -o pipefail; npm run tauri build -- --ci --bundles ${{ matrix.bundles }} -- --locked 2>&1 | tee desktop-build.log
+      - name: Prepare Windows WebView2 runtime
+        if: runner.os == 'Windows'
+        shell: pwsh
+        run: ./.github/scripts/setup-webview2.ps1 *>&1 | Tee-Object -FilePath webview2-runtime.log
       - name: Windows native window and material QA
         if: runner.os == 'Windows'
         shell: bash
@@ -122,7 +126,7 @@ jobs:
                      'status': os.environ['VERIFY_STATUS'], 'platform': os.environ['VERIFY_PLATFORM'],
                      'run_url': f"https://github.com/{os.environ['GITHUB_REPOSITORY']}/actions/runs/{os.environ['GITHUB_RUN_ID']}"}
           if receipt['status'] != 'success':
-              receipt['step_logs'] = {p: Path(p).read_text(errors='replace')[-12000:] for p in ['npm-ci.log', 'frontend-build.log', 'cargo-check.log', 'cargo-test.log', 'desktop-build.log', 'windows-window-smoke.log'] if Path(p).exists()}
+              receipt['step_logs'] = {p: Path(p).read_text(errors='replace')[-12000:] for p in ['npm-ci.log', 'frontend-build.log', 'cargo-check.log', 'cargo-test.log', 'desktop-build.log', 'webview2-runtime.log', 'windows-window-smoke.log'] if Path(p).exists()}
               try:
                   endpoint = f"repos/{os.environ['GITHUB_REPOSITORY']}/actions/runs/{os.environ['GITHUB_RUN_ID']}/jobs"
                   jobs = json.loads(subprocess.check_output(['gh', 'api', endpoint], text=True))['jobs']

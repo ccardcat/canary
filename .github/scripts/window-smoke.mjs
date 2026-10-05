@@ -7,9 +7,10 @@ import assert from 'node:assert/strict';
 if(process.platform!=='win32')throw Error('This check requires a Windows desktop runner');
 const folder=resolve('qa/windows-window-smoke');await mkdir(folder,{recursive:true});
 const report={platform:process.platform,cases:[],captures:[],thumbnails:[]};const port=9384;
-const app=spawn(resolve(process.argv[2]||'src-tauri/target/release/scaffold.exe'),[],{env:{...process.env,WEBVIEW2_ADDITIONAL_BROWSER_ARGUMENTS:`--remote-debugging-port=${port}`},stdio:'ignore'});
+const app=spawn(resolve(process.argv[2]||'src-tauri/target/release/scaffold.exe'),[],{env:{...process.env,WEBVIEW2_USER_DATA_FOLDER:resolve(folder,'webview-data'),WEBVIEW2_ADDITIONAL_BROWSER_ARGUMENTS:`--remote-debugging-port=${port} --remote-debugging-address=127.0.0.1`},stdio:'ignore'});
+let launchError;app.once('error',error=>{launchError=error;});
 const delay=ms=>new Promise(r=>setTimeout(r,ms));let socket;
-async function until(test,label,timeout=15000){const start=Date.now();while(Date.now()-start<timeout){if(app.exitCode!==null)throw Error(`Canary exited (${app.exitCode}) during ${label}`);try{if(await test())return;}catch(error){if(Date.now()-start>timeout-500)throw error;}await delay(100);}throw Error(`Timed out: ${label}`);}
+async function until(test,label,timeout=15000){const start=Date.now();while(Date.now()-start<timeout){if(launchError)throw launchError;if(app.exitCode!==null)throw Error(`Canary exited (${app.exitCode}) during ${label}`);try{if(await test())return;}catch(error){if(Date.now()-start>timeout-500)throw error;}await delay(100);}throw Error(`Timed out: ${label}`);}
 try{
  let target;await until(async()=>{const targets=await(await fetch(`http://127.0.0.1:${port}/json/list`)).json();target=targets.find(t=>t.type==='page'&&t.url.includes('tauri.localhost'));return !!target?.webSocketDebuggerUrl;},'WebView2 inspector',45000);
  socket=new WebSocket(target.webSocketDebuggerUrl);await new Promise((r,j)=>{socket.addEventListener('open',r,{once:true});socket.addEventListener('error',j,{once:true});});
@@ -83,5 +84,11 @@ try{
   await key('Escape',27);await until(async()=>!await win('is_fullscreen'),'performance restore');await finished();
  }
  report.status='success';console.log('WINDOWS_NATIVE_FULLSCREEN_GEOMETRY_MATERIAL_THEMES_DROPDOWNS_VERIFIED');
-}catch(error){report.status='failure';report.error=String(error);throw error;}
+}catch(error){
+ report.status='failure';report.error=String(error);if(error.cause)report.cause=String(error.cause);
+ try{
+  const output=execFileSync('powershell.exe',['-NoProfile','-WindowStyle','Hidden','-Command',`$ErrorActionPreference='Stop';$p=Get-Process -Id ${app.pid};$children=@(Get-Process msedgewebview2 -ErrorAction SilentlyContinue | Select-Object Id,ProcessName);@{pid=$p.Id;title=$p.MainWindowTitle;responding=$p.Responding;handle=$p.MainWindowHandle.ToInt64();webviews=$children}|ConvertTo-Json -Depth 4 -Compress`],{windowsHide:true,timeout:10000,encoding:'utf8'});report.startup=JSON.parse(output);
+ }catch(diagnosticError){report.startupDiagnosticError=String(diagnosticError).split('\n')[0];}
+ throw error;
+}
 finally{await writeFile(resolve(folder,'result.json'),JSON.stringify(report,null,2));socket?.close();app.kill();}
