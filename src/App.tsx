@@ -8,12 +8,14 @@ import {
   useState,
 } from "react";
 import { AnimatePresence, MotionConfig, motion } from "motion/react";
+import ProjectCard from "./components/ProjectCard";
+import {providerDetail,providerVersions,providerName,providerSite,type Provider} from "./services/providers";
 import { useDiscovery } from "./hooks/useDiscovery";
 import { diagnostics, type Progress } from "./services/installation";
 import { externalLink } from "./services/links";
 import RemoteImage from "./components/RemoteImage";
 const Markdown = lazy(() => import("./components/Markdown"));
-import { isTauri, invoke } from "@tauri-apps/api/core";
+import { isTauri, invoke,convertFileSrc } from "@tauri-apps/api/core";
 import { listen } from "@tauri-apps/api/event";
 import {
   Activity,
@@ -38,7 +40,6 @@ import {
   Server,
   Settings as SettingsIcon,
   SlidersHorizontal,
-  SquareArrowOutUpRight,
   UserRound,
   X,
   Sun,
@@ -49,7 +50,7 @@ import {
   Heart,
 } from "lucide-react";
 import "./App.css";
-import { cardSpotlight } from "./components/DesktopBehavior";
+
 import TitleBar from "./components/TitleBar";
 import { useBackend } from "./services/backend";
 import AccountAvatar from "./components/AccountAvatar";
@@ -57,8 +58,6 @@ import { AccountsPanel, RuntimeSettingsPanel, RuntimeLibrary, RuntimeProgress, R
 import { VisualPreferences, SidebarArtwork, VisualQuality } from "./components/VisualAppearance";
 import { en, ru, type Key, type T, categories } from "./locales";
 import {
-  api,
-  artwork,
   readStored,
   searchProjects,
   type ContentType,
@@ -131,11 +130,13 @@ function App() {
   const discovery = useDiscovery();
   const [community, setCommunity] = useState<Project[]>([]);
   const [communityError, setCommunityError] = useState(false);
+  const [librarySelectionId,setLibrarySelectionId]=useState<string|null>(null);
   const [libraryQuery, setLibraryQuery] = useState("");
   const [filterOpen, setFilterOpen] = useState(false);
   const [lib, setLib] = useState<Project[]>(() =>
     readStored("canary-library", []),
   );
+  const homeLibrary:Project[]=isTauri()?(backend.snapshot?.instances||[]).filter(i=>!i.internal).map(i=>({native_instance_id:i.id,project_id:i.project_id||i.id,provider:i.provider==="curseforge"?"curseforge":"modrinth",title:i.name,description:`Minecraft ${i.minecraft} · ${i.loader}`,icon_url:i.icon&&!/^https?:|^asset:/i.test(i.icon)?convertFileSrc(i.icon):i.icon,downloads:0,versions:[i.minecraft],categories:[i.loader],project_type:"modpack",version_name:i.version_name,instance_path:i.directory})):lib;
   const [progress, setProgress] = useState<Progress | null>(null);
   const [busy, setBusy] = useState(false);
   const progressRef = useRef<Progress | null>(null);
@@ -285,14 +286,14 @@ function App() {
     setSelectedVersion("");
     try {
       const [d, v] = await Promise.all([
-        api<Detail>(`project/${p.project_id}`, controller.signal),
-        api<Version[]>(`project/${p.project_id}/version`, controller.signal),
+        providerDetail(p,controller.signal),
+        providerVersions(p,controller.signal),
       ]);
       if (!controller.signal.aborted) {
         setDetail(d);
         setVersions(v);
         setSelectedVersion(
-          (d.project_type === "modpack"
+          (d.project_type === "modpack" && p.provider!=="curseforge"
             ? v.find((version) =>
                 version.files.some((file) => file.filename.endsWith(".mrpack")),
               )
@@ -312,7 +313,7 @@ function App() {
     }
   }
   async function install(p: Project, versionId?: string) {
-    if (installing.current || lib.some((x) => x.project_id === p.project_id))
+    if (installing.current || backend.snapshot?.instances.some(x=>x.project_id===p.project_id&&x.provider===(p.provider||"modrinth")) || lib.some((x) => x.project_id === p.project_id&&(x.provider||"modrinth")===(p.provider||"modrinth")))
       return;
     if (!isTauri()) {
       setError({ title: t("installError"), message: t("nativeRequired") });
@@ -338,23 +339,19 @@ function App() {
     let current = base;
     try {
       // Never reuse versions from a different open project.
-      const list = await api<Version[]>(`project/${p.project_id}/version`);
+      const list = await providerVersions(p);
       const version = versionId
         ? list.find((v) => v.id === versionId)
-        : list.find((v) => v.files.some((f) => f.filename.endsWith(".mrpack")));
-      if (!version) throw Error("No compatible Modrinth .mrpack version");
-      const instancePath = await invoke<string>("install_modpack", {
-        projectId: p.project_id,
-        versionId: version.id,
-        name: p.title,
-      });
-      await backend.run("prepare_instance", { id: `${p.project_id}-${version.id}`, repair: false });
+        : p.provider==="curseforge"?list[0]:list.find((v) => v.files.some((f) => f.filename.endsWith(".mrpack")));
+      if (!version) throw Error("No compatible modpack version");
+      const instancePath = p.provider==="curseforge" ? (await backend.run<{directory:string}>("install_curseforge_pack",{projectId:Number(p.project_id),fileId:Number(version.id)})).directory : await invoke<string>("install_modpack", {projectId:p.project_id,versionId:version.id,name:p.title});
+      if(p.provider!=="curseforge")await backend.run("prepare_instance",{id:`${p.project_id}-${version.id}`,repair:false});
       stage = "add_to_library";
       current = { ...(progressRef.current || base), stage, percent: 99 };
       setProgress(current);
       console.info("[install][add_to_library] starting", p.project_id);
       const next = [
-        ...lib.filter((x) => x.project_id !== p.project_id),
+        ...lib.filter((x) => x.project_id !== p.project_id||(x.provider||"modrinth")!==(p.provider||"modrinth")),
         {
           ...p,
           instance_path: instancePath,
@@ -398,7 +395,7 @@ function App() {
       setBusy(false);
     }
   }
-  const isInstalled = (id: string) => lib.some((x) => x.project_id === id);
+  const isInstalled = (id: string,provider:Provider=discovery.provider) => backend.snapshot?.instances.some(x=>x.project_id===id&&x.provider===provider)||lib.some((x) => x.project_id === id&&(x.provider||"modrinth")===provider);
   const navigation = (next: Page) => {
     if (next === "Settings") {
       setSettingsOpen(true);
@@ -570,20 +567,20 @@ function App() {
                       selectedVersion,
                     )
                   }
-                  installed={isInstalled(detail.id)}
+                  installed={isInstalled(detail.id,detail.provider||"modrinth")}
                   busy={busy}
                   t={t}
                 />
               ) : page === "Home" ? (
                 <HomePage
                   t={t}
-                  lib={lib}
+                  lib={homeLibrary}
                   projects={community}
                   communityError={communityError}
                   onDiscover={() => navigation("Discover")}
-                  onOpen={openProject}
+                  onOpen={p=>{if(p.native_instance_id){setLibrarySelectionId(p.native_instance_id);navigation("Library");}else void openProject(p);}}
                   onInstall={install}
-                  installed={isInstalled}
+                  installed={id=>isInstalled(id,"modrinth")}
                   busy={busy}
                 />
               ) : page === "Discover" ? (
@@ -599,7 +596,7 @@ function App() {
                   busy={busy}
                 />
               ) : page === "Library" ? (
-                isTauri() ? <RuntimeLibrary russian={lang === "ru"} /> : <LibraryPage
+                isTauri() ? <RuntimeLibrary russian={lang === "ru"} initialInstanceId={librarySelectionId} onInitialOpened={()=>setLibrarySelectionId(null)}/> : <LibraryPage
                   t={t}
                   lib={lib}
                   query={libraryQuery}
@@ -835,6 +832,7 @@ function MiniCard({
   );
 }
 function DiscoverPage({
+  provider,setProvider,
   t,
   type,
   setType,
@@ -859,6 +857,7 @@ function DiscoverPage({
   installed,
   busy,
 }: {
+  provider:Provider;setProvider:(value:Provider)=>void;
   t: T;
   type: ContentType;
   setType: (x: ContentType) => void;
@@ -900,7 +899,7 @@ function DiscoverPage({
         <p>{t("discoverSub")}</p>
         <div className="provider-badge">
           <span className="provider-dot" />
-          Modrinth
+          <select aria-label="Provider" value={provider} onChange={e=>setProvider(e.target.value as Provider)}><option value="modrinth">Modrinth</option><option value="curseforge">CurseForge</option></select>
         </div>
       </div>
       <div className="type-tabs" role="tablist" aria-label={t("contentTypes")}>
@@ -953,6 +952,7 @@ function DiscoverPage({
           <AnimatePresence>
             {filterOpen && (
               <FilterPopover
+                provider={provider}
                 t={t}
                 filters={filters}
                 setFilters={setFilters}
@@ -1052,11 +1052,13 @@ function DiscoverPage({
   );
 }
 function FilterPopover({
+  provider="modrinth",
   t,
   filters,
   setFilters,
   type,
 }: {
+  provider?:Provider;
   t: T;
   filters: {
     loader: string;
@@ -1119,7 +1121,7 @@ function FilterPopover({
           </select>
         </label>
       )}
-      <label>
+      {provider==="modrinth"&&(<label>
         {t("category")}
         <select
           value={filters.category}
@@ -1134,8 +1136,8 @@ function FilterPopover({
               </option>
             ))}
         </select>
-      </label>
-      {type === "mod" && (
+      </label>)}
+      {type === "mod" && provider==="modrinth" && (
         <label>
           {t("environment")}
           <select
@@ -1149,91 +1151,6 @@ function FilterPopover({
         </label>
       )}
     </motion.div>
-  );
-}
-function ProjectCard({
-  p,
-  t,
-  type,
-  installed,
-  busy = false,
-  onOpen,
-  onInstall,
-}: {
-  p: Project;
-  t: T;
-  type: ContentType;
-  installed: boolean;
-  busy?: boolean;
-  onOpen: () => void;
-  onInstall: () => void;
-}) {
-  const art = artwork(p) || p.icon_url;
-  return (
-    <article className="project-card" onPointerMove={cardSpotlight}>
-      <button
-        className="card-visual"
-        onClick={onOpen}
-        aria-label={`${t("view")}: ${p.title}`}
-      >
-        {art && (
-          <div
-            className={
-              "card-bg " + (artwork(p) ? "gallery-art" : "blurred-icon")
-            }
-            style={{ backgroundImage: `url(${art})` }}
-          />
-        )}
-        <div className="card-icon-wrap">
-          <RemoteImage src={p.icon_url} alt="" />
-        </div>
-      </button>
-      <div className="card-body">
-        <div className="card-kind">{t(type)}</div>
-        <button className="card-title" onClick={onOpen}>
-          {p.title}
-        </button>
-        <p>{p.description || t("noDescription")}</p>
-        <div className="chips">
-          <span>{p.versions?.[p.versions.length - 1] || "Minecraft"}</span>
-          {p.categories?.slice(0, 2).map((c) => (
-            <span key={c}>{categories[c] ? t(categories[c]) : c}</span>
-          ))}
-        </div>
-        <div className="card-foot">
-          <span className="downloads" data-tooltip={t("downloads")}>
-            <Download size={13} />
-            {Intl.NumberFormat(undefined, {
-              notation: "compact",
-              maximumFractionDigits: 1,
-            }).format(p.downloads || 0)}
-          </span>
-          <button className="compact-action" onClick={onOpen}>
-            {t("view")}
-            <SquareArrowOutUpRight size={13} />
-          </button>
-          {type === "modpack" && (
-            <button
-              className={
-                installed
-                  ? "compact-action installed"
-                  : "compact-action install-action"
-              }
-              disabled={installed || busy}
-              onClick={onInstall}
-            >
-              {installed
-                ? t("installed")
-                : busy
-                  ? t("installing")
-                  : t("install")}
-              {!installed && <Plus size={13} />}
-            </button>
-          )}
-        </div>
-        <span className="card-provider">Modrinth</span>
-      </div>
-    </article>
   );
 }
 function SkeletonGrid() {
@@ -1393,7 +1310,7 @@ function DetailPage({
               <Heart size={14} />
               {Intl.NumberFormat().format(detail.followers)}
             </span>
-            <span>Modrinth</span>
+            <span>{providerName(detail.provider)}</span>
           </div>
           <div className="detail-actions">
             {detail.project_type !== "modpack" ? (
@@ -1401,7 +1318,7 @@ function DetailPage({
                 className="primary-button"
                 onClick={() =>
                   externalLink(
-                    `https://modrinth.com/${detail.project_type}/${detail.slug}`,
+                    providerSite(detail),
                   )
                 }
               >
@@ -1476,7 +1393,7 @@ function DetailPage({
         >
           {tab === "description" ? (
             <Suspense fallback={<p role="status">{t("loading")}</p>}>
-              <Markdown body={detail.body || t("noDescription")} />
+              <Markdown body={detail.body || t("noDescription")} format={detail.body_format}/>
             </Suspense>
           ) : tab === "gallery" ? (
             gallery.length ? (

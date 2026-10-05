@@ -1,6 +1,7 @@
+import {searchProvider,type Provider} from "../services/providers";
 import { useEffect, useReducer, useState } from "react";
 import {
-  searchProjects,
+
   type ContentType,
   type Project,
 } from "../services/modrinth";
@@ -30,14 +31,7 @@ export function useDiscovery() {
     // Debounce while aborting the old request immediately, including during pagination.
     const timer = setTimeout(async () => {
       try {
-        const data = await searchProjects(
-          state.type,
-          state.query,
-          state.sort,
-          (state.page - 1) * 12,
-          state.filters,
-          controller.signal,
-        );
+        const data = await searchProvider(state,controller.signal);
         if (active)
           setResult({
             projects: data.hits,
@@ -51,7 +45,7 @@ export function useDiscovery() {
             projects: [],
             total: 0,
             loading: false,
-            error: String(error),
+            error: typeof error==="object"&&error&&"message" in error?String(error.message):String(error),
           });
       }
     }, 240);
@@ -64,6 +58,7 @@ export function useDiscovery() {
   return {
     ...state,
     ...result,
+    setProvider:(provider:Provider)=>dispatch({type:"criteria",value:{provider,filters:initialDiscovery.filters}}),
     setType: (type: ContentType) =>
       dispatch({
         type: "criteria",

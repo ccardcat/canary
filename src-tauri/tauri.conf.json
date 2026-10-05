@@ -26,7 +26,8 @@
         "enable": true,
         "scope": [
           "$LOCALDATA/Canary/instances/*/screenshots/**",
-          "$LOCALDATA/Canary/cache/icons/**"
+          "$LOCALDATA/Canary/cache/icons/**",
+          "$LOCALDATA/Canary/wallpapers/**"
         ]
       }
     }

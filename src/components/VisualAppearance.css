@@ -28,8 +28,8 @@
 /* Treatment stays on the wrapper, so both decoded artwork layers match. */
 .artwork-fade { background-image:none!important; }
 .artwork-layer { position:absolute; inset:0; background-size:cover; background-repeat:no-repeat; }
-.artwork-current { animation:artwork-in .36s ease-out; }
-.artwork-fade:not(:has(.artwork-current)) .artwork-previous { animation:artwork-out .36s ease-out forwards; }
+.artwork-current { animation:artwork-in .24s ease-out; }
+.artwork-fade:not(:has(.artwork-current)) .artwork-previous { animation:artwork-out .24s ease-out forwards; }
 @keyframes artwork-in { from { opacity:0; } to { opacity:1; } }
 @keyframes artwork-out { to { opacity:0; } }
 .global-wallpaper { filter:blur(var(--wallpaper-blur)) brightness(var(--wallpaper-brightness,1)) saturate(var(--wallpaper-saturation,.75)); }

@@ -15,6 +15,6 @@ pub async fn cache(backend:&Backend,instance:&mut Instance)->Result<()> {
     instance.icon=Some(path.to_string_lossy().into());Ok(())
 }
 pub fn screenshot(backend:&Backend,id:&str,name:&str)->Result<std::path::PathBuf>{
-    let dir=storage::instance_dir(&backend.root,id)?;let path=storage::safe_join(&dir.join("screenshots"),name)?;
+    let dir=backend.instance_path(id)?;let path=storage::safe_join(&dir.join("screenshots"),name)?;
     if !path.is_file()||!path.extension().is_some_and(|e|matches!(e.to_string_lossy().to_ascii_lowercase().as_str(),"png"|"jpg"|"jpeg")){return Err(BackendError::new("screenshot","Screenshot not found"));}Ok(path)
 }

@@ -7,7 +7,7 @@ pub fn memory_mb()->Option<u64> {
     // Win32 fills exactly MEMORYSTATUSEX; no pointers are retained.
     if unsafe{GlobalMemoryStatusEx(&mut value)}!=0{Some(value.total/1_048_576)}else{None}
 }
-#[cfg(not(windows))]pub fn memory_mb()->Option<u64>{None}
+#[cfg(not(windows))]pub fn memory_mb()->Option<u64>{let text=std::fs::read_to_string("/proc/meminfo").ok()?;text.lines().find(|l|l.starts_with("MemTotal:")).and_then(|l|l.split_whitespace().nth(1))?.parse::<u64>().ok().map(|kb|kb/1024)}
 pub fn validate_memory(min:u32,max:u32)->Result<()> {
     if min<128||max<=min||max>1_048_576||memory_mb().is_some_and(|total|max as u64>total){return Err(BackendError::new("memory","RAM allocation must be positive, ordered and fit within physical memory"));}Ok(())
 }

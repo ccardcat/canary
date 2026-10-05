@@ -1,5 +1,7 @@
 use super::{Backend,download::{self,Artifact,Job},model::*,storage};
 use std::{path::{Path,PathBuf},sync::Arc};
+fn executable()->&'static str{if cfg!(windows){"java.exe"}else{"java"}}
+fn bin_path()->String{format!("bin/{}",executable())}
 pub fn major(version:&str)->Option<u32>{let raw=version.trim_matches('"');let mut parts=raw.split(['.','-','_','+']);let n=parts.next()?.parse().ok()?;if n==1{parts.next()?.parse().ok()}else{Some(n)}}
 pub async fn test(path:&Path,managed:bool)->Result<JavaRuntime>{
     if !path.is_file(){return Err(BackendError::new("java","Java executable does not exist"));}
@@ -13,11 +15,12 @@ pub async fn test(path:&Path,managed:bool)->Result<JavaRuntime>{
     Ok(JavaRuntime{path:std::fs::canonicalize(path)?.to_string_lossy().into(),major:major(&version).ok_or_else(||BackendError::new("java","Invalid Java version"))?,version,architecture:property("os.arch").unwrap_or_default(),vendor:property("java.vendor").unwrap_or_default(),managed})
 }
 pub async fn detect(root:&Path)->Result<Vec<JavaRuntime>>{
-    let mut candidates=vec![];if let Some(home)=std::env::var_os("JAVA_HOME"){candidates.push(PathBuf::from(home).join("bin/java.exe"));}
-    if let Some(paths)=std::env::var_os("PATH"){for dir in std::env::split_paths(&paths){candidates.push(dir.join("java.exe"));}}
-    fn scan(dir:&Path,depth:u8,out:&mut Vec<PathBuf>){if out.len()>100||depth==0{return;}if dir.join("bin/java.exe").is_file(){out.push(dir.join("bin/java.exe"));return;}if let Ok(entries)=std::fs::read_dir(dir){for entry in entries.flatten(){if entry.file_type().is_ok_and(|t|t.is_dir()){scan(&entry.path(),depth-1,out);}}}}
+    let mut candidates=vec![];if let Some(home)=std::env::var_os("JAVA_HOME"){candidates.push(PathBuf::from(home).join(bin_path()));}
+    if let Some(paths)=std::env::var_os("PATH"){for dir in std::env::split_paths(&paths){candidates.push(dir.join(executable()));}}
+    fn scan(dir:&Path,depth:u8,out:&mut Vec<PathBuf>){if out.len()>100||depth==0{return;}if dir.join(bin_path()).is_file(){out.push(dir.join(bin_path()));return;}if let Ok(entries)=std::fs::read_dir(dir){for entry in entries.flatten(){if entry.file_type().is_ok_and(|t|t.is_dir()){scan(&entry.path(),depth-1,out);}}}}
     scan(&root.join("java"),4,&mut candidates);
     for key in ["ProgramFiles","ProgramFiles(x86)","LOCALAPPDATA"]{if let Some(base)=std::env::var_os(key){for dir in ["Java","Eclipse Adoptium","Microsoft","Zulu","BellSoft","Programs/Eclipse Adoptium"]{scan(&PathBuf::from(&base).join(dir),3,&mut candidates);}}}
+    #[cfg(not(windows))]scan(Path::new("/usr/lib/jvm"),3,&mut candidates);
     candidates.sort();candidates.dedup();let mut result=vec![];for candidate in candidates{if let Ok(value)=test(&candidate,candidate.starts_with(root.join("java"))).await {if !result.iter().any(|r:&JavaRuntime|r.path.eq_ignore_ascii_case(&value.path)){result.push(value);}}}Ok(result)
 }
 pub async fn select(backend:Arc<Backend>,instance:&Instance,required:u32,job:Arc<Job>)->Result<JavaRuntime>{
@@ -26,19 +29,20 @@ pub async fn select(backend:Arc<Backend>,instance:&Instance,required:u32,job:Arc
     let settings=backend.settings();
     if let Some(path)=instance.overrides.java.as_ref().or(settings.java_path.as_ref()) {
         let java=test(Path::new(path),Path::new(path).starts_with(backend.root.join("java"))).await?;
-        if java.major!=required||!compatible_arch(&java.architecture){return Err(BackendError::new("java_incompatible",format!("Minecraft requires Java {required} with matching Windows architecture; selected runtime is Java {} ({})",java.major,java.architecture)));}return Ok(java);
+        if java.major!=required||!compatible_arch(&java.architecture){return Err(BackendError::new("java_incompatible",format!("Minecraft requires Java {required} with matching system architecture; selected runtime is Java {} ({})",java.major,java.architecture)));}return Ok(java);
     }
     if let Some(java)=detect(&backend.root).await?.into_iter().find(|j|j.major==required&&compatible_arch(&j.architecture)){return Ok(java);}
     if !settings.automatic_java{return Err(BackendError::new("java_missing",format!("Install or select Java {required}")));}
     job.emit("java","running",&required.to_string());
     let arch=if cfg!(target_arch="aarch64"){"aarch64"}else{"x64"};
-    let metadata=download::json(&backend,&format!("https://api.adoptium.net/v3/assets/latest/{required}/hotspot?architecture={arch}&image_type=jre&os=windows&vendor=eclipse")).await?;
+    let os=if cfg!(windows){"windows"}else if cfg!(target_os="macos"){"mac"}else{"linux"};
+    let metadata=download::json(&backend,&format!("https://api.adoptium.net/v3/assets/latest/{required}/hotspot?architecture={arch}&image_type=jre&os={os}&vendor=eclipse")).await?;
     let package=&metadata[0]["binary"]["package"];let hash=package["checksum"].as_str().ok_or_else(||BackendError::new("java","Runtime checksum missing"))?;
-    let archive=backend.root.join("cache").join(format!("java-{required}-{hash}.zip"));
+    let archive=backend.root.join("cache").join(format!("java-{required}-{hash}.{}",if cfg!(windows){"zip"}else{"tar.gz"}));
     download::batch(backend.clone(),vec![Artifact{url:package["link"].as_str().ok_or_else(||BackendError::new("java","Runtime download URL missing"))?.into(),path:archive.clone(),hash:Some(hash.into()),algorithm:"sha256",size:package["size"].as_u64()}],job.clone(),"java").await?;
     let target=backend.root.join("java").join(format!("{required}-{hash}"));let staging=backend.root.join("temp").join(format!("java-{}",uuid::Uuid::new_v4()));let _cleanup=storage::Staging(staging.clone());let extract=staging.clone();
-    tokio::task::spawn_blocking(move||storage::extract(&archive,&extract)).await.map_err(|e|BackendError::new("java",e.to_string()))??;
-    let mut executable=None;for entry in std::fs::read_dir(&staging)?{let entry=entry?;let path=entry.path().join("bin/java.exe");if path.is_file(){executable=Some(path);break;}}
+    tokio::task::spawn_blocking(move||if cfg!(windows){storage::extract(&archive,&extract)}else{extract_runtime_tar(&archive,&extract)}).await.map_err(|e|BackendError::new("java",e.to_string()))??;
+    let mut executable=None;for entry in std::fs::read_dir(&staging)?{let entry=entry?;let path=entry.path().join(bin_path());if path.is_file(){executable=Some(path);break;}}
     let checked=test(&executable.ok_or_else(||BackendError::new("java","Runtime archive has no Java executable"))?,true).await?;
     if checked.major!=required{return Err(BackendError::new("java","Downloaded runtime version mismatch"));}job.check()?;
     if !target.exists(){std::fs::rename(&staging,&target)?;}else{std::fs::remove_dir_all(&staging)?;}
@@ -46,3 +50,13 @@ pub async fn select(backend:Arc<Backend>,instance:&Instance,required:u32,job:Arc
 }
 fn compatible_arch(arch:&str)->bool{if cfg!(target_arch="aarch64"){matches!(arch,"aarch64"|"arm64")}else{matches!(arch,"amd64"|"x86_64")}}
 #[cfg(test)]mod tests{use super::*;#[test]fn java_versions(){assert_eq!(major("1.8.0_412"),Some(8));assert_eq!(major("21.0.4+7"),Some(21));assert_eq!(major("25-ea"),Some(25));assert_eq!(major("bad"),None);}}
+
+fn extract_runtime_tar(archive:&Path,root:&Path)->Result<()> {
+    let decoder=flate2::read::GzDecoder::new(std::fs::File::open(archive)?);let mut archive=tar::Archive::new(decoder);std::fs::create_dir_all(root)?;let mut links=vec![];
+    for entry in archive.entries()?{let mut entry=entry?;let kind=entry.header().entry_type();let name=entry.path()?.to_string_lossy().trim_end_matches('/').to_owned();if name.is_empty(){continue;}let path=storage::safe_join(root,&name)?;
+        if kind.is_dir(){std::fs::create_dir_all(path)?;}else if kind.is_file(){if entry.size()>512*1024*1024{return Err(BackendError::new("java","Runtime archive entry too large"));}std::fs::create_dir_all(path.parent().unwrap())?;let mut file=std::fs::File::create(&path)?;std::io::copy(&mut entry,&mut file)?;#[cfg(unix)]{use std::os::unix::fs::PermissionsExt;std::fs::set_permissions(path,std::fs::Permissions::from_mode(entry.header().mode()?&0o777))?;}}
+        else if kind.is_symlink()||kind.is_hard_link(){let target=entry.link_name()?.ok_or_else(||BackendError::new("java","Runtime link target missing"))?;if target.is_absolute(){return Err(BackendError::new("unsafe_path","Absolute runtime link"));}let base=if kind.is_hard_link(){root}else{path.parent().unwrap()};let mut resolved=base.to_path_buf();for component in target.components(){match component{std::path::Component::Normal(part)=>resolved.push(part),std::path::Component::CurDir=>{},std::path::Component::ParentDir=>{if resolved==root||!resolved.pop(){return Err(BackendError::new("unsafe_path","Runtime link escapes archive"));}},_=>return Err(BackendError::new("unsafe_path","Invalid runtime link"))}}if !resolved.starts_with(root){return Err(BackendError::new("unsafe_path","Runtime link escapes archive"));}links.push((path,resolved));}
+        else{return Err(BackendError::new("unsafe_path","Unsupported runtime archive entry"));}}
+    // Flatten verified internal links; the managed tree contains no symlinks.
+    while !links.is_empty(){let before=links.len();let mut pending=vec![];for (path,target) in links{if target.is_file(){std::fs::create_dir_all(path.parent().unwrap())?;std::fs::copy(target,path)?;}else{pending.push((path,target));}}if pending.len()==before{return Err(BackendError::new("java","Unresolvable runtime archive link"));}links=pending;}Ok(())
+}

@@ -4,8 +4,9 @@ use serde::{Serialize,Deserialize};
 use serde_json::{Value,json};
 use std::{path::{Path,PathBuf},io::Read};
 
+pub fn default_provider()->String{"modrinth".into()}
 #[derive(Clone,Serialize,Deserialize,Debug)]
-pub struct Item {pub id:String,pub name:String,pub version:String,pub kind:String,pub path:String,pub enabled:bool,pub source:String,pub hash:String,pub size:u64,pub project:Option<String>,pub provider_version:Option<String>,pub icon:Option<String>,pub loader:Option<String>,#[serde(default)]pub mod_ids:Vec<String>,pub compatibility:String,pub missing:bool,#[serde(default)]pub canary_managed:bool,#[serde(default)]pub update:Option<String>,#[serde(default)]pub dependencies:Vec<String>}
+pub struct Item {#[serde(default)]pub installed:u64,#[serde(default="default_provider")]pub provider:String,pub id:String,pub name:String,pub version:String,pub kind:String,pub path:String,pub enabled:bool,pub source:String,pub hash:String,pub size:u64,pub project:Option<String>,pub provider_version:Option<String>,pub icon:Option<String>,pub loader:Option<String>,#[serde(default)]pub mod_ids:Vec<String>,pub compatibility:String,pub missing:bool,#[serde(default)]pub canary_managed:bool,#[serde(default)]pub update:Option<String>,#[serde(default)]pub dependencies:Vec<String>}
 #[derive(Clone,Default,Serialize,Deserialize)]
 #[serde(default)]
 pub struct State {pub items:Vec<Item>,pub history:Vec<Change>,pub snapshots:Vec<Snapshot>,pub suppressed_pack_paths:Vec<String>}
@@ -46,7 +47,7 @@ pub fn inspect(path:&Path,instance:&Instance)->Result<Inspection>{
     Ok(Inspection{name,version,kind:kind.into(),loader,minecraft:mc,compatibility:compatibility.into(),mod_ids,file:path.to_string_lossy().into()})
 }
 pub fn scan(backend:&Backend,id:&str)->Result<State>{
-    let instance=backend.instance(id)?;let root=storage::instance_dir(&backend.root,id)?;let mut state=load(&root)?;
+    let instance=backend.instance(id)?;let root=backend.instance_path(id)?;let mut state=load(&root)?;
     let index:Value=std::fs::read(root.join("modrinth.index.json")).ok().and_then(|v|serde_json::from_slice(&v).ok()).unwrap_or(Value::Null);
     let pack_receipt:Vec<Value>=std::fs::read(root.join("pack-content-files.json")).ok().and_then(|bytes|serde_json::from_slice(&bytes).ok()).unwrap_or_default();
     let managed=index["files"].as_array().map(|f|f.iter().filter_map(|x|x["path"].as_str().map(str::to_owned)).collect::<Vec<_>>()).unwrap_or_default();
@@ -58,9 +59,10 @@ pub fn scan(backend:&Backend,id:&str)->Result<State>{
         if let Some(item)=state.items.iter_mut().find(|i|i.path==relative&&i.enabled){let actual=download::hash(&path,"sha512")?;if item.hash!=actual{item.hash=actual;item.size=metadata.len();item.project=None;item.provider_version=None;item.source="local".into();item.canary_managed=false;}if item.mod_ids.is_empty(){if let Ok(info)=inspect(&path,&instance){item.mod_ids=info.mod_ids;item.loader=info.loader;}}continue;}
         let info=inspect(&path,&instance).ok();let hash=download::hash(&path,"sha512")?;
         let pack_entry=index["files"].as_array().and_then(|files|files.iter().find(|f|f["path"].as_str()==Some(&relative)&&f["hashes"]["sha512"].as_str().is_some_and(|expected|expected.eq_ignore_ascii_case(&hash))));
+        let cf_receipt=if instance.provider=="curseforge"{pack_receipt.iter().find(|entry|entry["path"].as_str()==Some(&relative)&&entry["hash"].as_str()==Some(&hash))}else{None};
         let verified_pack=pack_entry.is_some()||pack_receipt.iter().any(|entry|entry["path"].as_str()==Some(&relative)&&entry["hash"].as_str()==Some(&hash));
         let provenance=pack_entry.and_then(|file|file["downloads"].as_array()).and_then(|urls|urls.iter().filter_map(Value::as_str).find_map(|url|{let u=reqwest::Url::parse(url).ok()?;if u.scheme()!="https"||u.host_str()!=Some("cdn.modrinth.com"){return None;}let parts=u.path_segments()?.collect::<Vec<_>>();if parts.len()>=5&&parts[0]=="data"&&parts[2]=="versions"{Some((parts[1].to_owned(),parts[3].to_owned()))}else{None}}));
-        state.items.push(Item{id:uuid::Uuid::new_v4().to_string(),name:info.as_ref().map(|i|i.name.clone()).unwrap_or_else(||entry.file_name().to_string_lossy().into()),version:info.as_ref().map(|i|i.version.clone()).unwrap_or_default(),kind:kind.into(),path:relative.clone(),enabled:true,source:if verified_pack{"pack"}else{"local"}.into(),hash,size:metadata.len(),project:provenance.as_ref().map(|p|p.0.clone()),provider_version:provenance.map(|p|p.1),icon:None,loader:info.as_ref().and_then(|i|i.loader.clone()),mod_ids:info.as_ref().map(|i|i.mod_ids.clone()).unwrap_or_default(),compatibility:info.map(|i|i.compatibility).unwrap_or("possible".into()),missing:false,canary_managed:verified_pack,update:None,dependencies:vec![]});
+        state.items.push(Item{installed:now(),provider:if cf_receipt.is_some(){"curseforge"}else{"modrinth"}.into(),id:uuid::Uuid::new_v4().to_string(),name:info.as_ref().map(|i|i.name.clone()).unwrap_or_else(||entry.file_name().to_string_lossy().into()),version:info.as_ref().map(|i|i.version.clone()).unwrap_or_default(),kind:kind.into(),path:relative.clone(),enabled:true,source:if verified_pack{"pack"}else{"local"}.into(),hash,size:metadata.len(),project:cf_receipt.and_then(|r|r["project"].as_str().map(str::to_owned)).or_else(||provenance.as_ref().map(|p|p.0.clone())),provider_version:cf_receipt.and_then(|r|r["file"].as_str().map(str::to_owned)).or_else(||provenance.map(|p|p.1)),icon:None,loader:info.as_ref().and_then(|i|i.loader.clone()),mod_ids:info.as_ref().map(|i|i.mod_ids.clone()).unwrap_or_default(),compatibility:info.map(|i|i.compatibility).unwrap_or("possible".into()),missing:false,canary_managed:verified_pack,update:None,dependencies:vec![]});
     }}}
     for item in &state.items{if item.source=="local"&&managed.contains(&item.path)&&!state.suppressed_pack_paths.contains(&item.path){state.suppressed_pack_paths.push(item.path.clone());}}
     for item in &mut state.items{let file=storage::safe_join(&root,&location(item))?;item.missing=!file.is_file();if !item.enabled&&!item.missing{let actual=download::hash(&file,"sha512")?;if item.hash!=actual{item.hash=actual;item.size=std::fs::metadata(&file)?.len();item.project=None;item.provider_version=None;item.source="local".into();item.canary_managed=false;if !state.suppressed_pack_paths.contains(&item.path){state.suppressed_pack_paths.push(item.path.clone());}}}}
@@ -71,15 +73,15 @@ pub fn checkpoint(root:&Path,state:&mut State,action:&str)->Result<Snapshot>{
     let snapshot=Snapshot{pack:None,id:uuid::Uuid::new_v4().to_string(),timestamp:now(),action:action.into(),items:state.items.iter().filter(|i|!i.missing).cloned().collect(),suppressed_pack_paths:state.suppressed_pack_paths.clone()};
     // Content-addressed backups reuse identical files between snapshots.
     for item in &snapshot.items{let source=storage::safe_join(root,&location(item))?;if !source.is_file(){continue;}let target=blob(root,item)?;if !target.is_file(){std::fs::create_dir_all(target.parent().unwrap())?;std::fs::copy(source,&target)?;if download::hash(&target,"sha512")?!=item.hash{return Err(BackendError::new("checksum","Content changed while saving snapshot"));}}}
-    state.snapshots.push(snapshot.clone());if state.snapshots.len()>8{state.snapshots.remove(0);}save(root,state)?;Ok(snapshot)
+    state.snapshots.push(snapshot.clone());save(root,state)?;Ok(snapshot)
 }
 pub fn record(backend:&Backend,id:&str,state:&mut State,action:&str,items:&[Item])->Result<()> {
     let change=Change{timestamp:now(),action:action.into(),names:items.iter().map(|i|i.name.clone()).collect(),ids:items.iter().map(|i|i.id.clone()).collect()};state.history.push(change);if state.history.len()>50{state.history.remove(0);}
-    {let mut store=backend.store.lock().unwrap();store.activity.push(Activity{timestamp:now(),instance:Some(id.into()),kind:format!("content_{action}"),message:items.iter().map(|i|i.name.as_str()).collect::<Vec<_>>().join(", ")});if store.activity.len()>500{store.activity.remove(0);}}
+    {let mut store=backend.store.lock().unwrap();store.activity.push(Activity{id:uuid::Uuid::new_v4().to_string(),timestamp:now(),instance:Some(id.into()),kind:format!("content_{action}"),message:items.iter().map(|i|i.name.as_str()).collect::<Vec<_>>().join(", ")});if store.activity.len()>500{store.activity.remove(0);}}
     backend.persist()
 }
 pub fn mutate(backend:&Backend,id:&str,ids:&[String],action:&str)->Result<State>{
-    let root=storage::instance_dir(&backend.root,id)?;let mut state=scan(backend,id)?;let items=state.items.iter().filter(|i|ids.contains(&i.id)).cloned().collect::<Vec<_>>();if items.len()!=ids.len(){return Err(BackendError::new("content_missing","Content selection changed; rescan"));}
+    let root=backend.instance_path(id)?;let mut state=scan(backend,id)?;let items=state.items.iter().filter(|i|ids.contains(&i.id)).cloned().collect::<Vec<_>>();if items.len()!=ids.len(){return Err(BackendError::new("content_missing","Content selection changed; rescan"));}
     if !matches!(action,"enable"|"disable"|"remove"){return Err(BackendError::new("content_action","Unsupported action"));}
     for item in &items {if item.missing&&action!="remove"{return Err(BackendError::new("content_missing","Content file is missing"));}
       if action!="remove"&&item.enabled!=(action=="enable") {let mut next=item.clone();next.enabled=action=="enable";if storage::safe_join(&root,&location(&next))?.exists(){return Err(BackendError::new("content_conflict","Target already exists"));}}}
@@ -93,10 +95,10 @@ pub fn mutate(backend:&Backend,id:&str,ids:&[String],action:&str)->Result<State>
     }
     Ok(())})();
     if let Err(e)=result{for (from,to) in moved.into_iter().rev(){let _=std::fs::rename(to,from);}let _=rollback(backend,id);return Err(e);}
-    record(backend,id,&mut state,action,&items)?;save(&root,&state)?;Ok(state)
+    record(backend,id,&mut state,action,&items)?;retain_backups(backend,&root,&mut state)?;save(&root,&state)?;Ok(state)
 }
 pub fn rollback(backend:&Backend,id:&str)->Result<State>{
- let root=storage::instance_dir(&backend.root,id)?;let old=load(&root)?;let snapshot=old.snapshots.last().cloned().ok_or_else(||BackendError::new("content_snapshot","No content snapshot available"))?;
+ let root=backend.instance_path(id)?;let old=load(&root)?;let snapshot=old.snapshots.last().cloned().ok_or_else(||BackendError::new("content_snapshot","No content snapshot available"))?;
  let preserved=old.items.iter().filter(|i|!i.canary_managed&&!snapshot.items.iter().any(|s|s.id==i.id)).cloned().collect::<Vec<_>>();
  let staging=storage::Staging(root.join(".canary-content/rollback").join(uuid::Uuid::new_v4().to_string()));std::fs::create_dir_all(&staging.0)?;
  let mut prepared=vec![];
@@ -117,3 +119,6 @@ pub fn rollback(backend:&Backend,id:&str)->Result<State>{
  if let Err(error)=result{let mut failed=false;for path in restored{if std::fs::remove_file(path).is_err(){failed=true;}}for (source,temp) in held.into_iter().rev(){if std::fs::rename(temp,source).is_err(){failed=true;}}let _=save(&root,&old);if let Some(pack)=&recovery_pack{if super::pack_update::restore(backend,id,pack).is_err(){failed=true;}}if failed{let path=staging.0.to_string_lossy().into_owned();std::mem::forget(staging);return Err(BackendError::new("content_recovery",format!("Recovery files preserved at {path}")));}return Err(error);}
  let items=next.items.clone();record(backend,id,&mut next,"rollback",&items)?;save(&root,&next)?;Ok(next)
 }
+
+// Bound backups by the user's retention policy and reclaim unreferenced blobs.
+pub fn retain_backups(b:&Backend,root:&Path,state:&mut State)->Result<()> {let settings=b.settings();if !settings.backup_before_changes{state.snapshots.clear();}else{while state.snapshots.len()>settings.backup_retention{state.snapshots.remove(0);}}let hashes:std::collections::HashSet<_>=state.snapshots.iter().flat_map(|s|s.items.iter().map(|i|i.hash.as_str()).chain(s.pack.iter().flat_map(|p|p.metadata.values().filter_map(|h|h.as_deref())))).collect();let folder=root.join(".canary-content/blobs");if let Ok(files)=std::fs::read_dir(&folder){for file in files.flatten(){let name=file.file_name().to_string_lossy().into_owned();if file.file_type()?.is_file()&&name.len()==128&&name.chars().all(|c|c.is_ascii_hexdigit())&&!hashes.contains(name.as_str()){std::fs::remove_file(file.path())?;}}}Ok(())}

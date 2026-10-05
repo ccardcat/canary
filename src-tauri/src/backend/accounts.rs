@@ -18,14 +18,14 @@ pub fn launch_identity(account:&Account)->Result<LaunchIdentity>{
 pub fn providers()->serde_json::Value{serde_json::json!({
     "local":{"configured":true},
     "elyby":{"configured":true},
-    "microsoft":{"configured":false,"client_id_available":std::env::var("CANARY_MICROSOFT_CLIENT_ID").is_ok_and(|s|!s.trim().is_empty()),"requirement":"A legitimate Entra Application client ID and a separate Microsoft provider implementation are required"},
+    "microsoft":{"configured":true},
     "curseforge":{"configured":super::curseforge::configured(),"requirement":"Set CANARY_CURSEFORGE_API_KEY using your own official CurseForge API key"}
 })}
 // Windows Credential Manager only. Remote providers will use this shared store;
 // non-sensitive account metadata never contains access/refresh credentials.
 #[allow(dead_code)]
 pub fn save_credentials(id:&str,secret:&str)->Result<()> {
-    keyring::Entry::new("Canary",id).and_then(|entry|entry.set_password(secret)).map_err(|_|BackendError::new("secure_storage","Windows credential storage is unavailable"))
+    keyring::Entry::new("Canary",id).and_then(|entry|entry.set_password(secret)).map_err(|_|BackendError::new("secure_storage","OS credential storage is unavailable"))
 }
 #[allow(dead_code)]
 pub fn credentials(id:&str)->Result<String>{keyring::Entry::new("Canary",id).and_then(|entry|entry.get_password()).map_err(|_|BackendError::new("secure_storage","Cannot read account credential"))}

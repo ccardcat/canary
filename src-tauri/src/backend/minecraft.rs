@@ -1,15 +1,16 @@
 use super::{Backend,download::{self,Artifact,Job},model::*,storage};
 use serde_json::{Value,json};
 use std::{collections::{HashMap,HashSet},path::PathBuf,sync::Arc};
+pub fn os_name()->&'static str{if cfg!(windows){"windows"}else if cfg!(target_os="macos"){"osx"}else{"linux"}}
 pub const MANIFEST:&str="https://piston-meta.mojang.com/mc/game/version_manifest_v2.json";
 #[derive(Clone,serde::Serialize,serde::Deserialize)]
-pub struct Prepared {pub metadata:Value,pub classpath:Vec<String>,pub natives:String,pub assets:String,pub asset_index:String,pub java_major:u32,pub logging:Option<String>,#[serde(default)]pub files:Vec<(String,u64)>}
+pub struct Prepared {#[serde(default)]pub platform:String,pub metadata:Value,pub classpath:Vec<String>,pub natives:String,pub assets:String,pub asset_index:String,pub java_major:u32,pub logging:Option<String>,#[serde(default)]pub files:Vec<(String,u64)>}
 pub fn allowed(value:&Value)->bool {
     let Some(rules)=value["rules"].as_array()else{return true};if rules.is_empty(){return true;}
     let mut allow=false;
     for rule in rules {
         if let Some(os)=rule.get("os") {
-            if os["name"].as_str().is_some_and(|n|n!="windows"){continue;}
+            if os["name"].as_str().is_some_and(|n|n!=os_name()){continue;}
             if os["arch"].as_str().is_some_and(|arch|if cfg!(target_arch="aarch64"){!matches!(arch,"aarch64"|"arm64")}else{!matches!(arch,"amd64"|"x86_64"|"x64")}){continue;}
             if let Some(pattern)=os["version"].as_str(){if !regex::Regex::new(pattern).is_ok_and(|r|r.is_match(&super::system::os_version())){continue;}}
         }
@@ -41,9 +42,9 @@ fn artifact(download:&Value,path:PathBuf)->Result<Artifact>{
 pub async fn prepare(backend:Arc<Backend>,instance:&Instance,job:Arc<Job>,deep:bool)->Result<Prepared>{
     job.check()?;job.emit("minecraft","running",&instance.minecraft);
     super::modpacks::verify(backend.clone(),instance,job.clone(),deep).await?;
-    let dir=storage::instance_dir(&backend.root,&instance.id)?;let prepared_path=dir.join("runtime.json");
+    let dir=backend.instance_path(&instance.id)?;let prepared_path=dir.join("runtime.json");
     if !deep&&prepared_path.is_file(){let cached:Prepared=serde_json::from_slice(&std::fs::read(&prepared_path)?)?;
-        if !cached.files.is_empty()&&cached.files.iter().all(|(p,size)|std::fs::metadata(p).is_ok_and(|m|m.len()==*size))&&cached.classpath.iter().all(|p|std::path::Path::new(p).is_file())&&std::path::Path::new(&cached.natives).is_dir(){return Ok(cached);}}
+        if cached.platform==os_name()&&!cached.files.is_empty()&&cached.files.iter().all(|(p,size)|std::fs::metadata(p).is_ok_and(|m|m.len()==*size))&&cached.classpath.iter().all(|p|std::path::Path::new(p).is_file())&&std::path::Path::new(&cached.natives).is_dir(){return Ok(cached);}}
     let versions=manifest(&backend).await?;let version=versions["versions"].as_array().and_then(|list|list.iter().find(|v|v["id"]==instance.minecraft)).ok_or_else(||BackendError::new("minecraft_version","Minecraft version not found"))?;
     let metadata_path=storage::safe_join(&backend.root.join("cache/versions"),&format!("{}.json",instance.minecraft))?;
     let metadata_artifact=artifact(version,metadata_path.clone())?;
@@ -78,7 +79,7 @@ pub async fn prepare(backend:Arc<Backend>,instance:&Instance,job:Arc<Job>,deep:b
             let receipt=path.with_extension("sha256");let expected=std::fs::read_to_string(&receipt).ok();
             if seen.insert(path.clone()){classpath.push(path.to_string_lossy().into());files.push(Artifact{url,path,hash:expected,algorithm:"sha256",size:None});}
         }
-        if let Some(classifier)=lib["natives"]["windows"].as_str(){let classifier=classifier.replace("${arch}",if cfg!(target_pointer_width="64"){"64"}else{"32"});
+        if let Some(classifier)=lib["natives"][os_name()].as_str(){let classifier=classifier.replace("${arch}",if cfg!(target_pointer_width="64"){"64"}else{"32"});
             let data=&lib["downloads"]["classifiers"][classifier];let rel=data["path"].as_str().ok_or_else(||BackendError::new("metadata","Native path missing"))?;let path=storage::safe_join(&cache.join("libraries"),rel)?;
             if seen.insert(path.clone()){files.push(artifact(data,path.clone())?);}natives.push(path);
         }
@@ -105,7 +106,7 @@ pub async fn prepare(backend:Arc<Backend>,instance:&Instance,job:Arc<Job>,deep:b
     // Legacy logical assets must be materialized as well as stored by hash.
     if asset_index["virtual"]==true||asset_index["map_to_resources"]==true {let logical=if asset_index["map_to_resources"]==true{dir.join("resources")}else{cache.join("assets/virtual").join(&index_id)};for(name,item)in objects{job.check()?;let hash=item["hash"].as_str().unwrap();let source=cache.join("assets/objects").join(&hash[..2]).join(hash);let target=storage::safe_join(&logical,name)?;if !target.is_file(){std::fs::create_dir_all(target.parent().unwrap())?;std::fs::copy(source,target)?;}}}
     let logging=if let Some(arg)=metadata["logging"]["client"]["argument"].as_str(){let id=metadata["logging"]["client"]["file"]["id"].as_str().unwrap();Some(arg.replace("${path}",&storage::safe_join(&cache.join("logging"),id)?.to_string_lossy()))}else{None};
-    let prepared=Prepared {java_major:metadata["javaVersion"]["majorVersion"].as_u64().unwrap_or(8) as u32,metadata,natives:native_dir.to_string_lossy().into(),classpath,assets:cache.join("assets").to_string_lossy().into(),asset_index:index_id.into(),logging,files:required.into_iter().map(|p|{let size=std::fs::metadata(&p).map(|m|m.len())?;Ok((p.to_string_lossy().into_owned(),size))}).collect::<Result<Vec<_>>>()?};
+    let prepared=Prepared {platform:os_name().into(),java_major:metadata["javaVersion"]["majorVersion"].as_u64().unwrap_or(8) as u32,metadata,natives:native_dir.to_string_lossy().into(),classpath,assets:cache.join("assets").to_string_lossy().into(),asset_index:index_id.into(),logging,files:required.into_iter().map(|p|{let size=std::fs::metadata(&p).map(|m|m.len())?;Ok((p.to_string_lossy().into_owned(),size))}).collect::<Result<Vec<_>>>()?};
     storage::write_json(&prepared_path,&prepared)?;job.check()?;Ok(prepared)
 }
-#[cfg(test)]mod tests{use super::*;#[test]fn rules_and_placeholders(){assert!(allowed(&json!({})));assert!(!allowed(&json!({"rules":[{"action":"allow","os":{"name":"linux"}}]})));assert!(allowed(&json!({"rules":[{"action":"allow"},{"action":"disallow","os":{"name":"linux"}}]})));let args=arguments(&json!({"arguments":{"game":["--username","${auth_player_name}",{"rules":[{"action":"allow","features":{"is_demo_user":true}}],"value":"--demo"}]}}),"game");assert_eq!(args.len(),2);let values=HashMap::from([("auth_player_name".into(),"Player".into())]);assert_eq!(substitute(args,&values).unwrap(),["--username","Player"]);assert!(substitute(vec!["${missing}".into()],&values).is_err());}#[test]fn loader_merges(){let a=json!({"libraries":[{"name":"a"}],"arguments":{"game":["a"]},"mainClass":"old"});let b=json!({"libraries":[{"name":"b"}],"arguments":{"game":["b"]},"mainClass":"new"});let c=merge(&a,&b);assert_eq!(c["libraries"].as_array().unwrap().len(),2);assert_eq!(c["arguments"]["game"],json!(["a","b"]));assert_eq!(c["mainClass"],"new");}}
+#[cfg(test)]mod tests{use super::*;#[test]fn rules_and_placeholders(){assert!(allowed(&json!({})));assert!(allowed(&json!({"rules":[{"action":"allow","os":{"name":os_name()}}]})));assert!(!allowed(&json!({"rules":[{"action":"allow"},{"action":"disallow","os":{"name":os_name()}}]})));let args=arguments(&json!({"arguments":{"game":["--username","${auth_player_name}",{"rules":[{"action":"allow","features":{"is_demo_user":true}}],"value":"--demo"}]}}),"game");assert_eq!(args.len(),2);let values=HashMap::from([("auth_player_name".into(),"Player".into())]);assert_eq!(substitute(args,&values).unwrap(),["--username","Player"]);assert!(substitute(vec!["${missing}".into()],&values).is_err());}#[test]fn loader_merges(){let a=json!({"libraries":[{"name":"a"}],"arguments":{"game":["a"]},"mainClass":"old"});let b=json!({"libraries":[{"name":"b"}],"arguments":{"game":["b"]},"mainClass":"new"});let c=merge(&a,&b);assert_eq!(c["libraries"].as_array().unwrap().len(),2);assert_eq!(c["arguments"]["game"],json!(["a","b"]));assert_eq!(c["mainClass"],"new");}}

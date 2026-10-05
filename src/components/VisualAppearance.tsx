@@ -7,18 +7,19 @@ import DesktopBehavior from "./DesktopBehavior";
 import { PolishControls, QualityControls, polishDefaults, type PolishPreferences } from "./PolishControls";
 import { appearanceMessages } from "../locales/appearance";
 
-const files = Object.keys(import.meta.glob("/public/backgrounds/*.{png,jpg,jpeg,webp}"));
-export const backgrounds = [...new Set(files.map(p => p.match(/\/([^/]+)-(?:bg|sidebar)\./)?.[1]).filter((p): p is string => !!p && p !== "sidebar"))].map(id => ({
-  id, name: id === "darkblue" ? "Dark Blue" : (id[0].toUpperCase() + id.slice(1)).replace(/(\D)(\d+)$/, "$1 $2"),
-  ambient: id.startsWith("sakura") ? "sakura" : "off",
-  app: files.find(p => p.includes(`/${id}-bg.`))?.replace("/public", ""),
-  sidebar: files.find(p => p.includes(`/${id}-sidebar.`))?.replace("/public", ""),
-}));
+import {backgrounds,type Background} from "../services/backgrounds";
+export {backgrounds} from "../services/backgrounds";
+import {isTauri,convertFileSrc} from "@tauri-apps/api/core";
+import {useBackend} from "../services/backend";
 const fonts = ["Nunito", "Manrope", "Plus Jakarta Sans", "Rubik", "Monocraft"];
 type Preferences = PolishPreferences & { app: string; sidebar: string; linked: boolean; intensity: number; blur: number; sidebarBlur: number; font: string; fontScale: 90 | 100 | 110 | 120; minecraft: "headings" | "full"; ambient: "off" | "automatic" | "sakura" | "snow" };
 const defaults: Preferences = { ...polishDefaults, app: "normal", sidebar: "default", linked: false, intensity: 45, blur: 5, sidebarBlur: 12, font: "Nunito", fontScale:100, minecraft: "headings", ambient: "off" };
-const Context = createContext<{ value: Preferences; update: (patch: Partial<Preferences>) => void }>({ value: defaults, update: () => {} });
+const Context = createContext<{ registry:Background[];reload:()=>Promise<void>;value: Preferences; update: (patch: Partial<Preferences>) => void }>({registry:backgrounds,reload:async()=>{},value: defaults, update: () => {} });
 export function VisualAppearanceProvider({ children }: { children: ReactNode }) {
+  const {run}=useBackend();const [custom,setCustom]=useState<Background[]>([]);
+  const reload=async()=>{if(!isTauri())return;const data=await run<{id:string;name:string;target:string;image:string;thumbnail:string}[]>("list_wallpapers");setCustom(data.map(p=>({id:p.id,name:p.name,ambient:"off",custom:true,thumbnail:convertFileSrc(p.thumbnail),...(p.target!=="sidebar"?{app:convertFileSrc(p.image)}:{}),...(p.target!=="app"?{sidebar:convertFileSrc(p.image)}:{})})));};
+  useEffect(()=>{void reload().catch(()=>{});},[run]);const registry=[...backgrounds,...custom];
+
   const [value, setValue] = useState<Preferences>(() => {
     try {
       const saved = JSON.parse(localStorage.getItem("canary-visual") || "{}");
@@ -54,14 +55,14 @@ export function VisualAppearanceProvider({ children }: { children: ReactNode }) 
     root.style.setProperty("--sidebar-opacity", String(value.sidebarIntensity / 100));
     root.style.setProperty("--ui-font", value.font === "Monocraft" && value.minecraft === "headings" ? "Nunito" : `"${value.font}"`);
     root.style.setProperty("--heading-font", `"${value.font}"`);
-    root.style.setProperty("--sidebar-art", `url("${backgrounds.find(p => p.id === value.sidebar)?.sidebar || "/backgrounds/sidebar-bg.webp"}")`);
+    root.style.setProperty("--sidebar-art", `url("${registry.find(p => p.id === value.sidebar)?.sidebar || "/backgrounds/sidebar-bg.webp"}")`);
     root.style.setProperty("--sidebar-blur", `${value.sidebarBlur}px`);
-  }, [value]);
+  }, [value,custom]);
   const automaticSakura = value.sidebar === "default" ||
-    backgrounds.some(p => (p.id === value.app || p.id === value.sidebar) && p.ambient === "sakura");
+    registry.some(p => (p.id === value.app || p.id === value.sidebar) && p.ambient === "sakura");
   const effect = value.ambient === "automatic" ? (automaticSakura ? "sakura" : "off") : value.ambient;
-  const image = backgrounds.find(p => p.id === value.app)?.app;
-  return <Context.Provider value={{ value, update: patch => setValue(old => ({ ...old, ...patch })) }}>
+  const image = registry.find(p => p.id === value.app)?.app;
+  return <Context.Provider value={{registry,reload,value, update: patch => setValue(old => ({ ...old, ...patch })) }}>
     <div className="visual-backdrop" aria-hidden="true" style={{ "--wallpaper-opacity": value.intensity / 100, "--wallpaper-blur": `${value.blur}px` } as CSSProperties}>
       <ArtworkFade source={image} className="global-wallpaper" />
       <div className="wallpaper-veil" />
@@ -72,17 +73,18 @@ export function VisualAppearanceProvider({ children }: { children: ReactNode }) 
   </Context.Provider>;
 }
 export function VisualPreferences({ russian }: { russian: boolean }) {
-  const { value, update } = useContext(Context);
+  const {value,update,registry,reload}=useContext(Context);const {run}=useBackend();const [importTarget,setImportTarget]=useState("both");const [importing,setImporting]=useState(false);
   const text = appearanceMessages[russian ? "ru" : "en"];
-  const choose = (kind: "app" | "sidebar", id: string) => update(value.linked ? { app: id === "default" ? "normal" : id, sidebar: id === "normal" ? "default" : id } : { [kind]: id });
-  const preview = (kind: "app" | "sidebar") => <div className="background-options">{[{ id: kind === "app" ? "normal" : "default", name: text[kind === "app" ? "Normal" : "Default"], app: undefined, sidebar: "/backgrounds/sidebar-bg.webp" }, ...backgrounds.filter(p => p[kind])].map(p => <button key={p.id} aria-pressed={value[kind] === p.id} className={value[kind] === p.id ? "selected" : ""} onClick={() => choose(kind, p.id)}><span className="background-preview" style={p[kind] ? { backgroundImage: `url("${p[kind]}")` } : {}} /><span>{p.name}</span></button>)}</div>;
+  const choose=(kind:"app"|"sidebar",id:string)=>{const selected=registry.find(p=>p.id===id);update(value.linked&&selected?.app&&selected.sidebar?{app:id,sidebar:id}:{[kind]:id});};
+  const preview = (kind: "app" | "sidebar") => <div className="background-options">{[{ id: kind === "app" ? "normal" : "default", name: text[kind === "app" ? "Normal" : "Default"], app: undefined, sidebar: "/backgrounds/sidebar-bg.webp" }, ...registry.filter(p => p[kind])].map(p => <button key={p.id} aria-pressed={value[kind] === p.id} className={value[kind] === p.id ? "selected" : ""} onClick={() => choose(kind, p.id)}><span className="background-preview" style={p[kind] ? { backgroundImage: `url("${"thumbnail" in p&&p.thumbnail||p[kind]}")` } : {}} /><span>{p.name}</span></button>)}</div>;
 
   return <section className="visual-preferences">
     <PolishControls russian={russian} value={value} update={update} />
     <h4>{text["Application background"]}</h4>{preview("app")}
     <h4>{text["Sidebar background"]}</h4>{preview("sidebar")}
-    <div className="toggle-setting"><div><b>{text["Link application and sidebar backgrounds"]}</b></div><button className={value.linked ? "toggle on" : "toggle"} role="switch" aria-checked={value.linked} aria-label={text["Link backgrounds"]} onClick={() => update({ linked: !value.linked, ...(value.linked ? {} : { sidebar: value.app === "normal" ? "default" : value.app }) })}><i /></button></div>
+    <div className="toggle-setting"><div><b>{text["Link application and sidebar backgrounds"]}</b></div><button className={value.linked ? "toggle on" : "toggle"} role="switch" aria-checked={value.linked} aria-label={text["Link backgrounds"]} onClick={() => update({ linked: !value.linked, ...(value.linked ? {} : { sidebar:registry.find(p=>p.id===value.app)?.sidebar?value.app:value.sidebar }) })}><i /></button></div>
 
+    {isTauri()&&<div className="runtime-panel"><h4>{russian?"Свои изображения":"Custom images"}</h4><label>{russian?"Применить к":"Use for"}<select value={importTarget} onChange={e=>setImportTarget(e.target.value)}><option value="both">{russian?"Фон и боковая панель":"Background and sidebar"}</option><option value="app">{russian?"Фон":"Background"}</option><option value="sidebar">{russian?"Боковая панель":"Sidebar"}</option></select></label><button className="quiet-button" disabled={importing} onClick={()=>{setImporting(true);void run("import_wallpaper",{target:importTarget}).then(reload).catch(()=>{}).finally(()=>setImporting(false));}}>{importing?(russian?"Импорт…":"Importing…"):(russian?"Импортировать изображение":"Import image")}</button>{registry.filter(p=>p.custom).map(p=><div className="runtime-inline" key={p.id}><span>{p.name}</span><button className="quiet-button" disabled={importing} onClick={()=>{setImporting(true);void run("remove_wallpaper",{id:p.id}).then(()=>{update({...value.app===p.id?{app:"normal"}:{},...value.sidebar===p.id?{sidebar:"default"}:{}});return reload();}).catch(()=>{}).finally(()=>setImporting(false));}}>{russian?"Удалить":"Remove"}</button></div>)}</div>}
     <h4>{text["Interface font"]}</h4><div className="font-options">{fonts.map(font => <button key={font} style={{ fontFamily: `"${font}", Nunito, sans-serif` }} className={value.font === font ? "selected" : ""} aria-pressed={value.font === font} onClick={() => update({ font })}>{font}</button>)}</div>
     <h4>{text["Interface size"]}</h4><div className="font-options">{([90,100,110,120] as const).map(fontScale=><button key={fontScale} aria-pressed={value.fontScale===fontScale} className={value.fontScale===fontScale?"selected":""} onClick={()=>update({fontScale})}>{fontScale}%</button>)}</div>
     {value.font === "Monocraft" && <><h4>{text["Minecraft style"]}</h4><div className="font-options">{(["headings", "full"] as const).map(minecraft => <button key={minecraft} aria-pressed={value.minecraft === minecraft} className={value.minecraft === minecraft ? "selected" : ""} onClick={() => update({ minecraft })}>{minecraft === "headings" ? text["Headings"] : text["Full interface"]}</button>)}</div></>}
@@ -91,8 +93,8 @@ export function VisualPreferences({ russian }: { russian: boolean }) {
 }
 
 export function SidebarArtwork() {
-  const { value } = useContext(Context);
-  return <ArtworkFade source={backgrounds.find(p => p.id === value.sidebar)?.sidebar || "/backgrounds/sidebar-bg.webp"} className="sidebar-art" />;
+  const { value,registry } = useContext(Context);
+  return <ArtworkFade source={registry.find(p => p.id === value.sidebar)?.sidebar || "/backgrounds/sidebar-bg.webp"} className="sidebar-art" />;
 }
 export function VisualQuality({ russian }: { russian: boolean }) {
   const { value, update } = useContext(Context);

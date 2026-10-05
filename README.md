@@ -1,6 +1,6 @@
 # Canary
 
-A Tauri 2 Windows desktop Minecraft launcher with Modrinth discovery, isolated instances, Java management and real Local-profile game launching. React, TypeScript, Rust and Vite; local typography and Canary artwork.
+A Tauri 2 Windows/Linux desktop Minecraft launcher with Modrinth and CurseForge discovery, isolated instances, Java management and real Local-profile game launching. React, TypeScript, Rust and Vite; local typography and Canary artwork.
 
 ## Development
 
@@ -15,22 +15,22 @@ npm run tauri dev
 
 In the desktop app, create a **Local account** in the account menu, then use **Library → New instance** or install a Modrinth modpack. Canary resolves the official Minecraft runtime, compatible Java, assets, libraries and loader before Play. Local profiles are for single-player/local scenarios and do not authenticate to official online-mode servers.
 
-Runtime settings live in the existing **Settings → Canary** section. Global and per-instance Java, RAM, arguments and resolution are supported. Instances, Local profiles and playtime persist under `%LOCALAPPDATA%/Canary`; existing Modrinth instances remain in place.
+Runtime settings live in the existing **Settings → Canary** section. Global and per-instance Java, RAM, arguments and resolution are supported. Profiles and settings persist in the platform app-data folder. Instance storage can be selected on another drive; Settings offers verified migration or keeping existing instances in their original folders.
 
-Ely.by sign-in is available through **Account → Sign in to Ely.by**, including the documented two-factor retry. Passwords are used once; session tokens go into Windows Credential Manager rather than JSON/localStorage. Microsoft remains disabled until its legitimate provider is implemented; `CANARY_MICROSOFT_CLIENT_ID` is its configuration point. CurseForge still needs your own `CANARY_CURSEFORGE_API_KEY` and content-provider integration.
+Ely.by sign-in is available through **Account → Sign in to Ely.by**, including the documented two-factor retry. Passwords are used once; session tokens go into Windows Credential Manager rather than JSON/localStorage. Microsoft uses browser Authorization Code + PKCE, Xbox/XSTS and Minecraft entitlement/profile checks, with refresh tokens in OS secure storage. `CANARY_MICROSOFT_CLIENT_ID` overrides the registered public client. A licensed account and Minecraft-services permission for the application are required. CurseForge uses the same Discover/Content interface and needs your own official `CANARY_CURSEFORGE_API_KEY` in the native process environment.
 
-Use **Library → + Content** to manage an instance’s mods, shaders, resource packs and world-specific datapacks. Modrinth browsing prefills the Minecraft version/loader, resolves required dependencies and verifies downloads. Local JAR/ZIP import, scoped file drop, enable/disable, bulk actions, compatible updates, snapshots, rollback and recent changes are supported. Modpack updates reuse the existing installer in isolated staging, preserve user additions/worlds/configuration and block conflicting user files.
+Use **Library → + Content** to manage an instance’s mods, shaders, resource packs and world-specific datapacks. Provider browsing prefills the Minecraft version/loader, resolves required dependencies and verifies downloads. Local JAR/ZIP import, scoped file drop, enable/disable, bulk actions, compatible updates, snapshots, rollback and recent changes are supported. Modpack updates reuse the existing installer in isolated staging, preserve user additions/worlds/configuration and block conflicting user files.
 
-See the [account/content implementation and validation report](docs/CONTENT_ACCOUNTS_PHASE.md) for tested scenarios and explicit limitations. The earlier [runtime backend report](docs/BACKEND_PHASE.md) documents the preserved Java/Minecraft pipeline. Successful Ely.by account/game authentication requires an owner-driven credential test; it is not inferred from the negative API and storage tests.
+See the [final integration and QA report](docs/FINAL_INTEGRATION_QA.md) for current changes, test results and remaining blockers. The [account/content implementation and validation report](docs/CONTENT_ACCOUNTS_PHASE.md) for tested scenarios and explicit limitations. The earlier [runtime backend report](docs/BACKEND_PHASE.md) documents the preserved Java/Minecraft pipeline. Successful Ely.by account/game authentication requires an owner-driven credential test; it is not inferred from the negative API and storage tests.
 
-Appearance includes Dark, Light, AMOLED and live System mode, surface presets, accents, compact navigation, reduced motion and immediate persisted 90/100/110/120% interface typography sizing. Settings and the library are stored locally. Project descriptions/changelogs use safe Markdown; raw HTML and unsafe link protocols are not enabled.
+Appearance includes Dark, Light, AMOLED and live System mode, surface presets, accents, compact navigation, reduced motion and immediate persisted 90/100/110/120% interface typography sizing. Settings and the library are stored locally. Project descriptions/changelogs use safe Markdown or sanitized CurseForge HTML. Custom backgrounds use a native image picker and managed copies. F11 toggles real launcher fullscreen independently of Minecraft fullscreen.
 
 ## Checks
 
 ```sh
 npm run build
 cargo check --locked --manifest-path src-tauri/Cargo.toml
-cargo test --locked --manifest-path src-tauri/Cargo.toml --lib
+cargo test --locked --manifest-path src-tauri/Cargo.toml
 npx playwright install chromium
 npm test
 ```
@@ -60,6 +60,8 @@ In this headless machine, WebKit's GPU compositing crashed its web process durin
 See [validation notes](docs/QA.md) for the verified scenario and remaining platform limits.
 
 ## Releases
+
+Each push to main runs **Desktop verification** on Windows/Linux, builds EXE/MSI/DEB artifacts, and checks native Windows startup. Receipts are saved in `refs/notes/qa-windows` and `refs/notes/qa-linux`.
 
 Pushing a `v<version>` tag matching `package.json` and the Tauri configuration builds Windows x64 EXE/MSI and Linux x64 DEB/AppImage through GitHub Actions. The workflow publishes a GitHub Release only after both platform builds pass, with `SHA256SUMS` and [release notes](docs/RELEASE.md). No signing certificate is configured.
 

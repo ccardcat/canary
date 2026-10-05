@@ -247,11 +247,13 @@ fn succeeded(stage: &str) {
     eprintln!("[install][{stage}] success");
 }
 
-pub async fn install<F: FnMut(Progress)>(
+pub async fn install<F:FnMut(Progress)>(project_id:&str,version_id:&str,name:&str,data_dir:&Path,emit:F)->Result<PathBuf>{install_at(project_id,version_id,name,&data_dir.join("Canary/instances"),emit).await}
+
+pub async fn install_at<F: FnMut(Progress)>(
     project_id: &str,
     version_id: &str,
     name: &str,
-    data_dir: &Path,
+    instances: &Path,
     mut emit: F,
 ) -> Result<PathBuf> {
     let mut progress = Progress::default();
@@ -309,7 +311,7 @@ pub async fn install<F: FnMut(Progress)>(
         progress.bytes_total = files.iter().map(|f| f.file_size).sum();
         succeeded(stage);
         stage = start("prepare_instance", 7.0, &mut progress, &mut emit);
-        let instances = data_dir.join("Canary").join("instances");
+
         fs::create_dir_all(&instances).map_err(|e| InstallError::cause(stage, e).path(&instances))?;
         let root = instances.join(format!("{project_id}-{version_id}"));
         // A completed installation is reused, never overwritten on a library-write retry.

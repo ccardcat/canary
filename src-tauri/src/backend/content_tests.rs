@@ -1,6 +1,70 @@
 use super::{Backend,content,content_provider,download,model::*,storage};
 use std::{path::{Path,PathBuf},io::Write,sync::{Arc,atomic::AtomicBool}};
 use serde_json::json;
+#[test]
+fn curseforge_pack_update_preserves_provenance_user_files_and_rollback() {
+    let (b, _cleanup, mut i) = setup();
+    i.provider = "curseforge".into();
+    i.project_id = Some("100".into());
+    i.version_id = Some("200".into());
+    i.loader_version = Some("0.16.10".into());
+    b.save_instance(&i).unwrap();
+    let root = b.instance_path(&i.id).unwrap();
+    fabric(&root.join("mods/sample.jar"));
+    let original = download::hash(&root.join("mods/sample.jar"), "sha512").unwrap();
+    let receipt = json!([{"path":"mods/sample.jar","hash":original,"project":"300","file":"400"}]);
+    for name in ["pack-content-files.json", "curseforge-files.json"] {
+        storage::write_json(&root.join(name), &receipt).unwrap();
+    }
+    storage::write_json(&root.join("curseforge-manifest.json"), &json!({"version":"old"})).unwrap();
+    let world = root.join("saves/World");
+    std::fs::create_dir_all(&world).unwrap();
+    std::fs::write(world.join("level.dat"), b"world preserved").unwrap();
+    let stage = b.root.join("cf-update");
+    archive(&stage.join("mods/sample.jar"), &[("fabric.mod.json", br#"{"id":"sample","name":"Sample mod","version":"2"}"#)]);
+    let mut incoming = i.clone();
+    incoming.version_id = Some("201".into());
+    incoming.version_name = "2".into();
+    storage::write_json(&stage.join("instance.json"), &incoming).unwrap();
+    let next_hash = download::hash(&stage.join("mods/sample.jar"), "sha512").unwrap();
+    let next_receipt = json!([{"path":"mods/sample.jar","hash":next_hash,"project":"300","file":"401"}]);
+    for name in ["pack-content-files.json", "curseforge-files.json"] {
+        storage::write_json(&stage.join(name), &next_receipt).unwrap();
+    }
+    storage::write_json(&stage.join("curseforge-manifest.json"), &json!({"version":"new"})).unwrap();
+    let state = super::pack_update::apply_staged(&b, &i.id, &stage, "201").unwrap();
+    assert_eq!(state.items[0].provider, "curseforge");
+    assert_eq!(state.items[0].project.as_deref(), Some("300"));
+    assert_eq!(state.items[0].provider_version.as_deref(), Some("401"));
+    let restored = Backend::with_root(b.root.clone()).unwrap();
+    content::rollback(&restored, &i.id).unwrap();
+    assert_eq!(restored.instance(&i.id).unwrap().version_id.as_deref(), Some("200"));
+    assert_eq!(download::hash(&root.join("mods/sample.jar"), "sha512").unwrap(), original);
+    assert_eq!(content::load(&root).unwrap().items[0].provider_version.as_deref(), Some("400"));
+    assert_eq!(std::fs::read(world.join("level.dat")).unwrap(), b"world preserved");
+}
+
+#[test]
+fn switching_provider_cannot_duplicate_a_mod_or_overwrite_its_file() {
+    let (b, _cleanup, i) = setup();
+    let jar = b.root.join("sample.jar");
+    fabric(&jar);
+    let mut state = content_provider::import(&b, &i.id, vec![jar.to_string_lossy().into()], None).unwrap();
+    state.items[0].project = Some("original-project".into());
+    let root = b.instance_path(&i.id).unwrap();
+    content::save(&root, &state).unwrap();
+    let old = state.items[0].clone();
+    let mut incoming = old.clone();
+    incoming.id = uuid::Uuid::new_v4().to_string();
+    incoming.provider = "curseforge".into();
+    incoming.project = Some("123".into());
+    incoming.path = "mods/another-name.jar".into();
+    let error = content_provider::apply(&b, &i.id, state, vec![(incoming, jar)]).err().unwrap();
+    assert_eq!(error.code, "content_duplicate");
+    assert_eq!(download::hash(&root.join(&old.path), "sha512").unwrap(), old.hash);
+    assert!(!root.join("mods/another-name.jar").exists());
+    assert!(content::load(&root).unwrap().snapshots.len() <= 1);
+}
 fn setup()->(Arc<Backend>,storage::Staging,Instance){let root=std::env::temp_dir().join(format!("canary-content-test-{}",uuid::Uuid::new_v4()));let cleanup=storage::Staging(root.clone());let b=Arc::new(Backend::with_root(root).unwrap());let i=Instance{id:"isolated".into(),name:"Content validation".into(),minecraft:"1.21.1".into(),loader:"fabric".into(),..Instance::default()};std::fs::create_dir_all(storage::instance_dir(&b.root,&i.id).unwrap()).unwrap();b.save_instance(&i).unwrap();(b,cleanup,i)}
 fn archive(path:&Path,entries:&[(&str,&[u8])]) {std::fs::create_dir_all(path.parent().unwrap()).unwrap();let mut zip=zip::ZipWriter::new(std::fs::File::create(path).unwrap());for (name,data) in entries {zip.start_file(*name,zip::write::SimpleFileOptions::default()).unwrap();zip.write_all(data).unwrap();}zip.finish().unwrap();}
 fn fabric(path:&Path){archive(path,&[("fabric.mod.json",br#"{"id":"sample","name":"Sample mod","version":"1.0","environment":"client","depends":{"minecraft":"1.21.1"}}"#)]);}

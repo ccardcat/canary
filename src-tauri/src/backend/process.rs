@@ -5,13 +5,13 @@ use tokio::{io::{AsyncBufReadExt,BufReader},process::Child,sync::Mutex};
 pub struct Running {pub pid:u32,pub account:String,pub child:Arc<Mutex<Child>>,pub stopping:Arc<std::sync::atomic::AtomicBool>}
 pub async fn launch(backend:Arc<Backend>,mut instance:Instance,job:Arc<Job>,app:Option<AppHandle>)->Result<u32>{
     let account=accounts::selected(&backend,&instance)?;
-    let identity=if account.provider=="elyby" { super::elyby::identity(&backend,&account).await? } else { accounts::launch_identity(&account)? };
+    let identity=if account.provider=="elyby" { super::elyby::identity(&backend,&account).await? } else if account.provider=="microsoft" { super::microsoft::identity(&backend,&account).await? } else { accounts::launch_identity(&account)? };
     let secret=identity.access_token.clone();
     let prepared=minecraft::prepare(backend.clone(),&instance,job.clone(),false).await?;
     let java=java::select(backend.clone(),&instance,prepared.java_major,job.clone()).await?;
     let settings=backend.settings();let min=instance.overrides.min_memory.unwrap_or(settings.min_memory);let max=instance.overrides.max_memory.unwrap_or(settings.max_memory);
     super::system::validate_memory(min,max)?;
-    let dir=storage::instance_dir(&backend.root,&instance.id)?;
+    let dir=backend.instance_path(&instance.id)?;
     let width=instance.overrides.width.unwrap_or(settings.width);let height=instance.overrides.height.unwrap_or(settings.height);
     let values=HashMap::from([
         ("auth_player_name".into(),identity.username),("auth_uuid".into(),identity.uuid),("auth_access_token".into(),identity.access_token.clone()),
@@ -19,15 +19,15 @@ pub async fn launch(backend:Arc<Backend>,mut instance:Instance,job:Arc<Job>,app:
         ("version_name".into(),prepared.metadata["id"].as_str().unwrap_or(&instance.minecraft).into()),("version_type".into(),prepared.metadata["type"].as_str().unwrap_or("release").into()),
         ("game_directory".into(),dir.to_string_lossy().into()),("assets_root".into(),prepared.assets.clone()),("assets_index_name".into(),prepared.asset_index.clone()),
         ("game_assets".into(),format!("{}/virtual/{}",prepared.assets,prepared.asset_index)),("natives_directory".into(),prepared.natives.clone()),
-        ("launcher_name".into(),"Canary".into()),("launcher_version".into(),env!("CARGO_PKG_VERSION").into()),("classpath".into(),prepared.classpath.join(";")),
-        ("classpath_separator".into(),";".into()),("library_directory".into(),backend.root.join("cache/libraries").to_string_lossy().into()),
+        ("launcher_name".into(),"Canary".into()),("launcher_version".into(),env!("CARGO_PKG_VERSION").into()),("classpath".into(),prepared.classpath.join(if cfg!(windows){";"}else{":"})),
+        ("classpath_separator".into(),if cfg!(windows){";"}else{":"}.into()),("library_directory".into(),backend.root.join("cache/libraries").to_string_lossy().into()),
         ("resolution_width".into(),width.to_string()),("resolution_height".into(),height.to_string()),("clientid".into(),identity.client_id),("auth_xuid".into(),identity.xuid)
     ]);
     let mut jvm=minecraft::arguments(&prepared.metadata,"jvm");
     if jvm.is_empty(){jvm=vec!["-Djava.library.path=${natives_directory}".into(),"-cp".into(),"${classpath}".into()];}
     let mut args=vec![format!("-Xms{min}M"),format!("-Xmx{max}M")];
     let custom=instance.overrides.jvm_args.as_ref().unwrap_or(&settings.jvm_args);
-    for arg in custom {if arg.starts_with("-javaagent")||arg=="-cp"||arg=="-classpath"||arg.contains("auth_access_token"){return Err(BackendError::new("arguments","Authentication/classpath JVM overrides are not supported"));}}
+    for arg in custom {if arg.starts_with("-javaagent")||arg.starts_with("-Dauthlibinjector")||arg.starts_with("-Djava.system.class.loader")||arg=="-cp"||arg=="-classpath"||arg.contains("auth_access_token"){return Err(BackendError::new("arguments","Authentication/classpath JVM overrides are not supported"));}}
     args.extend(custom.clone());args.extend(minecraft::substitute(jvm,&values)?);if let Some(logging)=prepared.logging{args.push(logging);}
     if account.provider=="elyby" {
         let parts=instance.minecraft.split('.').filter_map(|n|n.parse::<u32>().ok()).collect::<Vec<_>>();
@@ -38,10 +38,12 @@ pub async fn launch(backend:Arc<Backend>,mut instance:Instance,job:Arc<Job>,app:
     let mut game=minecraft::arguments(&prepared.metadata,"game");
     if game.is_empty(){if let Some(legacy)=prepared.metadata["minecraftArguments"].as_str(){game=shlex::split(legacy).ok_or_else(||BackendError::new("arguments","Invalid legacy argument syntax"))?;}}
     args.extend(minecraft::substitute(game,&values)?);
-    args.extend(instance.overrides.game_args.as_ref().unwrap_or(&settings.game_args).clone());
+    let custom_game=instance.overrides.game_args.as_ref().unwrap_or(&settings.game_args);
+    for arg in custom_game {if ["--accessToken","--uuid","--username","--userType","--xuid","--clientId","--userProperties"].iter().any(|flag|arg==flag||arg.starts_with(&format!("{flag}="))){return Err(BackendError::new("arguments","Identity arguments are managed by the selected account"));}}
+    args.extend(custom_game.clone());
     if instance.overrides.fullscreen.unwrap_or(settings.fullscreen){args.push("--fullscreen".into());}
     job.check()?;job.emit("launching","running",&instance.name);
-    let mut command=tokio::process::Command::new(&java.path);command.args(&args).current_dir(&dir).stdout(Stdio::piped()).stderr(Stdio::piped());
+    let mut command=tokio::process::Command::new(&java.path);command.env_remove("JAVA_TOOL_OPTIONS").env_remove("_JAVA_OPTIONS").env_remove("JDK_JAVA_OPTIONS").env_remove("CLASSPATH").env_remove("CANARY_CURSEFORGE_API_KEY").args(&args).current_dir(&dir).stdout(Stdio::piped()).stderr(Stdio::piped());
     #[cfg(windows)]command.creation_flags(0x08000000);
     let log_dir=storage::safe_join(&dir,"logs")?;std::fs::create_dir_all(&log_dir)?;let log_path=log_dir.join(format!("canary-{}.log",now()));
     let mut child=command.spawn().map_err(|e|BackendError::new("launch",e.to_string()))?;let pid=child.id().ok_or_else(||BackendError::new("launch","No process ID"))?;
@@ -72,19 +74,37 @@ pub async fn launch(backend:Arc<Backend>,mut instance:Instance,job:Arc<Job>,app:
         instance.playtime+=started.elapsed().as_secs();instance.status=if exit.as_ref().is_ok_and(|s|s.success())||stopping.load(std::sync::atomic::Ordering::Relaxed){ "ready" }else{"crashed"}.into();
         if let Ok(status)=&exit{if !status.success()&&!stopping.load(std::sync::atomic::Ordering::Relaxed){instance.error=Some(BackendErrorData{code:"process_exit".into(),message:format!("Minecraft exited with code {:?}",status.code())});}}
         let _=monitor.save_instance(&instance);
-        {let mut store=monitor.store.lock().unwrap();store.activity.push(Activity{timestamp:now(),instance:Some(instance.id.clone()),kind:instance.status.clone(),message:format!("{}: {}",instance.name,instance.status)});if store.activity.len()>500{store.activity.remove(0);}}
+        {let mut store=monitor.store.lock().unwrap();store.activity.push(Activity{id:uuid::Uuid::new_v4().to_string(),timestamp:now(),instance:Some(instance.id.clone()),kind:instance.status.clone(),message:format!("{}: {}",instance.name,instance.status)});if store.activity.len()>500{store.activity.remove(0);}}
         let _=monitor.persist();monitor.processes.lock().unwrap().remove(&instance.id);
         if let Some(app)=app {let _=app.emit("process-exited",serde_json::json!({"id":instance.id,"status":instance.status,"playtime":instance.playtime,"exit_code":exit.ok().and_then(|s|s.code())}));}
     });
     job.emit("running","success",&pid.to_string());Ok(pid)
 }
-pub async fn stop(backend:&Backend,id:&str,force:bool)->Result<()> {
-    let (pid,child,stopping)={let processes=backend.processes.lock().unwrap();let process=processes.get(id).ok_or_else(||BackendError::new("process","Instance is not running"))?;(process.pid,process.child.clone(),process.stopping.clone())};
-    stopping.store(true,std::sync::atomic::Ordering::Relaxed);
-    if force {child.lock().await.kill().await?;return Ok(());}
-    // taskkill without /F requests normal Windows termination. Escalation is
-    // an explicit separate user action; the process monitor records real exit.
-    let mut command=tokio::process::Command::new("taskkill.exe");command.args(["/PID",&pid.to_string()]);
-    #[cfg(windows)]command.creation_flags(0x08000000);
-    let status=command.status().await?;if !status.success(){stopping.store(false,std::sync::atomic::Ordering::Relaxed);return Err(BackendError::new("stop_failed","Normal termination failed; save the world and close Minecraft, or choose Force stop"));}Ok(())
+#[cfg(windows)]
+fn request_close(pid:u32)->Result<()> {
+    // A Minecraft client has no server-console "stop" command. Ask its windows to close.
+    type Hwnd=isize;
+    #[link(name="user32")]
+    unsafe extern "system" {fn EnumWindows(callback:unsafe extern "system" fn(Hwnd,isize)->i32,param:isize)->i32;fn GetWindowThreadProcessId(window:Hwnd,pid:*mut u32)->u32;fn PostMessageW(window:Hwnd,message:u32,wparam:usize,lparam:isize)->i32;}
+    unsafe extern "system" fn close(window:Hwnd,param:isize)->i32 {let mut owner=0;unsafe {GetWindowThreadProcessId(window,&mut owner);if owner==param as u32 {PostMessageW(window,0x0010,0,0);}}1}
+    unsafe{EnumWindows(close,pid as isize);}Ok(())
 }
+#[cfg(unix)]
+fn request_close(pid:u32)->Result<()> {
+    unsafe extern "C" {fn kill(pid:i32,signal:i32)->i32;}
+    let result=unsafe{kill(pid as i32,15)};if result!=0 {let e=std::io::Error::last_os_error();if e.raw_os_error()!=Some(3){return Err(e.into());}}Ok(())
+}
+#[cfg(not(any(unix,windows)))]
+fn request_close(_pid:u32)->Result<()>{Err(BackendError::new("stop_pending","Close Minecraft normally, or explicitly choose Force stop."))}
+pub async fn stop(backend:&Backend,id:&str,force:bool)->Result<()> {
+    use std::sync::atomic::Ordering;
+    let (pid,child,stopping)={let processes=backend.processes.lock().unwrap();let Some(process)=processes.get(id) else{return Ok(());};(process.pid,process.child.clone(),process.stopping.clone())};
+    if child.lock().await.try_wait()?.is_some(){return Ok(());}
+    if force {stopping.store(true,Ordering::Relaxed);let mut child=child.lock().await;if child.try_wait()?.is_none(){child.kill().await?;}return Ok(());}
+    if !stopping.swap(true,Ordering::AcqRel){if let Err(error)=request_close(pid){stopping.store(false,Ordering::Relaxed);return Err(error);}}
+    let deadline=std::time::Instant::now()+std::time::Duration::from_secs(8);
+    while std::time::Instant::now()<deadline {if child.lock().await.try_wait()?.is_some(){return Ok(());}tokio::time::sleep(std::time::Duration::from_millis(200)).await;}
+    Err(BackendError::new("stop_pending","Minecraft has not closed yet. Save the world and close the game normally. Force stop can lose unsaved progress."))
+}
+
+#[cfg(all(test,unix))]mod tests{use super::*;#[tokio::test]async fn graceful_stop_waits_for_real_exit_and_repeated_stop_is_safe(){let root=std::env::temp_dir().join(format!("canary-stop-{}",uuid::Uuid::new_v4()));let _cleanup=storage::Staging(root.clone());let b=Backend::with_root(root).unwrap();let process=tokio::process::Command::new("/bin/sleep").arg("30").spawn().unwrap();let pid=process.id().unwrap();let child=Arc::new(Mutex::new(process));b.processes.lock().unwrap().insert("test".into(),Running{pid,account:String::new(),child:child.clone(),stopping:Arc::new(std::sync::atomic::AtomicBool::new(false))});stop(&b,"test",false).await.unwrap();assert!(child.lock().await.try_wait().unwrap().is_some());stop(&b,"test",false).await.unwrap();b.processes.lock().unwrap().remove("test");stop(&b,"test",true).await.unwrap();}}

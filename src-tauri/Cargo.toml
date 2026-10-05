@@ -20,12 +20,16 @@ sha1 = "0.10"
 dirs = "6"
 tokio = { version = "1", features = ["process", "fs", "io-util", "time", "sync", "rt-multi-thread", "net", "macros"] }
 uuid = { version = "1", features = ["v4"] }
-keyring = { version = "3", features = ["windows-native"] }
+keyring = "3"
 shlex = "1"
 regex = "1"
 tauri-plugin-dialog = "2"
 zeroize = "1"
 base64 = "0.22"
+fs2 = "0.4"
+image = {version="0.25",default-features=false,features= ["png", "jpeg", "webp"] }
+flate2 = "1"
+tar = "0.4"
 [profile.release]
 codegen-units = 1
 lto = true
@@ -40,3 +44,8 @@ backend-check = []
 name = "canary-backend-check"
 path = "src/backend_check.rs"
 required-features = ["backend-check"]
+
+[target.'cfg(windows)'.dependencies]
+keyring = {version="3",features= ["windows-native"] }
+[target.'cfg(target_os="linux")'.dependencies]
+keyring = {version="3",features= ["sync-secret-service", "crypto-rust"] }

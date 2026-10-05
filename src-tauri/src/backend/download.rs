@@ -43,7 +43,7 @@ pub async fn file(backend:&Backend,item:&Artifact,job:&Job,stage:&str)->Result<(
             let mut response=loop{tokio::select!{result=&mut request=>break result?,_=tokio::time::sleep(std::time::Duration::from_millis(250))=>{job.check()?;}}};
             if response.url().scheme()!="https"{return Err(BackendError::new("download","Insecure redirect rejected"));}
             if !response.status().is_success(){return Err(BackendError::new(&format!("http_{}",response.status().as_u16()),"Artifact download failed"));}
-            let length=item.size.or(response.content_length());let mut output=tokio::fs::File::create(&partial).await?;let mut tick=Instant::now();
+            let length=item.size.or(response.content_length());if length.is_some_and(|size|fs2::available_space(item.path.parent().unwrap()).is_ok_and(|free|free<size)){return Err(BackendError::new("disk_space","Insufficient free space for this download"));}let mut output=tokio::fs::File::create(&partial).await?;let mut tick=Instant::now();
             loop {
                 let chunk=tokio::select!{result=response.chunk()=>result?,_=tokio::time::sleep(std::time::Duration::from_millis(250))=>{job.check()?;continue;}};
                 let Some(chunk)=chunk else{break;};
@@ -53,7 +53,7 @@ pub async fn file(backend:&Backend,item:&Artifact,job:&Job,stage:&str)->Result<(
             output.sync_all().await?;drop(output);
             if length.is_some_and(|s|s!=received){return Err(BackendError::new("checksum","Downloaded length does not match metadata"));}
             if let Some(expected)=&item.hash {let path=partial.clone();let algorithm=item.algorithm;let actual=tokio::task::spawn_blocking(move||hash(&path,algorithm)).await.map_err(|e|BackendError::new("hash",e.to_string()))??;if !actual.eq_ignore_ascii_case(expected){return Err(BackendError::new("checksum","Artifact checksum mismatch"));}}
-            job.check()?;tokio::fs::rename(&partial,&item.path).await?;Ok(())
+            job.check()?;super::storage::replace(&partial,&item.path)?;Ok(())
         }.await;
         match result {Ok(())=>{job.completed.fetch_add(1,Ordering::Relaxed);job.emit(stage,"running",&item.path.file_name().unwrap_or_default().to_string_lossy());return Ok(())},Err(e)=>{job.downloaded.fetch_sub(received,Ordering::Relaxed);let _=tokio::fs::remove_file(&partial).await;last=e;if !last.retryable && last.code!="checksum"{break;}if attempt<2{tokio::time::sleep(std::time::Duration::from_secs(1<<attempt)).await;}}}
     }Err(last)

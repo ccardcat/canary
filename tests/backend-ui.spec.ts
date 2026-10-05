@@ -8,12 +8,14 @@ test.beforeEach(async({page})=>{
     await route.fulfill({response,body:`
 import {mockIPC,mockWindows,mockConvertFileSrc} from '/node_modules/@tauri-apps/api/mocks.js';
 globalThis.isTauri=true;mockWindows('main');mockConvertFileSrc('windows');
-const state={instances:[{id:'contract-instance',name:'Contract instance',provider:'vanilla',version_name:'1.21.1',minecraft:'1.21.1',loader:'fabric',directory:'C:/Canary/instances/contract-instance',installed:1,playtime:0,favorite:false,status:'ready',overrides:{}}],accounts:[],settings:{automatic_java:true,min_memory:512,max_memory:4096,jvm_args:[],game_args:[],width:1280,height:720,concurrency:4,fullscreen:false,snapshots:false},activity:[],providers:{},data_folder:'C:/Canary',physical_memory_mb:8192};
+const state={instances:[{id:'contract-instance',name:'Contract instance',provider:'vanilla',version_name:'1.21.1',minecraft:'1.21.1',loader:'fabric',directory:'C:/Canary/instances/contract-instance',installed:1,playtime:0,favorite:false,status:'ready',overrides:{}}],accounts:[],settings:{backup_before_changes:true,backup_retention:8,log_retention_days:30,update_checks:true,automatic_java:true,min_memory:512,max_memory:4096,jvm_args:[],game_args:[],width:1280,height:720,concurrency:4,fullscreen:false,snapshots:false},activity:[],providers:{},data_folder:'C:/Canary',physical_memory_mb:8192};
+let fullscreen=false;
 const inventory={items:[],history:[],snapshots:[]};
 globalThis.__backendTest={state,calls:[],inventory};
 mockIPC((command,args)=>{
   globalThis.__backendTest.calls.push({command,args});
   if(command==='backend_snapshot')return structuredClone(state);
+  if(command==='list_wallpapers')return [];
   if(command==='content_inventory')return structuredClone(inventory);
   if(command==='content_worlds')return [];
   if(command==='content_search')return {hits:[{project_id:'sodium',title:'Sodium',author:'Author',description:'A compatible optimization mod',downloads:123,versions:['1.21.1'],categories:['fabric']}],total_hits:1};
@@ -34,7 +36,11 @@ mockIPC((command,args)=>{
   if(command==='prepare_instance')throw {code:'checksum',stage:'libraries',message:'Technical checksum contract details',retryable:true};
   if(command==='detect_java')return [{path:'C:/Java/bin/java.exe',vendor:'Test vendor',version:'21.0.1',major:21,architecture:'amd64',managed:false}];
   if(command==='save_backend_settings'){state.settings=args.settings;return;}
-  if(command==='core:window|is_maximized')return false;
+  if(command==='core:window|is_maximized'||command==='plugin:window|is_maximized')return false;
+  if(command==='plugin:window|is_fullscreen')return fullscreen;
+  if(command==='plugin:window|set_fullscreen'){fullscreen=args.value;return;}
+  if(command==='plugin:window|outer_position')return {x:90,y:80};
+  if(command==='plugin:window|inner_size')return {width:1280,height:800};
   return null;
 },{shouldMockEvents:true});
 `+body});
@@ -51,7 +57,7 @@ test("native account, Play/Stop and human error details connect to the backend",
   await page.getByRole("button",{name:"Play",exact:true}).click();
   await expect(page.getByRole("button",{name:"Stop game",exact:true})).toBeVisible();
   await page.getByRole("button",{name:"Stop game",exact:true}).click();
-  await expect(page.locator(".library-grid")).toContainText("30 seconds played");
+  await expect(page.locator(".library-grid")).toContainText("Less than a minute");
   await page.getByRole("button",{name:"Check / repair",exact:true}).click();
   const error=page.getByRole("alert");await expect(error).toContainText("failed verification");
   await expect(error).not.toContainText("Technical checksum");
@@ -75,13 +81,13 @@ test("instance settings stay outside the grid and bind to stable instance identi
  await page.setViewportSize({width:1920,height:1080});
  await page.evaluate(()=>{const test=(globalThis as any).__backendTest;test.state.instances.push({...test.state.instances[0],id:"instance-b",name:"Second instance",overrides:{max_memory:2048}});});
  await page.getByRole("button",{name:"Library",exact:true}).first().click();
- await page.locator(".library-grid").getByRole("button",{name:"Favorites",exact:true}).click();
+ await page.locator(".library-grid").getByRole("button",{name:"Favorites",exact:true}).first().click();
  const cards=page.locator(".library-grid .project-card");await expect(cards).toHaveCount(2);
- const before=await cards.evaluateAll(nodes=>nodes.map(n=>n.getBoundingClientRect().height));
+ const before=await cards.evaluateAll(nodes=>nodes.map(n=>Math.round(n.getBoundingClientRect().height*100)/100));
  await cards.nth(0).getByRole("button",{name:"Details",exact:true}).click();
  await expect(page.locator(".instance-surface")).toHaveCount(1);
  await expect(page.locator(".instance-surface input").first()).toHaveValue("Contract instance");
- expect(await cards.evaluateAll(nodes=>nodes.map(n=>n.getBoundingClientRect().height))).toEqual(before);
+ expect(await cards.evaluateAll(nodes=>nodes.map(n=>Math.round(n.getBoundingClientRect().height*100)/100))).toEqual(before);
  await expect(cards.locator(".runtime-panel")).toHaveCount(0);
  await cards.nth(1).getByRole("button",{name:"Details",exact:true}).click();
  await expect(page.locator(".instance-surface input").first()).toHaveValue("Second instance");
@@ -100,7 +106,7 @@ test("content browsing prefills compatibility and requires dependency confirmati
  await page.locator(".library-grid").getByRole("button",{name:"Content",exact:true}).click();
  const manager=page.locator(".content-manager");await expect(manager).toContainText("Content — Contract instance");
  await expect(manager.getByRole("checkbox",{name:"Only compatible projects"})).toBeChecked();
- await manager.getByRole("button",{name:/Sodium/}).click();
+ await manager.getByRole("button",{name:"Sodium",exact:true}).click();
  await manager.getByRole("button",{name:"Add",exact:true}).click();
  const dialog=page.getByRole("dialog",{name:"Review installation"});await expect(dialog).toContainText("Fabric API");
  expect(await page.evaluate(()=> (globalThis as any).__backendTest.calls.some((c:any)=>c.command==="install_content"))).toBe(false);
@@ -142,7 +148,7 @@ test("shader support uses enabled archive IDs rather than display names",async({
 test("pack updates require review and preserve the selected instance identity",async({page})=>{
  await page.evaluate(()=>{const state=(globalThis as any).__backendTest.state;state.instances[0].provider="modrinth";state.instances[0].version_name="1";state.instances[0].project_id="contract-pack";});
  await page.getByRole("button",{name:"Library",exact:true}).first().click();
- await page.locator(".library-grid").getByRole("button",{name:"Favorites",exact:true}).click();
+ await page.locator(".library-grid").getByRole("button",{name:"Favorites",exact:true}).first().click();
  await page.locator(".library-grid").getByRole("button",{name:"Content",exact:true}).click();
  await page.locator(".content-manager").getByRole("button",{name:"Installed",exact:true}).click();
  await page.locator(".content-manager").getByRole("button",{name:"Update modpack",exact:true}).click();
@@ -151,3 +157,6 @@ test("pack updates require review and preserve the selected instance identity",a
  await dialog.getByRole("button",{name:"Confirm",exact:true}).click();await expect(dialog).toHaveCount(0);
  const request=await page.evaluate(()=> (globalThis as any).__backendTest.calls.find((c:any)=>c.command==="apply_pack_update"));expect(request.args).toMatchObject({id:"contract-instance",fingerprint:"pack-contract-plan"});
 });
+
+test("F11 changes native fullscreen and Escape respects the settings dialog",async({page})=>{await expect(page.locator(".window-titlebar")).toBeVisible();await page.keyboard.press("F11");await expect(page.locator("html")).toHaveAttribute("data-window-fullscreen","true");await expect(page.locator(".window-titlebar")).toBeHidden();await page.getByRole("button",{name:"Settings",exact:true}).first().click();await page.keyboard.press("Escape");await expect(page.locator(".settings-modal")).toHaveCount(0);await expect(page.locator("html")).toHaveAttribute("data-window-fullscreen","true");await page.keyboard.press("Escape");await expect(page.locator("html")).toHaveAttribute("data-window-fullscreen","false");const calls=await page.evaluate(()=>(globalThis as any).__backendTest.calls);expect(calls.filter((c:any)=>c.command==="plugin:window|set_fullscreen").map((c:any)=>c.args.value)).toEqual([true,false]);expect(calls.some((c:any)=>c.command==="plugin:window|set_position")).toBe(true);});
+test("internal instances stay hidden while user names remain visible and playtime is human readable",async({page})=>{await page.evaluate(()=>{const t=(globalThis as any).__backendTest;t.state.instances[0].name="User validation world";t.state.instances[0].playtime=4320;t.state.instances.push({...t.state.instances[0],id:"internal-validation",name:"Technical QA",internal:true});});await page.getByRole("button",{name:"Library",exact:true}).first().click();await page.getByRole("button",{name:"Check updates",exact:true}).click();await expect(page.locator(".library-grid .project-card")).toHaveCount(1);await expect(page.locator(".library-grid")).toContainText("User validation world");await expect(page.locator(".library-grid")).toContainText("1 h 12 min");});

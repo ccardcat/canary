@@ -1,3 +1,4 @@
+import {useWindowFullscreen} from "./WindowFullscreen";
 import { useEffect, useState } from "react";
 import { Minus, Square, Copy, X } from "lucide-react";
 import { isTauri } from "@tauri-apps/api/core";
@@ -6,6 +7,7 @@ import { windowMessages } from "../locales/window";
 export default function TitleBar({ light, russian }: { light: boolean; russian: boolean }) {
   const [maximized, setMaximized] = useState(false);
   const [error, setError] = useState(false);
+  useWindowFullscreen(()=>setError(true));
   const text = windowMessages[russian ? "ru" : "en"];
   useEffect(() => { if (!isTauri()) return; const win = getCurrentWindow(); let dispose: (() => void) | undefined; let cancelled = false; const sync = () => { void win.isMaximized().then(setMaximized).catch(() => {}); }; sync(); void win.onResized(sync).then(fn => { if (cancelled) fn(); else dispose = fn; }); return () => { cancelled = true; dispose?.(); }; }, []);
   const action = (kind: "minimize" | "toggleMaximize" | "close" | "startDragging") => { if (isTauri()) void getCurrentWindow()[kind]().catch(() => setError(true)); };

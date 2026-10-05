@@ -43,12 +43,12 @@ test("custom cursors preserve editing; ordinary right click is suppressed", asyn
     const cursor = await page.locator(".settings-top button").evaluate(el => getComputedStyle(el).cursor);
     if (id === "system") expect(cursor).toBe("pointer");
     else {
-      expect(cursor).toContain("/cursors/link.cur");
+      expect(cursor).toContain("/cursors/compact/link.cur");
       const textCursor = await page.evaluate(() => {
         const input = document.createElement("input"); document.body.append(input);
         const result = getComputedStyle(input).cursor; input.remove(); return result;
       });
-      expect(textCursor).toContain("/cursors/beam.cur");
+      expect(textCursor).toContain("/cursors/compact/beam.cur");
     }
   }
   await page.keyboard.press("Escape");
@@ -75,7 +75,7 @@ test("advanced backgrounds reset, crossfade and effect budgets persist", async (
   await expect(page.locator("html")).toHaveCSS("--wallpaper-position","right");
   await page.locator(".polish-disclosure").first().getByRole("button",{name:"Reset"}).click();
   await expect(brightness).toHaveValue("100");
-  await page.locator(".background-options").first().getByRole("button",{name:"Green"}).click();
+  await page.locator(".background-options").first().getByRole("button",{name:"Green",exact:true}).click();
   await expect(page.locator(".global-wallpaper .artwork-current")).toHaveCSS("background-image",/green-bg.webp/);
   await page.locator(".background-options").first().getByRole("button",{name:"Gray"}).click();
   await expect(page.locator(".global-wallpaper .artwork-current")).toHaveCSS("background-image",/gray-bg.png/);
@@ -101,17 +101,17 @@ test("native cursor roles, hotspots and migration", async ({ page, request }) =>
       const node = document.createElement("button"); node.dataset.cursorState = state;
       document.body.append(node); const cursor = getComputedStyle(node).cursor; node.remove(); return cursor;
     }, state);
-    expect(cursor).toContain(`/cursors/${file}.cur`);
+    expect(cursor).toContain(`/cursors/compact/${file}.cur`);
   }
   for (const [attribute,file] of [["disabled","unavailable"],["aria-busy","working-static"]]) {
     const cursor = await page.evaluate(attribute => {
       const button = document.createElement("button"); button.setAttribute(attribute, "true");
       document.body.append(button); const cursor = getComputedStyle(button).cursor; button.remove(); return cursor;
     }, attribute);
-    expect(cursor).toContain(`/cursors/${file}.cur`);
+    expect(cursor).toContain(`/cursors/compact/${file}.cur`);
   }
   for (const file of ["pointer","link","beam",...Object.values(roles),"working-static","unavailable"]) {
-    const response = await request.get(`/cursors/${file}.cur`); expect(response.ok()).toBe(true);
+    const response = await request.get(`/cursors/compact/${file}.cur`); expect(response.ok()).toBe(true);
     const binary = await response.body(); expect(binary.readUInt16LE(2)).toBe(2);
     for (let i=0; i<binary.readUInt16LE(4); i++) {
       const entry = 6+i*16;

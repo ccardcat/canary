@@ -43,7 +43,7 @@ fn copy_libraries(source:&Path,dest:&Path)->Result<()> {
 // Delegate processor execution and output verification to the publisher's
 // actual headless installer. It operates only in a fresh Canary staging root.
 pub async fn profile(backend:Arc<Backend>,instance:&Instance,parent:&Value,client:&Artifact,job:Arc<Job>,deep:bool)->Result<Value> {
-    let dir=storage::instance_dir(&backend.root,&instance.id)?;let receipt=dir.join("loader.json");
+    let dir=backend.instance_path(&instance.id)?;let receipt=dir.join("loader.json");
     if !deep&&receipt.is_file(){let value:Value=serde_json::from_slice(&std::fs::read(&receipt)?)?;
         if value["loader_version"].as_str()==instance.loader_version.as_deref()&&value["files"].as_array().is_some_and(|files|!files.is_empty()&&files.iter().all(|f|f["path"].as_str().zip(f["size"].as_u64()).is_some_and(|(p,size)|std::fs::metadata(p).is_ok_and(|m|m.len()==size)))){return Ok(value["profile"].clone());}}
     let (url,version)=location(instance)?;let response=backend.client.get(format!("{url}.sha1")).send().await?.error_for_status()?.text().await?;

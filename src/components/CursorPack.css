@@ -1,14 +1,14 @@
 /* Native pack roles follow public/cursors/Install.inf. CUR hotspots and bundled
-   32/48/64/96px representations are preserved. ANI first-frame fallbacks are
+   smallest supplied representation is selected without resampling. ANI first-frame fallbacks are
    extracted losslessly; CSS/WebView does not reliably support ANI animation. */
 :root[data-cursor="custom"] {
-  --cursor-default:url('/cursors/pointer.cur'),default;
-  --cursor-pointer:url('/cursors/link.cur'),pointer;
-  --cursor-text:url('/cursors/beam.cur'),text;
-  --cursor-working:url('/cursors/working-static.cur'),progress;
-  --cursor-busy:url('/cursors/busy-static.cur'),wait;
-  --cursor-move:url('/cursors/move.cur'),move;
-  --cursor-disabled:url('/cursors/unavailable.cur'),not-allowed;
+  --cursor-default:url('/cursors/compact/pointer.cur'),default;
+  --cursor-pointer:url('/cursors/compact/link.cur'),pointer;
+  --cursor-text:url('/cursors/compact/beam.cur'),text;
+  --cursor-working:url('/cursors/compact/working-static.cur'),progress;
+  --cursor-busy:url('/cursors/compact/busy-static.cur'),wait;
+  --cursor-move:url('/cursors/compact/move.cur'),move;
+  --cursor-disabled:url('/cursors/compact/unavailable.cur'),not-allowed;
 }
 :root[data-cursor="system"] {
   --cursor-default:auto; --cursor-pointer:pointer; --cursor-text:text;
@@ -23,19 +23,19 @@ body,.window-titlebar { cursor:var(--cursor-default,auto); }
 html:root[data-cursor] [data-cursor-state="wait"] { cursor:var(--cursor-busy,wait); }
 html:root[data-cursor] :is([data-cursor-state="move"],.window-drag:active,[draggable="true"]:active) { cursor:var(--cursor-move,move); }
 [draggable="true"] { cursor:grab; }
-html:root[data-cursor="custom"] [data-cursor-state="help"] { cursor:url('/cursors/help.cur'),help; }
-html:root[data-cursor="custom"] [data-cursor-state="crosshair"] { cursor:url('/cursors/precision.cur'),crosshair; }
-html:root[data-cursor="custom"] [data-cursor-state="ew-resize"] { cursor:url('/cursors/horz.cur'),ew-resize; }
-html:root[data-cursor="custom"] [data-cursor-state="ns-resize"] { cursor:url('/cursors/vert.cur'),ns-resize; }
-html:root[data-cursor="custom"] [data-cursor-state="nwse-resize"] { cursor:url('/cursors/dgn1.cur'),nwse-resize; }
-html:root[data-cursor="custom"] [data-cursor-state="nesw-resize"] { cursor:url('/cursors/dgn2.cur'),nesw-resize; }
+html:root[data-cursor="custom"] [data-cursor-state="help"] { cursor:url('/cursors/compact/help.cur'),help; }
+html:root[data-cursor="custom"] [data-cursor-state="crosshair"] { cursor:url('/cursors/compact/precision.cur'),crosshair; }
+html:root[data-cursor="custom"] [data-cursor-state="ew-resize"] { cursor:url('/cursors/compact/horz.cur'),ew-resize; }
+html:root[data-cursor="custom"] [data-cursor-state="ns-resize"] { cursor:url('/cursors/compact/vert.cur'),ns-resize; }
+html:root[data-cursor="custom"] [data-cursor-state="nwse-resize"] { cursor:url('/cursors/compact/dgn1.cur'),nwse-resize; }
+html:root[data-cursor="custom"] [data-cursor-state="nesw-resize"] { cursor:url('/cursors/compact/dgn2.cur'),nesw-resize; }
 html:root[data-cursor] [data-cursor-state="vertical-text"] { cursor:vertical-text; }
 /* These Windows roles have no equivalent standard CSS cursor state. Expose
    them explicitly for appropriate future tools, never ordinary navigation. */
-html:root[data-cursor="custom"] [data-cursor-state="alternate"] { cursor:url('/cursors/alternate.cur'),default; }
-html:root[data-cursor="custom"] [data-cursor-state="handwriting"] { cursor:url('/cursors/handwriting.cur'),crosshair; }
-html:root[data-cursor="custom"] [data-cursor-state="person"] { cursor:url('/cursors/person.cur'),pointer; }
-html:root[data-cursor="custom"] [data-cursor-state="pin"] { cursor:url('/cursors/pin.cur'),pointer; }
+html:root[data-cursor="custom"] [data-cursor-state="alternate"] { cursor:url('/cursors/compact/alternate.cur'),default; }
+html:root[data-cursor="custom"] [data-cursor-state="handwriting"] { cursor:url('/cursors/compact/handwriting.cur'),crosshair; }
+html:root[data-cursor="custom"] [data-cursor-state="person"] { cursor:url('/cursors/compact/person.cur'),pointer; }
+html:root[data-cursor="custom"] [data-cursor-state="pin"] { cursor:url('/cursors/compact/pin.cur'),pointer; }
 /* System mode restores the semantic state rather than a custom arrow. */
 html:root[data-cursor="system"] [data-cursor-state="help"] { cursor:help; }
 html:root[data-cursor="system"] [data-cursor-state="crosshair"],

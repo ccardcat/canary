@@ -1,5 +1,6 @@
 import type { ContentType } from "./modrinth";
 export interface DiscoveryState {
+  provider:"modrinth"|"curseforge";
   type: ContentType;
   query: string;
   sort: string;
@@ -12,6 +13,7 @@ export interface DiscoveryState {
   page: number;
 }
 export const initialDiscovery: DiscoveryState = {
+  provider:"modrinth",
   type: "modpack",
   query: "",
   sort: "downloads",

@@ -41,18 +41,18 @@ test("background pairing, independent selections and restart persistence", async
   }
   await options.nth(0).getByRole("button", { name: "Green", exact: true }).click();
   await page.getByRole("switch", { name: "Link backgrounds" }).click();
-  await expect(options.nth(1).getByRole("button", { name: "Green" })).toHaveAttribute("aria-pressed", "true");
+  await expect(options.nth(1).getByRole("button", { name: "Green", exact: true })).toHaveAttribute("aria-pressed", "true");
   await options.nth(1).getByRole("button", { name: "Dark Blue" }).click();
   await expect(options.nth(0).getByRole("button", { name: "Dark Blue" })).toHaveAttribute("aria-pressed", "true");
   await page.getByRole("switch", { name: "Link backgrounds" }).click();
-  await options.nth(0).getByRole("button", { name: "Green" }).click();
+  await options.nth(0).getByRole("button", { name: "Green", exact: true }).click();
   await page.getByText("Advanced background controls", { exact: true }).click();
   await page.getByRole("slider", { name: "Intensity", exact: true }).focus();
   await page.keyboard.press("Home");
   await page.keyboard.press("ArrowRight");
   await page.reload();
   await page.getByRole("button", { name: "Settings", exact: true }).click();
-  await expect(options.nth(0).getByRole("button", { name: "Green" })).toHaveAttribute("aria-pressed", "true");
+  await expect(options.nth(0).getByRole("button", { name: "Green", exact: true })).toHaveAttribute("aria-pressed", "true");
   await expect(options.nth(1).getByRole("button", { name: "Dark Blue" })).toHaveAttribute("aria-pressed", "true");
   await page.getByText("Advanced background controls", { exact: true }).click();
   await expect(page.getByRole("slider", { name: "Intensity", exact: true })).toHaveValue("1");
