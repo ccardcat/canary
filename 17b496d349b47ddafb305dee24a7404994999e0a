@@ -1,0 +1,13 @@
+{
+  "commit": "17b496d349b47ddafb305dee24a7404994999e0a",
+  "status": "running",
+  "platform": "windows",
+  "run_url": "https://github.com/ccardcat/canary/actions/runs/37329342288",
+  "previous_failure": {
+    "run_url": "https://github.com/ccardcat/canary/actions/runs/37327426369",
+    "steps": [
+      "Run set -o pipefail; cargo test --locked --manifest-path src-tauri/Cargo.toml 2>&1 | tee cargo-test.log"
+    ]
+  },
+  "previous_log_unavailable": "Command '['gh', 'api', 'repos/ccardcat/canary/actions/jobs/111821611420/logs']' returned non-zero exit status 1."
+}
