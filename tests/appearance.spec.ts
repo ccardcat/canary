@@ -147,3 +147,18 @@ test("invalid saved material preferences clamp to readable supported settings",a
  await page.evaluate(()=>localStorage.setItem("canary-visual",JSON.stringify({material:"impossible",surfaceOpacity:0,surfaceBlur:999,heroSpeed:-1,windowControls:"broken",ambient:"unknown"})));await page.reload();
  const saved=await page.evaluate(()=>JSON.parse(localStorage.getItem("canary-visual")||"{}"));expect(saved.material).toBe("solid");expect(saved.surfaceOpacity).toBe(55);expect(saved.surfaceBlur).toBe(32);expect(saved.heroSpeed).toBe(7);expect(saved.windowControls).toBe("windows");expect(saved.ambient).toBe("off");
 });
+
+test("light dialogs remain readable and low quality limits surface blur",async({page})=>{
+ await page.evaluate(()=>localStorage.setItem("canary-visual",JSON.stringify({quality:"low",surfaceBlur:32,surfaceOpacity:55})));
+ await page.reload();await page.getByRole("button",{name:"Settings",exact:true}).click();
+ await page.locator(".mode-grid").getByRole("button",{name:"Light",exact:true}).click();
+ await expect(page.locator("html")).toHaveAttribute("data-mode","light");
+ const alpha=async(selector:string)=>page.locator(selector).evaluate(e=>{const canvas=document.createElement("canvas");canvas.width=canvas.height=1;const context=canvas.getContext("2d")!;context.fillStyle=getComputedStyle(e).backgroundColor;context.fillRect(0,0,1,1);return context.getImageData(0,0,1,1).data[3]/255;});
+ expect(await alpha(".settings-modal")).toBeGreaterThanOrEqual(.94);
+ await expect(page.locator("html")).toHaveAttribute("data-quality","low");
+ const blur=await page.locator(".settings-modal").evaluate(e=>Number(getComputedStyle(e).backdropFilter.match(/blur\(([\d.]+)px\)/)?.[1]));
+ expect(blur).toBeGreaterThanOrEqual(0);expect(blur).toBeLessThanOrEqual(6);
+ await page.getByRole("combobox",{name:"Background source",exact:true}).click();
+ expect(await alpha("dialog.glass-select-popup[open]")).toBeGreaterThanOrEqual(.96);
+ await page.keyboard.press("Escape");await expect(page.locator(".settings-modal")).toBeVisible();
+});

@@ -55,9 +55,12 @@ try{
    const actual=await evaluate(`document.documentElement.dataset.windowMaterial`);const root=await evaluate(`getComputedStyle(document.documentElement).backgroundColor`);if(actual!=='solid')assert.equal(root,'rgba(0, 0, 0, 0)');
    await screenshot(`${theme.toLowerCase()}-${material}`);report.cases.push({name:'material',theme,requested:material,actual,root});
    await key('F11',122);await until(()=>win('is_fullscreen'),'material fullscreen');await finished();await delay(250);await screenshot(`${theme.toLowerCase()}-${material}-fullscreen`);assert.equal((await state()).ui.titlebar,'none');
+   if(['mica','mica-alt'].includes(actual))await until(()=>evaluate(`!['mica','mica-alt'].includes(document.documentElement.dataset.windowMaterial)`),'fullscreen backdrop fallback');
+   const fullscreenMaterial=await evaluate(`document.documentElement.dataset.windowMaterial`);
    // Settings consumes the first Escape; true fullscreen consumes the next.
    await key('Escape',27);await until(()=>evaluate(`!document.querySelector('.settings-modal')`),'Escape Settings');assert.equal(await win('is_fullscreen'),true);
    await key('Escape',27);await until(async()=>!await win('is_fullscreen'),'Escape native fullscreen');await finished();
+   await until(()=>evaluate(`document.documentElement.dataset.windowMaterial===${JSON.stringify(actual)}`),'restored material');report.cases.push({name:'fullscreen-material-restoration',theme,requested:material,normal:actual,fullscreen:fullscreenMaterial,restored:await evaluate(`document.documentElement.dataset.windowMaterial`)});
    await click(textButton('.sidebar button','Settings'));await until(()=>evaluate(`!!document.querySelector('.settings-modal')`),'reopen Settings');
   }
  }
