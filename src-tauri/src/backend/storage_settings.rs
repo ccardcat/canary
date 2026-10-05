@@ -12,12 +12,33 @@ fn tree(root:&Path)->Result<Vec<(String,u64)>>{
     fn walk(root:&Path,path:&Path,out:&mut Vec<(String,u64)>)->Result<()>{for entry in std::fs::read_dir(path)?{let entry=entry?;let kind=entry.file_type()?;if kind.is_symlink(){return Err(BackendError::new("unsafe_path","An instance contains a symbolic link; migration stopped"));}if kind.is_dir(){walk(root,&entry.path(),out)?;}else if kind.is_file(){out.push((entry.path().strip_prefix(root).unwrap().to_string_lossy().replace('\\',"/"),entry.metadata()?.len()));}}Ok(())}
     let mut out=vec![];walk(root,root,&mut out)?;Ok(out)
 }
-pub fn usage(b:&Backend)->Result<serde_json::Value>{let root=b.instances_root();let free=fs2::available_space(&root).ok();let mut used=0;for instance in b.instances()?{if instance.status!="unavailable" {if let Ok(files)=tree(Path::new(&instance.directory)){used+=files.iter().map(|(_,s)|s).sum::<u64>();}}}Ok(serde_json::json!({"path":root,"available":root.is_dir(),"free":free,"used":used}))}
+fn folder_usage(root:&Path)->Result<u64>{
+    if !root.exists()||std::fs::symlink_metadata(root)?.file_type().is_symlink(){return Ok(0);}
+    let mut bytes=0;for entry in std::fs::read_dir(root)?{let entry=entry?;let kind=entry.file_type()?;if kind.is_dir(){bytes+=folder_usage(&entry.path())?;}else if kind.is_file(){bytes+=entry.metadata()?.len();}}Ok(bytes)
+}
+pub fn usage(b:&Backend)->Result<serde_json::Value>{
+    let root=b.instances_root();let free=fs2::available_space(&root).ok();let mut used=0;let mut instance_logs=0;
+    for instance in b.instances()?{if instance.status!="unavailable" {let directory=Path::new(&instance.directory);used+=folder_usage(directory)?;instance_logs+=folder_usage(&directory.join("logs"))?;}}
+    let cache=folder_usage(&b.root.join("cache"))?;let java=folder_usage(&b.root.join("java"))?;let app_logs=folder_usage(&b.root.join("logs"))?;
+    Ok(serde_json::json!({"path":root,"available":root.is_dir(),"free":free,"used":used,"breakdown":{"instances":used.saturating_sub(instance_logs),"cache":cache,"java":java,"logs":app_logs+instance_logs,"total":used+cache+java+app_logs}}))
+}
+pub fn clear_cache(b:Arc<Backend>)->Result<()> {
+    {let jobs=b.jobs.lock().unwrap();if !jobs.is_empty()||!b.processes.lock().unwrap().is_empty()||b.maintenance.swap(true,Ordering::AcqRel){return Err(BackendError::new("busy","Stop Minecraft and finish active operations before clearing cache"));}}
+    let _guard=Maintenance(b.clone());let cache=storage::safe_join(&b.root,"cache")?;
+    let canonical=dunce::canonicalize(&cache)?;
+    for root in b.instance_roots(){let root=dunce::canonicalize(&root).unwrap_or(root);if canonical.starts_with(&root)||root.starts_with(&canonical){return Err(BackendError::new("unsafe_path","Cache overlaps registered instance storage; no files were removed"));}}
+    tree(&cache)?; // Reject symlinks before touching the explicitly managed cache.
+    let retired=b.root.join(format!(".cache-clear-{}",uuid::Uuid::new_v4()));
+    std::fs::rename(&cache,&retired)?;
+    if let Err(error)=std::fs::create_dir(&cache){let _=std::fs::rename(&retired,&cache);return Err(error.into());}
+    std::fs::remove_dir_all(retired)?;Ok(())
+}
 pub fn choose(app:&AppHandle)->Result<Option<String>>{app.dialog().file().set_title("Canary — Instance storage").blocking_pick_folder().map(|v|v.into_path().map(|p|p.to_string_lossy().into_owned()).map_err(|_|BackendError::new("storage_path","Invalid folder"))).transpose()}
 struct Maintenance(Arc<Backend>);impl Drop for Maintenance{fn drop(&mut self){self.0.maintenance.store(false,Ordering::Release);}}
 pub fn change(b:Arc<Backend>,app:Option<AppHandle>,path:String,migrate:bool)->Result<serde_json::Value>{
     {let jobs=b.jobs.lock().unwrap();if !jobs.is_empty()||!b.processes.lock().unwrap().is_empty()||b.maintenance.swap(true,Ordering::AcqRel){return Err(BackendError::new("busy","Stop Minecraft and finish active operations before changing storage"));}}
     let _guard=Maintenance(b.clone());let root=canonical_root(Path::new(&path))?;
+    for name in ["cache","java","logs","temp","wallpapers"]{let managed=b.root.join(name);let managed=dunce::canonicalize(&managed).unwrap_or(managed);if root.starts_with(&managed)||managed.starts_with(&root){return Err(BackendError::new("storage_path","Choose an instance folder outside Canary cache, Java, logs and internal storage"));}}
     for registered in b.instance_roots(){let registered=dunce::canonicalize(&registered).unwrap_or(registered);if root!=registered&&(root.starts_with(&registered)||registered.starts_with(&root)){return Err(BackendError::new("storage_path","Storage folders must not overlap existing instance storage"));}}
     if root==b.instances_root(){return usage(&b);}
     let instances=b.instances()?;if migrate&&instances.iter().any(|i|i.status=="unavailable"){return Err(BackendError::new("storage_unavailable","Reconnect every instance drive before migration"));}
@@ -39,3 +60,16 @@ fn b_roots(store:&Store,root:&Path)->Vec<String>{let mut roots=store.instance_ro
 #[cfg(test)]mod tests{use super::*;#[test]fn verified_migration_preserves_world_and_identity(){let root=std::env::temp_dir().join(format!("canary-storage-{}",uuid::Uuid::new_v4()));let _cleanup=storage::Staging(root.clone());let b=Arc::new(Backend::with_root(root.join("app")).unwrap());let path=b.instance_path("test").unwrap();std::fs::create_dir_all(path.join("saves/World")).unwrap();std::fs::write(path.join("saves/World/level.dat"),b"world").unwrap();b.save_instance(&Instance{id:"test".into(),name:"Actual user instance".into(),..Instance::default()}).unwrap();change(b.clone(),None,root.join("other-drive").to_string_lossy().into(),true).unwrap();assert!(!path.exists());assert_eq!(std::fs::read(b.instance_path("test").unwrap().join("saves/World/level.dat")).unwrap(),b"world");let restored=Backend::with_root(b.root.clone()).unwrap();assert_eq!(restored.instances().unwrap().len(),1);assert_eq!(restored.instance("test").unwrap().name,"Actual user instance");}#[test]fn new_only_preserves_previous_instances(){let root=std::env::temp_dir().join(format!("canary-storage-{}",uuid::Uuid::new_v4()));let _cleanup=storage::Staging(root.clone());let b=Arc::new(Backend::with_root(root.join("app")).unwrap());let path=b.instance_path("original").unwrap();std::fs::create_dir_all(&path).unwrap();b.save_instance(&Instance{id:"original".into(),..Instance::default()}).unwrap();change(b.clone(),None,root.join("new-only").to_string_lossy().into(),false).unwrap();assert_eq!(b.instance_path("original").unwrap(),path);assert_eq!(b.instance_path("fresh").unwrap(),dunce::canonicalize(root.join("new-only")).unwrap().join("fresh"));}}
 
 #[cfg(test)]mod failure_tests{use super::*;#[test]fn conflicting_destination_keeps_original_world_and_settings(){let root=std::env::temp_dir().join(format!("canary-storage-conflict-{}",uuid::Uuid::new_v4()));let _cleanup=storage::Staging(root.clone());let b=Arc::new(Backend::with_root(root.join("app")).unwrap());let original=b.instance_path("world").unwrap();std::fs::create_dir_all(original.join("saves/World")).unwrap();std::fs::write(original.join("saves/World/level.dat"),b"original world").unwrap();b.save_instance(&Instance{id:"world".into(),..Instance::default()}).unwrap();let target=root.join("destination");std::fs::create_dir_all(target.join("world")).unwrap();assert_eq!(change(b.clone(),None,target.to_string_lossy().into(),true).err().unwrap().code,"storage_conflict");assert!(b.settings().instances_path.is_none());assert_eq!(std::fs::read(original.join("saves/World/level.dat")).unwrap(),b"original world");assert!(!b.maintenance.load(Ordering::Relaxed));}#[test]fn disconnected_drive_retains_catalog_and_blocks_launch_path(){let root=std::env::temp_dir().join(format!("canary-storage-missing-{}",uuid::Uuid::new_v4()));let _cleanup=storage::Staging(root.clone());let b=Arc::new(Backend::with_root(root.join("app")).unwrap());change(b.clone(),None,root.join("drive").to_string_lossy().into(),false).unwrap();std::fs::create_dir_all(b.instance_path("world").unwrap()).unwrap();b.save_instance(&Instance{id:"world".into(),..Instance::default()}).unwrap();std::fs::rename(root.join("drive"),root.join("disconnected")).unwrap();assert_eq!(b.instances().unwrap()[0].status,"unavailable");assert_eq!(b.instance_path("world").err().unwrap().code,"storage_unavailable");std::fs::rename(root.join("disconnected"),root.join("drive")).unwrap();assert_ne!(b.instances().unwrap()[0].status,"unavailable");}}
+
+#[cfg(test)]mod cache_tests{use super::*;
+    #[test]fn cache_cleanup_preserves_worlds_java_and_accounts_and_obeys_operations(){
+        let root=std::env::temp_dir().join(format!("canary-cache-{}",uuid::Uuid::new_v4()));let _cleanup=storage::Staging(root.clone());let b=Arc::new(Backend::with_root(root).unwrap());
+        let instance=b.instance_path("world").unwrap();std::fs::create_dir_all(instance.join("saves/World")).unwrap();std::fs::create_dir_all(instance.join("logs")).unwrap();
+        std::fs::write(instance.join("saves/World/level.dat"),b"world").unwrap();std::fs::write(instance.join("logs/latest.log"),b"log").unwrap();b.save_instance(&Instance{id:"world".into(),..Instance::default()}).unwrap();
+        std::fs::write(b.root.join("cache/library.jar"),b"cache").unwrap();std::fs::write(b.root.join("java/java"),b"java").unwrap();super::super::accounts::local(&b,"CacheQA").unwrap();
+        let sizes=usage(&b).unwrap();assert_eq!(sizes["breakdown"]["instances"],folder_usage(&instance).unwrap()-3);assert_eq!(sizes["breakdown"]["cache"],5);assert_eq!(sizes["breakdown"]["java"],4);assert_eq!(sizes["breakdown"]["logs"],3);
+        let lease=b.lease("operation").unwrap();assert_eq!(clear_cache(b.clone()).unwrap_err().code,"busy");assert!(b.root.join("cache/library.jar").exists());drop(lease);
+        assert_eq!(change(b.clone(),None,b.root.join("cache/instances").to_string_lossy().into(),false).unwrap_err().code,"storage_path");
+        clear_cache(b.clone()).unwrap();assert!(b.root.join("cache").is_dir());assert!(!b.root.join("cache/library.jar").exists());assert_eq!(std::fs::read(instance.join("saves/World/level.dat")).unwrap(),b"world");assert_eq!(std::fs::read(b.root.join("java/java")).unwrap(),b"java");assert_eq!(b.store.lock().unwrap().accounts[0].username,"CacheQA");assert!(!b.maintenance.load(Ordering::Relaxed));
+    }
+}

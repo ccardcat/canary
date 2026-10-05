@@ -16,6 +16,7 @@ mockIPC((command,args)=>{
   globalThis.__backendTest.calls.push({command,args});
   if(command==='backend_snapshot')return structuredClone(state);
   if(command==='list_wallpapers')return [];
+  if(command==='storage_usage')return {path:'D:/Canary',free:10737418240,used:1073741824,available:true,breakdown:{instances:1073741824,cache:2147483648,java:1073741824,logs:0,total:4294967296}};
   if(command==='catalog_search'){const data={hits:[{provider:'curseforge',project_id:'100',title:globalThis.__backendTest.slowSearch&&args.query?args.query+' CF pack':'CurseForge contract pack',description:'Provider contract',author:'Author',downloads:123,versions:['1.21.1'],categories:['fabric'],project_type:'modpack'}],total_hits:1};return globalThis.__backendTest.slowSearch&&args.query?new Promise(resolve=>setTimeout(()=>resolve(data),600)):data;}
   if(command==='catalog_versions')return [{provider:'curseforge',id:'200',project_id:'100',name:'Pack 2',version_number:'2',version_type:'release',game_versions:['1.21.1'],loaders:['fabric'],date_published:'2026-10-01',files:[{filename:'pack.zip',url:'https://example.invalid/pack.zip',size:1,hashes:{sha1:'contract'}}]}];
   if(command==='content_project'&&args.provider==='curseforge')return {provider:'curseforge',id:'100',slug:'contract-pack',title:'CurseForge contract pack',description:'Provider contract',body:'<p>Safe CF description</p><script>window.cfUnsafe=true</script>',body_format:'html',project_type:'modpack',downloads:123,followers:0,game_versions:['1.21.1'],categories:['fabric'],updated:'2026-10-01',gallery:[]};
@@ -214,4 +215,17 @@ test("changing CurseForge search cancels the native request and discards stale r
   expect(first.args.requestId).toMatch(/^provider-/);
   expect(calls.some((c:any)=>c.command==="cancel_operation"&&c.args.id===first.args.requestId)).toBe(true);
   await expect(page.locator(".card-title")).not.toContainText("first CF pack");
+});
+
+test("storage cleanup requires confirmation and RAM warning leaves account defaults selectable",async({page})=>{
+ await page.getByRole("button",{name:"Settings",exact:true}).first().click();
+ await page.locator(".settings-nav").getByRole("button",{name:"Canary",exact:true}).click();
+ const storage=page.locator(".storage-settings");await expect(storage.locator(".storage-breakdown")).toContainText("Cache");await expect(storage.locator(".storage-breakdown")).toContainText("4.00 GB");
+ await storage.getByRole("button",{name:"Clear cache",exact:true}).click();const dialog=page.getByRole("dialog",{name:"Clear cache",exact:true});await expect(dialog).toContainText("Worlds, instances, Java and accounts are preserved");
+ expect(await page.evaluate(()=> (globalThis as any).__backendTest.calls.some((c:any)=>c.command==="clear_download_cache"))).toBe(false);
+ await dialog.getByRole("button",{name:"Cancel",exact:true}).click();await expect(dialog).toHaveCount(0);
+ await storage.getByRole("button",{name:"Clear cache",exact:true}).click();await dialog.getByRole("button",{name:"Clear",exact:true}).click();await expect(dialog).toHaveCount(0);
+ expect(await page.evaluate(()=> (globalThis as any).__backendTest.calls.filter((c:any)=>c.command==="clear_download_cache").length)).toBe(1);
+ const max=page.locator("label").filter({hasText:"Maximum RAM"}).getByRole("spinbutton");await max.fill("7000");await expect(page.getByText("You are allocating most of your RAM.",{exact:false})).toBeVisible();
+ await page.getByLabel("Default account",{exact:true}).selectOption("");await expect(page.getByLabel("Default account",{exact:true})).toHaveValue("");
 });

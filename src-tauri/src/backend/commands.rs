@@ -210,6 +210,7 @@ pub async fn apply_pack_update(backend:State<'_,B>,app:AppHandle,id:String,beta:
 #[tauri::command]
 pub async fn begin_microsoft_login(app:AppHandle,backend:State<'_,B>)->Result<serde_json::Value>{super::microsoft::begin(backend.inner().clone(),app).await}
 
+#[tauri::command]pub async fn clear_download_cache(backend:State<'_,B>)->Result<()>{let b=backend.inner().clone();tokio::task::spawn_blocking(move||super::storage_settings::clear_cache(b)).await.map_err(|_|BackendError::new("storage","Cache cleanup failed"))?}
 #[tauri::command]pub async fn storage_usage(backend:State<'_,B>)->Result<serde_json::Value>{let b=backend.inner().clone();tokio::task::spawn_blocking(move||super::storage_settings::usage(&b)).await.map_err(|_|BackendError::new("storage","Storage scan failed"))?}
 #[tauri::command]pub async fn choose_storage_folder(app:AppHandle)->Result<Option<String>>{tokio::task::spawn_blocking(move||super::storage_settings::choose(&app)).await.map_err(|_|BackendError::new("storage","Folder picker failed"))?}
 #[tauri::command]pub async fn change_storage(backend:State<'_,B>,app:AppHandle,path:String,migrate:bool)->Result<serde_json::Value>{let b=backend.inner().clone();tokio::task::spawn_blocking(move||super::storage_settings::change(b,Some(app),path,migrate)).await.map_err(|_|BackendError::new("storage","Storage migration failed"))?}

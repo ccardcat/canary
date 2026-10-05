@@ -6,7 +6,7 @@ pub fn local(backend:&Backend,username:&str)->Result<Account>{
     backend.persist()?;Ok(account)
 }
 pub fn selected(backend:&Backend,instance:&Instance)->Result<Account>{
-    let store=backend.store.lock().unwrap();let id=instance.overrides.account.as_ref().or(store.settings.active_account.as_ref()).ok_or_else(||BackendError::new("account_required","Select an account before playing"))?;
+    let store=backend.store.lock().unwrap();let id=instance.overrides.account.as_ref().or(store.settings.active_account.as_ref()).or_else(||store.accounts.iter().max_by_key(|a|a.last_used.unwrap_or(0)).map(|a|&a.id)).ok_or_else(||BackendError::new("account_required","Select an account before playing"))?;
     store.accounts.iter().find(|a|&a.id==id).cloned().ok_or_else(||BackendError::new("account_required","Selected account does not exist"))
 }
 // Launch credentials deliberately have no Serialize or Debug implementation.
@@ -38,4 +38,8 @@ pub fn remove(backend:&Backend,id:&str)->Result<()> {
 }
 #[cfg(test)]mod tests {use super::*;#[test]fn provider_identity_is_explicit(){let a=Account{id:"internal".into(),provider:"local".into(),uuid:uuid::Uuid::new_v4().simple().to_string(),username:"Player".into(),avatar:None,status:"local".into(),last_used:None,credential_ref:None};let restored:Account=serde_json::from_str(&serde_json::to_string(&a).unwrap()).unwrap();assert_eq!(a.uuid,restored.uuid);assert_eq!(restored.provider,"local");assert_eq!(restored.credential_ref,None);}
 #[test]fn local_accounts_restore_and_switch_independently(){let root=std::env::temp_dir().join(format!("canary-accounts-{}",uuid::Uuid::new_v4()));let _cleanup=super::super::storage::Staging(root.clone());let backend=Backend::with_root(root.clone()).unwrap();assert!(local(&backend,"bad name").is_err());let one=local(&backend,"PlayerOne").unwrap();let two=local(&backend,"PlayerTwo").unwrap();let restored=Backend::with_root(root).unwrap();assert_eq!(selected(&restored,&Instance::default()).unwrap().uuid,two.uuid);let i=Instance{overrides:Overrides{account:Some(one.id.clone()),..Overrides::default()},..Instance::default()};assert_eq!(selected(&restored,&i).unwrap().uuid,one.uuid);remove(&restored,&two.id).unwrap();assert_eq!(selected(&restored,&Instance::default()).unwrap().uuid,one.uuid);assert!(selected(&restored,&Instance{overrides:Overrides{account:Some(two.id),..Overrides::default()},..Instance::default()}).is_err());}
+}
+
+#[cfg(test)]mod selection_tests{use super::*;
+    #[test]fn last_used_default_respects_explicit_account_and_instance_override(){let root=std::env::temp_dir().join(format!("canary-accounts-{}",uuid::Uuid::new_v4()));let _cleanup=super::super::storage::Staging(root.clone());let b=Backend::with_root(root).unwrap();let first=local(&b,"FirstQA").unwrap();let second=local(&b,"SecondQA").unwrap();{let mut store=b.store.lock().unwrap();store.accounts[0].last_used=Some(100);store.accounts[1].last_used=Some(200);store.settings.active_account=None;}let mut instance=Instance::default();assert_eq!(selected(&b,&instance).unwrap().id,second.id);b.store.lock().unwrap().settings.active_account=Some(first.id.clone());assert_eq!(selected(&b,&instance).unwrap().id,first.id);instance.overrides.account=Some(second.id.clone());assert_eq!(selected(&b,&instance).unwrap().id,second.id);instance.overrides.account=Some("missing-account".into());assert_eq!(selected(&b,&instance).err().unwrap().code,"account_required");}
 }
