@@ -21,7 +21,14 @@
       }
     ],
     "security": {
-      "csp": null
+      "csp": null,
+      "assetProtocol": {
+        "enable": true,
+        "scope": [
+          "$LOCALDATA/Canary/instances/*/screenshots/**",
+          "$LOCALDATA/Canary/cache/icons/**"
+        ]
+      }
     }
   },
   "bundle": {

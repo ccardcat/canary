@@ -132,6 +132,9 @@ struct FileEntry {
 
 // Check both Windows and Unix semantics regardless of the machine doing validation.
 fn safe(base: &Path, rel: &str, stage: &str) -> Result<PathBuf> {
+    if matches!(rel.trim_end_matches('/').split('/').next().unwrap_or(""),"pack-content-files.json"|"content.json"|".canary-content"|"instance.json"|"runtime.json"|"loader.json"|"provider-files.json"|"process.json"|"canary-instance.json") {
+        return Err(InstallError::new(stage,"Archive cannot replace Canary metadata"));
+    }
     let path = Path::new(rel);
     if rel.is_empty()
         || rel.contains('\\')
@@ -405,6 +408,11 @@ pub async fn install<F: FnMut(Progress)>(
                 let path = staging.join("canary-instance.json");
                 let data = serde_json::to_vec_pretty(&metadata).map_err(|e| InstallError::cause(stage, e))?;
                 fs::write(&path, data).map_err(|e| InstallError::cause(stage, e).path(&path))?;
+                let mut content_receipt=vec![];
+                for folder in ["mods","shaderpacks","resourcepacks"]{let dir=staging.join(folder);if !dir.is_dir(){continue;}for entry in fs::read_dir(&dir).map_err(|e|InstallError::cause(stage,e))?{let entry=entry.map_err(|e|InstallError::cause(stage,e))?;if !entry.file_type().map_err(|e|InstallError::cause(stage,e))?.is_file(){continue;}let path=entry.path();if path.extension().is_some_and(|e|e=="jar"||e=="zip"){let hash=crate::backend::download::hash(&path,"sha512").map_err(|e|InstallError::new(stage,e.to_string()))?;content_receipt.push(serde_json::json!({"path":format!("{folder}/{}",entry.file_name().to_string_lossy()),"hash":hash}));}}}
+                fs::write(staging.join("pack-content-files.json"),serde_json::to_vec(&content_receipt).map_err(|e|InstallError::cause(stage,e))?).map_err(|e|InstallError::cause(stage,e))?;
+                let manifest_path=staging.join("modrinth.index.json");
+                fs::write(&manifest_path,&raw).map_err(|e|InstallError::cause(stage,e).path(&manifest_path))?;
                 succeeded(stage);
                 stage = start("finalize", 98.0, &mut progress, &mut emit);
                 fs::rename(&staging, &root).map_err(|e| InstallError::cause(stage, e).path(&root))?;

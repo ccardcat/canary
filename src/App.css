@@ -155,7 +155,7 @@ select,
   gap: 11px;
   padding: 0 15px;
   margin-bottom: 42px;
-  font-size: 22px;
+  font-size:calc(22px * var(--ui-font-scale,1));
   font-weight: 800;
   letter-spacing: -0.5px;
   white-space: nowrap;
@@ -184,7 +184,7 @@ select,
   gap: 13px;
   white-space: nowrap;
   font: inherit;
-  font-size: 14px;
+  font-size:calc(14px * var(--ui-font-scale,1));
   cursor: pointer;
   transition: var(--motion);
 }
@@ -212,10 +212,10 @@ select,
   gap: 5px;
 }
 .sidebar-bottom button {
-  font-size: 12px;
+  font-size:calc(12px * var(--ui-font-scale,1));
 }
 .language-code {
-  font-size: 11px;
+  font-size:calc(11px * var(--ui-font-scale,1));
   font-weight: 800;
   letter-spacing: 0.5px;
 }
@@ -233,7 +233,7 @@ select,
 }
 .breadcrumb,
 .overline {
-  font-size: 10px;
+  font-size:calc(10px * var(--ui-font-scale,1));
   font-weight: 800;
   letter-spacing: 2px;
   color: var(--faint);
@@ -243,7 +243,7 @@ select,
   margin: 0 5px;
 }
 .topbar h1 {
-  font-size: 30px;
+  font-size:calc(30px * var(--ui-font-scale,1));
   line-height: 1.1;
   letter-spacing: -0.7px;
   margin: 9px 0 0;
@@ -282,11 +282,11 @@ select,
   line-height: 1.15;
 }
 .account-button small {
-  font-size: 10px;
+  font-size:calc(10px * var(--ui-font-scale,1));
   color: var(--faint);
 }
 .account-button b {
-  font-size: 12px;
+  font-size:calc(12px * var(--ui-font-scale,1));
   color: var(--text);
   font-weight: 600;
 }
@@ -332,7 +332,7 @@ select,
   gap: 7px;
   padding: 6px 8px 12px;
   color: var(--muted);
-  font-size: 12px;
+  font-size:calc(12px * var(--ui-font-scale,1));
   font-weight: 700;
 }
 .status-dot,
@@ -361,11 +361,11 @@ select,
 .account-empty b {
   display: block;
   color: var(--text);
-  font-size: 15px;
+  font-size:calc(15px * var(--ui-font-scale,1));
 }
 .account-empty p {
   color: var(--muted);
-  font-size: 12px;
+  font-size:calc(12px * var(--ui-font-scale,1));
   line-height: 1.45;
   margin: 7px 0 0;
 }
@@ -388,7 +388,7 @@ select,
 .planned {
   margin-left: auto;
   color: var(--faint);
-  font-size: 11px;
+  font-size:calc(11px * var(--ui-font-scale,1));
 }
 .discover-page,
 .home-page,
@@ -404,7 +404,7 @@ select,
 .discover-intro h2,
 .library-intro h2,
 .downloads-page h2 {
-  font-size: 30px;
+  font-size:calc(30px * var(--ui-font-scale,1));
   letter-spacing: -0.7px;
   margin: 10px 0 4px;
 }
@@ -419,7 +419,7 @@ select,
   border-radius: 20px;
   padding: 9px 13px;
   color: var(--muted);
-  font-size: 12px;
+  font-size:calc(12px * var(--ui-font-scale,1));
   display: flex;
   align-items: center;
   gap: 8px;
@@ -446,7 +446,7 @@ select,
   align-items: center;
   gap: 8px;
   font: inherit;
-  font-size: 12px;
+  font-size:calc(12px * var(--ui-font-scale,1));
   cursor: pointer;
   transition: var(--motion);
 }
@@ -506,7 +506,7 @@ select,
   color: var(--muted);
   padding: 0 14px;
   font: inherit;
-  font-size: 12px;
+  font-size:calc(12px * var(--ui-font-scale,1));
   cursor: pointer;
 }
 .filter-count {
@@ -554,14 +554,14 @@ select,
   background: transparent;
   color: var(--accent);
   font: inherit;
-  font-size: 11px;
+  font-size:calc(11px * var(--ui-font-scale,1));
   cursor: pointer;
 }
 .filter-popover label {
   display: grid;
   gap: 6px;
   color: var(--muted);
-  font-size: 11px;
+  font-size:calc(11px * var(--ui-font-scale,1));
   margin-top: 12px;
 }
 .filter-popover select {
@@ -582,7 +582,7 @@ select,
 }
 .results-line span {
   font-weight: 800;
-  font-size: 17px;
+  font-size:calc(17px * var(--ui-font-scale,1));
 }
 .results-line small {
   color: var(--faint);
@@ -657,7 +657,7 @@ select,
   left: 14px;
   color: var(--muted);
   font-weight: 800;
-  font-size: 9px;
+  font-size:calc(9px * var(--ui-font-scale,1));
   letter-spacing: 1.5px;
 }
 .icon-card .card-visual {
@@ -674,7 +674,7 @@ select,
   padding: 15px 16px 14px;
 }
 .card-kind {
-  font-size: 9px;
+  font-size:calc(9px * var(--ui-font-scale,1));
   letter-spacing: 1.5px;
   color: var(--faint);
   font-weight: 800;
@@ -691,7 +691,7 @@ select,
   color: var(--text);
   font: inherit;
   font-weight: 800;
-  font-size: 16px;
+  font-size:calc(16px * var(--ui-font-scale,1));
   text-align: left;
   margin: 8px 0 5px;
   cursor: pointer;
@@ -701,7 +701,7 @@ select,
   overflow: hidden;
   margin: 0;
   color: var(--muted);
-  font-size: 12px;
+  font-size:calc(12px * var(--ui-font-scale,1));
   line-height: 1.45;
 }
 .chips {
@@ -717,7 +717,7 @@ select,
   background: var(--surface-3);
   border: 1px solid var(--line);
   color: var(--muted);
-  font-size: 10px;
+  font-size:calc(10px * var(--ui-font-scale,1));
 }
 .card-foot {
   display: flex;
@@ -729,7 +729,7 @@ select,
   align-items: center;
   gap: 4px;
   color: var(--faint);
-  font-size: 11px;
+  font-size:calc(11px * var(--ui-font-scale,1));
   margin-right: auto;
 }
 .compact-action {
@@ -742,7 +742,7 @@ select,
   border-radius: 9px;
   padding: 7px 9px;
   font: inherit;
-  font-size: 11px;
+  font-size:calc(11px * var(--ui-font-scale,1));
   cursor: pointer;
 }
 .compact-action:hover {
@@ -801,7 +801,7 @@ select,
   gap: 15px;
   margin: 27px 0;
   color: var(--muted);
-  font-size: 12px;
+  font-size:calc(12px * var(--ui-font-scale,1));
 }
 .pagination button {
   display: flex;
@@ -877,7 +877,7 @@ select,
   border-radius: 10px;
   padding: 8px 11px;
   font: inherit;
-  font-size: 12px;
+  font-size:calc(12px * var(--ui-font-scale,1));
   cursor: pointer;
 }
 .library-toolbar {
@@ -915,7 +915,7 @@ select,
 }
 .home-hero h2 {
   max-width: 550px;
-  font-size: 39px;
+  font-size:calc(39px * var(--ui-font-scale,1));
   letter-spacing: -1.2px;
   line-height: 1.07;
   margin: 15px 0 10px;
@@ -952,12 +952,12 @@ select,
 }
 .home-section-head h3 {
   margin: 0;
-  font-size: 18px;
+  font-size:calc(18px * var(--ui-font-scale,1));
 }
 .home-section-head p {
   margin: 4px 0 0;
   color: var(--muted);
-  font-size: 12px;
+  font-size:calc(12px * var(--ui-font-scale,1));
 }
 .home-row {
   display: grid;
@@ -1009,11 +1009,11 @@ select,
   white-space: nowrap;
 }
 .mini-card b {
-  font-size: 12px;
+  font-size:calc(12px * var(--ui-font-scale,1));
 }
 .mini-card small {
   color: var(--faint);
-  font-size: 10px;
+  font-size:calc(10px * var(--ui-font-scale,1));
   margin-top: 3px;
 }
 .home-empty {
@@ -1024,7 +1024,7 @@ select,
   border-radius: 13px;
   padding: 18px;
   color: var(--muted);
-  font-size: 12px;
+  font-size:calc(12px * var(--ui-font-scale,1));
 }
 .home-empty button {
   margin-left: auto;
@@ -1078,7 +1078,7 @@ select,
   padding-top: 4px;
 }
 .detail-heading h2 {
-  font-size: 33px;
+  font-size:calc(33px * var(--ui-font-scale,1));
   margin: 11px 0 7px;
 }
 .detail-heading p {
@@ -1102,7 +1102,7 @@ select,
   border-radius: 8px;
   padding: 6px 8px;
   color: var(--muted);
-  font-size: 11px;
+  font-size:calc(11px * var(--ui-font-scale,1));
 }
 .detail-actions select {
   border: 1px solid var(--line-strong);
@@ -1118,7 +1118,7 @@ select,
   border-bottom: 1px solid var(--line);
   padding: 22px 4px 13px;
   color: var(--muted);
-  font-size: 12px;
+  font-size:calc(12px * var(--ui-font-scale,1));
 }
 .detail-tabs .selected {
   color: var(--text);
@@ -1140,7 +1140,7 @@ select,
   white-space: pre-wrap;
   color: var(--muted);
   line-height: 1.6;
-  font-size: 13px;
+  font-size:calc(13px * var(--ui-font-scale,1));
 }
 .detail-side {
   display: grid;
@@ -1149,7 +1149,7 @@ select,
   border-left: 1px solid var(--line);
   padding-left: 22px;
   color: var(--muted);
-  font-size: 12px;
+  font-size:calc(12px * var(--ui-font-scale,1));
 }
 .detail-side b {
   color: var(--text);
@@ -1198,10 +1198,10 @@ select,
   flex: 1;
 }
 .download-stage b {
-  font-size: 14px;
+  font-size:calc(14px * var(--ui-font-scale,1));
 }
 .download-stage span {
-  font-size: 11px;
+  font-size:calc(11px * var(--ui-font-scale,1));
   color: var(--muted);
   overflow: hidden;
   text-overflow: ellipsis;
@@ -1209,7 +1209,7 @@ select,
 }
 .download-stage strong {
   color: var(--accent);
-  font-size: 18px;
+  font-size:calc(18px * var(--ui-font-scale,1));
 }
 .progress {
   height: 8px;
@@ -1227,7 +1227,7 @@ select,
 }
 .download-panel > small {
   color: var(--faint);
-  font-size: 11px;
+  font-size:calc(11px * var(--ui-font-scale,1));
 }
 .empty-surface {
   height: 230px;
@@ -1250,7 +1250,7 @@ select,
   gap: 4px;
 }
 .inline-error span {
-  font-size: 12px;
+  font-size:calc(12px * var(--ui-font-scale,1));
 }
 .empty-page {
   padding: 60px 0;
@@ -1317,7 +1317,7 @@ select,
 }
 .settings-top h2 {
   margin: 7px 0 0;
-  font-size: 24px;
+  font-size:calc(24px * var(--ui-font-scale,1));
 }
 .settings-top button {
   display: grid;
@@ -1351,7 +1351,7 @@ select,
   border-radius: 11px;
   text-align: left;
   font: inherit;
-  font-size: 12px;
+  font-size:calc(12px * var(--ui-font-scale,1));
   cursor: pointer;
 }
 .settings-nav button.active,
@@ -1364,17 +1364,17 @@ select,
   padding: 27px 31px;
 }
 .setting-intro h3 {
-  font-size: 24px;
+  font-size:calc(24px * var(--ui-font-scale,1));
   margin: 9px 0 3px;
 }
 .setting-intro p {
   color: var(--muted);
   margin: 0;
   line-height: 1.5;
-  font-size: 13px;
+  font-size:calc(13px * var(--ui-font-scale,1));
 }
 .settings-content h4 {
-  font-size: 13px;
+  font-size:calc(13px * var(--ui-font-scale,1));
   margin: 28px 0 12px;
 }
 .mode-grid {
@@ -1392,7 +1392,7 @@ select,
   border-radius: 12px;
   padding: 13px 10px;
   font: inherit;
-  font-size: 11px;
+  font-size:calc(11px * var(--ui-font-scale,1));
   cursor: pointer;
 }
 .mode-grid button.selected {
@@ -1415,7 +1415,7 @@ select,
   border-radius: 10px;
   padding: 9px 7px;
   font: inherit;
-  font-size: 10px;
+  font-size:calc(10px * var(--ui-font-scale,1));
   cursor: pointer;
 }
 .accent-grid button.selected {
@@ -1441,10 +1441,10 @@ select,
   gap: 3px;
 }
 .toggle-setting b {
-  font-size: 13px;
+  font-size:calc(13px * var(--ui-font-scale,1));
 }
 .toggle-setting span {
-  font-size: 11px;
+  font-size:calc(11px * var(--ui-font-scale,1));
   color: var(--muted);
 }
 .toggle {
@@ -1478,7 +1478,7 @@ select,
   border-radius: 11px;
   padding: 12px;
   color: var(--faint);
-  font-size: 11px;
+  font-size:calc(11px * var(--ui-font-scale,1));
 }
 .language-cards {
   display: grid;
@@ -1511,7 +1511,7 @@ select,
   height: 35px;
   border-radius: 10px;
   background: var(--surface-3);
-  font-size: 18px;
+  font-size:calc(18px * var(--ui-font-scale,1));
   font-weight: 800;
 }
 .language-cards b,
@@ -1521,7 +1521,7 @@ select,
 .language-cards small {
   margin-top: 3px;
   color: var(--faint);
-  font-size: 11px;
+  font-size:calc(11px * var(--ui-font-scale,1));
 }
 .settings-info {
   display: grid;
@@ -1535,7 +1535,7 @@ select,
   border-radius: 9px;
   padding: 6px 8px;
   color: var(--faint);
-  font-size: 11px;
+  font-size:calc(11px * var(--ui-font-scale,1));
 }
 .back-button:focus-visible,
 .primary-button:focus-visible,
@@ -1774,7 +1774,7 @@ img {
   flex-shrink: 0;
 }
 .sidebar button {
-  font-size: 13px;
+  font-size:calc(13px * var(--ui-font-scale,1));
   background: transparent;
   transition:
     color 0.18s,
@@ -1826,7 +1826,7 @@ img {
 .topbar-sub {
   margin: 9px 0 0;
   color: var(--muted);
-  font-size: 13px;
+  font-size:calc(13px * var(--ui-font-scale,1));
   line-height: 1.5;
 }
 .account-wrap {
@@ -1907,7 +1907,7 @@ img {
 }
 .home-hero p {
   max-width: 375px;
-  font-size: 14px;
+  font-size:calc(14px * var(--ui-font-scale,1));
   line-height: 1.65;
 }
 .hero-caption {
@@ -1916,7 +1916,7 @@ img {
   gap: 7px;
   margin-top: 24px;
   color: var(--muted);
-  font-size: 11px;
+  font-size:calc(11px * var(--ui-font-scale,1));
 }
 .hero-caption .status-dot {
   width: 5px;
@@ -1928,7 +1928,7 @@ img {
   margin: 32px 0 16px;
 }
 .home-section-head h3 {
-  font-size: 20px;
+  font-size:calc(20px * var(--ui-font-scale,1));
 }
 .home-section-head p {
   line-height: 1.5;
@@ -1943,12 +1943,12 @@ img {
 }
 .home-empty b {
   display: block;
-  font-size: 14px;
+  font-size:calc(14px * var(--ui-font-scale,1));
   color: var(--text);
 }
 .home-empty p {
   margin: 4px 0 0;
-  font-size: 12px;
+  font-size:calc(12px * var(--ui-font-scale,1));
 }
 .empty-emblem {
   width: 44px;
@@ -1992,7 +1992,7 @@ img {
 .discover-intro > p {
   margin: 0;
   color: var(--muted);
-  font-size: 14px;
+  font-size:calc(14px * var(--ui-font-scale,1));
 }
 .type-tabs {
   display: grid;
@@ -2008,7 +2008,7 @@ img {
   isolation: isolate;
   justify-content: center;
   padding: 11px 8px;
-  font-size: 12px;
+  font-size:calc(12px * var(--ui-font-scale,1));
   min-width: 0;
 }
 .type-tabs button svg,
@@ -2120,7 +2120,7 @@ img {
 }
 .card-kind {
   color: var(--muted);
-  font-size: 10px;
+  font-size:calc(10px * var(--ui-font-scale,1));
   letter-spacing: 1.1px;
 }
 .card-title {
@@ -2164,7 +2164,7 @@ img {
   position: static;
   display: block;
   margin-top: 12px;
-  font-size: 9px;
+  font-size:calc(9px * var(--ui-font-scale,1));
   letter-spacing: 0.3px;
   color: var(--faint);
   font-weight: 500;
@@ -2276,7 +2276,7 @@ img {
   max-width: 100%;
   width: 100%;
   font: inherit;
-  font-size: 12px;
+  font-size:calc(12px * var(--ui-font-scale,1));
 }
 .version-control {
   display: grid;
@@ -2285,7 +2285,7 @@ img {
   min-width: 0;
 }
 .version-control > span {
-  font-size: 11px;
+  font-size:calc(11px * var(--ui-font-scale,1));
   color: var(--muted);
 }
 .detail-tabs {
@@ -2323,7 +2323,7 @@ img {
   margin-top: 14px;
 }
 .markdown {
-  font-size: 14px;
+  font-size:calc(14px * var(--ui-font-scale,1));
   line-height: 1.75;
   color: var(--muted);
   overflow-wrap: anywhere;
@@ -2333,13 +2333,13 @@ img {
   color: var(--text);
 }
 .markdown h1 {
-  font-size: 28px;
+  font-size:calc(28px * var(--ui-font-scale,1));
 }
 .markdown h2 {
-  font-size: 23px;
+  font-size:calc(23px * var(--ui-font-scale,1));
 }
 .markdown h3 {
-  font-size: 19px;
+  font-size:calc(19px * var(--ui-font-scale,1));
 }
 .markdown p {
   margin: 0 0 18px;
@@ -2448,7 +2448,7 @@ img {
 .version-list summary span,
 .version-list summary small {
   color: var(--muted);
-  font-size: 12px;
+  font-size:calc(12px * var(--ui-font-scale,1));
 }
 .version-list .markdown {
   margin-top: 20px;
@@ -2464,7 +2464,7 @@ img {
   color: var(--text);
   background: var(--surface);
   font: inherit;
-  font-size: 12px;
+  font-size:calc(12px * var(--ui-font-scale,1));
   margin-top: 16px;
   cursor: pointer;
 }
@@ -2514,7 +2514,7 @@ img {
   color: var(--danger);
 }
 .toast p {
-  font-size: 13px;
+  font-size:calc(13px * var(--ui-font-scale,1));
   line-height: 1.5;
   color: var(--muted);
   margin: 8px 0 12px;
@@ -2539,7 +2539,7 @@ img {
   overflow: auto;
   white-space: pre-wrap;
   overflow-wrap: anywhere;
-  font-size: 11px;
+  font-size:calc(11px * var(--ui-font-scale,1));
   line-height: 1.6;
   color: var(--text);
   user-select: text;
@@ -2600,7 +2600,7 @@ img {
   color: var(--muted);
   border-radius: 10px;
   font: inherit;
-  font-size: 12px;
+  font-size:calc(12px * var(--ui-font-scale,1));
   cursor: pointer;
 }
 .preset-grid button.selected {
@@ -2651,7 +2651,7 @@ img {
     grid-template-columns: repeat(3, minmax(0, 1fr));
   }
   .topbar h1 {
-    font-size: 28px;
+    font-size:calc(28px * var(--ui-font-scale,1));
   }
 }
 @media (max-width: 900px) {
@@ -2666,7 +2666,7 @@ img {
     gap: 16px;
   }
   .topbar h1 {
-    font-size: 26px;
+    font-size:calc(26px * var(--ui-font-scale,1));
   }
   .account-button {
     min-width: 0;
@@ -2720,10 +2720,10 @@ img {
     gap: 10px;
   }
   .topbar h1 {
-    font-size: 23px;
+    font-size:calc(23px * var(--ui-font-scale,1));
   }
   .topbar-sub {
-    font-size: 12px;
+    font-size:calc(12px * var(--ui-font-scale,1));
   }
   .account-button {
     padding: 7px;
@@ -2733,7 +2733,7 @@ img {
     display: none;
   }
   .breadcrumb {
-    font-size: 9px;
+    font-size:calc(9px * var(--ui-font-scale,1));
     letter-spacing: 1px;
   }
   .type-tabs {
@@ -2747,7 +2747,7 @@ img {
     width: 100%;
   }
   .home-hero h2 {
-    font-size: 32px;
+    font-size:calc(32px * var(--ui-font-scale,1));
   }
   .home-hero::after {
     background: linear-gradient(
@@ -2760,11 +2760,11 @@ img {
     align-items: start;
   }
   .home-section-head h3 {
-    font-size: 17px;
+    font-size:calc(17px * var(--ui-font-scale,1));
   }
   .home-section-head .quiet-button {
     padding: 6px;
-    font-size: 11px;
+    font-size:calc(11px * var(--ui-font-scale,1));
   }
   .provider-badge {
     display: none;
@@ -2855,7 +2855,7 @@ button,input,select,textarea { font-family:inherit; }
 h1,h2,h3,h4,.hero-title { font-family:var(--heading-font,var(--ui-font,Nunito)),Nunito,"Segoe UI",sans-serif; }
 pre,code,.toast-details,.selectable { font-family:Consolas,"Cascadia Mono",monospace; }
 .window-titlebar { height:36px; position:fixed; inset:0 0 auto; z-index:80; display:flex; align-items:center; background:color-mix(in srgb,var(--surface) 93%,transparent); color:var(--muted); border-bottom:1px solid var(--line); box-shadow:inset 0 1px var(--highlight); transition:background .24s,color .24s,border-color .24s; }
-.window-drag { flex:1; height:100%; display:flex; align-items:center; gap:8px; padding-left:17px; user-select:none; font-size:12px; }
+.window-drag { flex:1; height:100%; display:flex; align-items:center; gap:8px; padding-left:17px; user-select:none; font-size:calc(12px * var(--ui-font-scale,1)); }
 .window-drag img { width:19px; height:19px; object-fit:contain; pointer-events:none; }
 .window-controls { display:flex; height:100%; }
 .window-controls button { display:grid; place-items:center; border:0; border-radius:0; width:46px; background:transparent; color:var(--text); padding:0; box-shadow:none; }
@@ -2872,9 +2872,9 @@ pre,code,.toast-details,.selectable { font-family:Consolas,"Cascadia Mono",monos
 .project-card:hover { transform:translateY(-3px); }
 img { -webkit-user-drag:none; }
 :root[data-ui-font="Monocraft"] h1 { font-size:clamp(24px,2.4vw,34px); line-height:1.4; }
-:root[data-ui-font="Monocraft"][data-minecraft="full"] { font-size:13px; }
-:root[data-ui-font="Monocraft"][data-minecraft="full"] .nav-label { font-size:12px; }
-:root[data-ui-font="Monocraft"][data-minecraft="full"] .type-tabs button { font-size:11px; padding-inline:8px; }
+:root[data-ui-font="Monocraft"][data-minecraft="full"] { font-size:calc(13px * var(--ui-font-scale,1)); }
+:root[data-ui-font="Monocraft"][data-minecraft="full"] .nav-label { font-size:calc(12px * var(--ui-font-scale,1)); }
+:root[data-ui-font="Monocraft"][data-minecraft="full"] .type-tabs button { font-size:calc(11px * var(--ui-font-scale,1)); padding-inline:8px; }
 
 .window-titlebar,.sidebar,.project-card,.account-button,.settings-modal,.popover,.type-tabs { transition:background-color .24s var(--ease),color .24s var(--ease),border-color .24s var(--ease),box-shadow .2s var(--ease),transform .2s var(--ease); }
 .sidebar { transition:width .22s var(--ease),background-color .24s var(--ease),border-color .24s var(--ease); }
@@ -2882,7 +2882,7 @@ img { -webkit-user-drag:none; }
 .home-hero .primary-button,.detail-actions .primary-button { background:linear-gradient(150deg,var(--surface-3),var(--surface-2));color:var(--text);border:1px solid var(--line-strong);box-shadow:inset 0 1px var(--highlight),0 3px 10px #00000018; }
 .progress i { transition:width .3s var(--ease); box-shadow:inset 0 1px var(--highlight); }
 :root[data-mode="amoled"] { --highlight:#ffffff08; --glass:#050505ed; }
-:root[data-ui-font="Monocraft"][data-minecraft="full"] .background-options button { font-size:10px; }
+:root[data-ui-font="Monocraft"][data-minecraft="full"] .background-options button { font-size:calc(10px * var(--ui-font-scale,1)); }
 @media(prefers-reduced-motion:reduce) { .project-card:hover { transform:none; } }
 :root[data-motion="reduced"] .project-card:hover { transform:none; }
 

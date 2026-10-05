@@ -6,6 +6,28 @@ test.beforeEach(async ({ page }) => {
   await page.getByRole("button", { name: "Settings", exact: true }).click();
 });
 
+test("interface scale updates centrally and persists independently of font family",async({page})=>{
+ for(const font of ["Nunito","Monocraft"]){
+  await page.locator(".font-options").getByRole("button",{name:font,exact:true}).click();
+  if(font==="Monocraft")await page.getByRole("button",{name:"Full interface",exact:true}).click();
+  for(const scale of [90,100,110,120]){
+   await page.getByRole("button",{name:`${scale}%`,exact:true}).click();
+   await expect.poll(()=>page.evaluate(()=>getComputedStyle(document.documentElement).getPropertyValue("--ui-font-scale").trim())).toBe(String(scale/100));
+   expect(await page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth)).toBe(true);
+  }
+ }
+ await page.reload();await page.getByRole("button",{name:"Settings",exact:true}).click();
+ await expect(page.getByRole("button",{name:"120%",exact:true})).toHaveAttribute("aria-pressed","true");
+ await expect(page.locator(".font-options").getByRole("button",{name:"Monocraft",exact:true})).toHaveAttribute("aria-pressed","true");
+ await page.locator(".settings-nav").getByRole("button",{name:"Language",exact:true}).click();
+ await page.getByRole("button",{name:/Русский интерфейс/}).click();
+ await page.locator(".settings-nav").getByRole("button",{name:"Оформление",exact:true}).click();
+ await expect(page.locator(".visual-preferences")).toContainText("Размер интерфейса");
+ for(const font of ["Nunito","Monocraft"]){await page.locator(".font-options").getByRole("button",{name:font,exact:true}).click();for(const scale of [90,100,110,120]){await page.getByRole("button",{name:`${scale}%`,exact:true}).click();expect(await page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth)).toBe(true);}}
+ await expect(page.locator(".settings-modal")).toBeVisible();
+ expect(await page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth)).toBe(true);
+});
+
 test("background pairing, independent selections and restart persistence", async ({ page }) => {
   const options = page.locator(".background-options");
   for (const name of ["Normal", "Dark Blue", "Gray", "Green", "Sakura 1", "Sakura 2"]) {

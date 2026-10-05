@@ -51,6 +51,9 @@ import {
 import "./App.css";
 import { cardSpotlight } from "./components/DesktopBehavior";
 import TitleBar from "./components/TitleBar";
+import { useBackend } from "./services/backend";
+import AccountAvatar from "./components/AccountAvatar";
+import { AccountsPanel, RuntimeSettingsPanel, RuntimeLibrary, RuntimeProgress, RuntimeActivity, RuntimeScreenshots, BackendErrors } from "./components/RuntimeUI";
 import { VisualPreferences, SidebarArtwork, VisualQuality } from "./components/VisualAppearance";
 import { en, ru, type Key, type T, categories } from "./locales";
 import {
@@ -120,6 +123,7 @@ function getInitialLanguage() {
   return navigator.language.toLowerCase().startsWith("ru") ? "ru" : "en";
 }
 function App() {
+  const backend = useBackend();
   const [lang, setLang] = useState<"en" | "ru">(getInitialLanguage);
   const dict = lang === "ru" ? ru : en;
   const t = useCallback<T>((key) => dict[key] ?? en[key], [dict]);
@@ -344,6 +348,7 @@ function App() {
         versionId: version.id,
         name: p.title,
       });
+      await backend.run("prepare_instance", { id: `${p.project_id}-${version.id}`, repair: false });
       stage = "add_to_library";
       current = { ...(progressRef.current || base), stage, percent: 99 };
       setProgress(current);
@@ -501,12 +506,10 @@ function App() {
                 aria-expanded={accountOpen}
                 aria-label={t("account")}
               >
-                <div className="account-avatar">
-                  <UserRound size={16} />
-                </div>
+                <AccountAvatar key={backend.snapshot?.settings.active_account} username={backend.snapshot?.accounts.find(a => a.id === backend.snapshot?.settings.active_account)?.username} skin={backend.snapshot?.accounts.find(a => a.id === backend.snapshot?.settings.active_account)?.avatar}/>
                 <div className="account-label">
                   <small>{t("account")}</small>
-                  <b>{t("noAccount")}</b>
+                  <b>{backend.snapshot?.accounts.find(a => a.id === backend.snapshot?.settings.active_account)?.username || t("noAccount")}</b>
                 </div>
                 <ChevronDown
                   className={accountOpen ? "rotated" : ""}
@@ -596,7 +599,7 @@ function App() {
                   busy={busy}
                 />
               ) : page === "Library" ? (
-                <LibraryPage
+                isTauri() ? <RuntimeLibrary russian={lang === "ru"} /> : <LibraryPage
                   t={t}
                   lib={lib}
                   query={libraryQuery}
@@ -605,16 +608,16 @@ function App() {
                   onDiscover={() => navigation("Discover")}
                 />
               ) : page === "Downloads" ? (
-                <DownloadsPage t={t} progress={progress} error={error} />
+                <><RuntimeProgress russian={lang === "ru"}/><DownloadsPage t={t} progress={progress} error={error} /></>
               ) : page === "Screenshots" ? (
-                <EmptyPage
+                isTauri() ? <RuntimeScreenshots russian={lang === "ru"}/> : <EmptyPage
                   icon={Image}
                   title={t("screenshots")}
                   text={t("noScreensSub")}
                   t={t}
                 />
               ) : (
-                <EmptyPage
+                isTauri() ? <RuntimeActivity russian={lang === "ru"}/> : <EmptyPage
                   icon={Activity}
                   title={t("noActivity")}
                   text={t("noActivitySub")}
@@ -674,6 +677,7 @@ function App() {
           )}
         </AnimatePresence>
       </div>
+      <BackendErrors russian={lang === "ru"}/>
     </MotionConfig>
   );
 }
@@ -691,6 +695,7 @@ function AccountPopover({ t, onClose }: { t: T; onClose: () => void }) {
         <span>{t("account")}</span>
         <span className="status-dot" />
       </div>
+      {isTauri() ? <AccountsPanel russian={t("home") === "Главная"}/> : <>
       <div className="account-empty">
         <div className="big-avatar">
           <UserRound size={21} />
@@ -703,6 +708,7 @@ function AccountPopover({ t, onClose }: { t: T; onClose: () => void }) {
         {t("addAccount")}
         <span className="planned">{t("planned")}</span>
       </button>
+      </>}
     </motion.div>
   );
 }
@@ -1828,6 +1834,10 @@ function SettingsModal({
                     preset={preset}
                     setPreset={setPreset}
                   />
+                ) : tab === "accountSettings" && isTauri() ? (
+                  <AccountsPanel russian={lang === "ru"}/>
+                ) : tab === "canary" && isTauri() ? (
+                  <RuntimeSettingsPanel russian={lang === "ru"}/>
                 ) : tab === "advanced" ? (
                   <VisualQuality russian={lang === "ru"} />
                 ) : tab === "language" ? (

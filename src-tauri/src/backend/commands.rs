@@ -1,0 +1,179 @@
+use super::{Backend,accounts,download::Job,java,minecraft,model::*,process,storage};
+use std::sync::{Arc,atomic::Ordering};
+use tauri::{AppHandle,State,Emitter};
+type B=Arc<Backend>;
+#[tauri::command]
+pub async fn curseforge_search(backend:State<'_,B>,query:String,index:u32)->Result<serde_json::Value>{super::curseforge::search(&backend,query,index).await}
+#[tauri::command]
+pub async fn curseforge_project(backend:State<'_,B>,id:u32)->Result<serde_json::Value>{super::curseforge::project(&backend,id).await}
+#[tauri::command]
+pub async fn curseforge_files(backend:State<'_,B>,id:u32)->Result<serde_json::Value>{super::curseforge::files(&backend,id).await}
+#[tauri::command]
+pub async fn install_curseforge_pack(backend:State<'_,B>,app:AppHandle,project_id:u32,file_id:u32)->Result<Instance>{
+    let id=format!("curseforge-{project_id}-{file_id}");{let lease=backend.inner().lease(&id)?;let job=Arc::new(Job::new(&id,Some(app.clone()),lease.cancel.clone()));super::curseforge::install(backend.inner().clone(),project_id,file_id,job).await?;}prepare_instance_inner(backend.inner().clone(),id,Some(app),false).await
+}
+#[tauri::command]
+pub async fn check_modpack_updates(backend:State<'_,B>)->Result<serde_json::Value>{super::modpacks::updates(backend.inner().clone()).await}
+#[tauri::command]
+pub fn backend_snapshot(backend:State<'_,B>)->Result<serde_json::Value>{
+    let store=backend.store.lock().unwrap().clone();let mut instances=storage::instances(&backend.root)?;
+    let running:std::collections::HashSet<_>=backend.processes.lock().unwrap().keys().cloned().collect();let preparing:std::collections::HashSet<_>=backend.jobs.lock().unwrap().keys().cloned().collect();for instance in &mut instances{if running.contains(&instance.id){instance.status="running".into();}else if preparing.contains(&instance.id){instance.status="preparing".into();}}
+    Ok(serde_json::json!({"instances":instances,"accounts":store.accounts,"settings":store.settings,"providers":accounts::providers(),"activity":store.activity,"data_folder":backend.root,"physical_memory_mb":super::system::memory_mb()}))
+}
+#[tauri::command]
+pub fn save_backend_settings(backend:State<'_,B>,settings:Settings)->Result<()> {
+    super::system::validate_memory(settings.min_memory,settings.max_memory)?;
+    if settings.min_memory<128||settings.max_memory<=settings.min_memory||settings.max_memory>1_048_576||!(1..=8).contains(&settings.concurrency)||settings.width<320||settings.height<240{return Err(BackendError::new("settings","Invalid memory, resolution or concurrency"));}
+    backend.store.lock().unwrap().settings=settings;backend.persist()
+}
+#[tauri::command]
+pub async fn detect_java(backend:State<'_,B>)->Result<Vec<JavaRuntime>>{java::detect(&backend.root).await}
+#[tauri::command]
+pub async fn test_java(path:String)->Result<JavaRuntime>{java::test(std::path::Path::new(&path),false).await}
+#[tauri::command]
+pub fn create_local_account(backend:State<'_,B>,username:String)->Result<Account>{accounts::local(&backend,&username)}
+#[tauri::command]
+pub fn switch_account(backend:State<'_,B>,id:String)->Result<()> {
+    {let mut store=backend.store.lock().unwrap();if !store.accounts.iter().any(|a|a.id==id){return Err(BackendError::new("account","Account not found"));}store.settings.active_account=Some(id);}backend.persist()
+}
+#[tauri::command]
+pub async fn remove_account(backend:State<'_,B>,id:String)->Result<()>{
+ let _auth=backend.auth.lock().await;
+ if backend.processes.lock().unwrap().values().any(|p|p.account==id)||!backend.jobs.lock().unwrap().is_empty(){return Err(BackendError::new("busy","Stop running operations before removing an account"));}
+ let account=backend.store.lock().unwrap().accounts.iter().find(|a|a.id==id).cloned();
+ if let Some(a)=account.filter(|a|a.provider=="elyby") {let _=super::elyby::invalidate(&backend,&a).await;}
+ accounts::remove(&backend,&id)
+}
+#[tauri::command]
+pub fn rename_local_account(backend:State<'_,B>,id:String,username:String)->Result<()> {
+    if !(3..=16).contains(&username.len())||!username.chars().all(|c|c.is_ascii_alphanumeric()||c=='_'){return Err(BackendError::new("account_name","Use 3–16 letters, numbers or underscores"));}
+    {let mut store=backend.store.lock().unwrap();let account=store.accounts.iter_mut().find(|a|a.id==id&&a.provider=="local").ok_or_else(||BackendError::new("account","Local account not found"))?;account.username=username;}backend.persist()
+}
+#[tauri::command]
+pub fn authenticate_provider(provider:String)->Result<()> {
+    Err(BackendError::new("auth_not_configured",match provider.as_str(){"elyby"=>"Use the Ely.by login dialog","microsoft"=>"Microsoft authentication requires a legitimate Entra Application client ID and provider implementation",_=>"Unknown account provider"}))
+}
+#[tauri::command]
+pub async fn minecraft_versions(backend:State<'_,B>)->Result<serde_json::Value>{
+    let metadata=minecraft::manifest(&backend).await?;let snapshots=backend.settings().snapshots;
+    Ok(serde_json::json!(metadata["versions"].as_array().ok_or_else(||BackendError::new("metadata","Version list missing"))?.iter().filter(|v|snapshots||v["type"]=="release").cloned().collect::<Vec<_>>()))
+}
+#[tauri::command]
+pub async fn loader_versions(backend:State<'_,B>,minecraft:String,loader:String)->Result<serde_json::Value>{
+    if matches!(loader.as_str(),"forge"|"neoforge"){return super::loaders::versions(&backend,&minecraft,&loader).await;}
+    let host=match loader.as_str(){"fabric"=>"https://meta.fabricmc.net/v2", "quilt"=>"https://meta.quiltmc.org/v3",_=>return Err(BackendError::new("loader_unsupported","This loader installer is not implemented"))};
+    let mut url=reqwest::Url::parse(host).unwrap();url.path_segments_mut().unwrap().extend(["versions","loader",&minecraft]);super::download::json(&backend,url.as_str()).await
+}
+pub async fn prepare_instance_inner(backend:B,id:String,app:Option<AppHandle>,deep:bool)->Result<Instance>{
+    let lease=backend.lease(&id)?;let cancel=lease.cancel.clone();let job=Arc::new(Job::new(&id,app.clone(),cancel));let mut instance=backend.instance(&id)?;
+    if instance.icon.is_none(){if let Some(project)=&instance.project_id{let mut url=reqwest::Url::parse("https://api.modrinth.com/v2/project/").unwrap();url.path_segments_mut().unwrap().pop_if_empty().push(project);if let Ok(data)=super::download::json(&backend,url.as_str()).await{instance.icon=data["icon_url"].as_str().map(str::to_owned);}}}
+    instance.status="preparing".into();backend.save_instance(&instance)?;
+    let result:Result<()>=async {let runtime=minecraft::prepare(backend.clone(),&instance,job.clone(),deep).await?;java::select(backend.clone(),&instance,runtime.java_major,job.clone()).await?;job.check()?;Ok(())}.await;
+    if result.is_ok(){let _=super::artwork::cache(&backend,&mut instance).await;}
+    match result {Ok(())=>{instance.status="ready".into();instance.error=None;job.emit("ready","success",&instance.name)},Err(error)=>{instance.status="failed".into();instance.error=Some(BackendErrorData{code:error.code.clone(),message:error.message.clone()});backend.save_instance(&instance)?;job.emit(&error.stage,"failure",&error.message);return Err(error)}}
+    backend.save_instance(&instance)?;if let Some(app)=app{let _=app.emit("instances-changed",());}Ok(instance)
+}
+#[tauri::command]
+pub async fn prepare_instance(backend:State<'_,B>,app:AppHandle,id:String,repair:bool)->Result<Instance>{prepare_instance_inner(backend.inner().clone(),id,Some(app),repair).await}
+#[tauri::command]
+pub async fn create_instance(backend:State<'_,B>,app:AppHandle,name:String,minecraft:String,loader:String,loader_version:Option<String>)->Result<Instance>{
+    if name.trim().is_empty(){return Err(BackendError::new("instance","Instance name required"));}
+    let id=uuid::Uuid::new_v4().to_string();let dir=storage::instance_dir(&backend.root,&id)?;std::fs::create_dir(&dir)?;
+    for folder in ["mods","config","resourcepacks","shaderpacks","saves","screenshots","logs"]{std::fs::create_dir_all(dir.join(folder))?;}
+    let instance=Instance{id:id.clone(),name:name.trim().into(),minecraft,loader,loader_version,provider:"vanilla".into(),directory:dir.to_string_lossy().into(),status:"installing".into(),..Instance::default()};
+    backend.save_instance(&instance)?;let _=app.emit("instances-changed",());prepare_instance_inner(backend.inner().clone(),id,Some(app),false).await
+}
+#[tauri::command]
+pub async fn launch_instance(backend:State<'_,B>,app:AppHandle,id:String)->Result<u32>{
+    let instance=backend.instance(&id)?;let lease=backend.lease(&id)?;let cancel=lease.cancel.clone();let job=Arc::new(Job::new(&id,Some(app.clone()),cancel));
+    let result=process::launch(backend.inner().clone(),instance,job.clone(),Some(app.clone())).await;if let Err(error)=&result{job.emit(&error.stage,"failure",&error.message);}let _=app.emit("instances-changed",());result
+}
+#[tauri::command]
+pub async fn stop_instance(backend:State<'_,B>,id:String,force:bool)->Result<()>{process::stop(&backend,&id,force).await}
+#[tauri::command]
+pub fn cancel_operation(backend:State<'_,B>,id:String)->Result<()>{
+    let jobs=backend.jobs.lock().unwrap();let job=jobs.get(&id).ok_or_else(||BackendError::new("operation","Operation not found"))?;job.store(true,Ordering::Relaxed);Ok(())
+}
+#[tauri::command]
+pub fn update_instance(backend:State<'_,B>,instance:Instance)->Result<Instance>{
+    let _lease=backend.inner().lease(&instance.id)?;let mut old=backend.instance(&instance.id)?;
+    if instance.name.trim().is_empty(){return Err(BackendError::new("instance","Instance name required"));}
+    old.name=instance.name;old.icon=instance.icon;old.favorite=instance.favorite;old.overrides=instance.overrides;backend.save_instance(&old)?;Ok(old)
+}
+#[tauri::command]
+pub fn delete_instance(backend:State<'_,B>,id:String,confirmed:bool)->Result<()> {
+    if !confirmed{return Err(BackendError::new("confirmation","Confirm deletion of this instance and its worlds"));}let path=storage::instance_dir(&backend.root,&id)?;
+    let _lease=backend.inner().lease(&id)?;
+    let managed=std::fs::canonicalize(backend.root.join("instances"))?;let real=std::fs::canonicalize(&path)?;if !real.starts_with(managed){return Err(BackendError::new("unsafe_path","Instance is outside the managed root"));}std::fs::remove_dir_all(real)?;Ok(())
+}
+#[tauri::command]
+pub fn open_instance_folder(backend:State<'_,B>,app:AppHandle,id:String,folder:String)->Result<()> {
+    use tauri_plugin_opener::OpenerExt;let dir=storage::instance_dir(&backend.root,&id)?;
+    if !matches!(folder.as_str(),""|"mods"|"shaderpacks"|"resourcepacks"|"saves"|"screenshots"|"logs"|"config"){return Err(BackendError::new("unsafe_path","Unsupported instance folder"));}
+    let path=if folder.is_empty(){dir}else{storage::safe_join(&dir,&folder)?};app.opener().open_path(path.to_string_lossy(),None::<&str>).map_err(|e|BackendError::new("open_folder",e.to_string()))
+}
+#[tauri::command]
+pub fn game_logs(backend:State<'_,B>,id:String)->Result<String>{
+    let root=storage::instance_dir(&backend.root,&id)?;let folder=storage::safe_join(&root,"logs")?;
+    let mut logs:Vec<_>=std::fs::read_dir(folder)?.filter_map(|e|e.ok()).filter(|e|e.file_name().to_string_lossy().starts_with("canary-")&&e.path().extension().is_some_and(|x|x=="log")).collect();logs.sort_by_key(|e|e.file_name());
+    if let Some(log)=logs.last(){let path=storage::safe_join(&root,&format!("logs/{}",log.file_name().to_string_lossy()))?;let data=std::fs::read(path)?;return Ok(String::from_utf8_lossy(&data[data.len().saturating_sub(256*1024)..]).into());}Ok(String::new())
+}
+#[tauri::command]
+pub fn scan_screenshots(backend:State<'_,B>)->Result<serde_json::Value>{let mut images=vec![];for instance in storage::instances(&backend.root)?{
+    let root=storage::instance_dir(&backend.root,&instance.id)?;let folder=storage::safe_join(&root,"screenshots")?;
+    if let Ok(entries)=std::fs::read_dir(folder){for entry in entries.flatten(){let path=storage::safe_join(&root,&format!("screenshots/{}",entry.file_name().to_string_lossy()))?;if path.extension().is_some_and(|e|matches!(e.to_string_lossy().to_lowercase().as_str(),"png"|"jpg"|"jpeg")){let metadata=entry.metadata()?;images.push(serde_json::json!({"instance":instance.id,"name":instance.name,"path":path,"size":metadata.len(),"timestamp":metadata.modified().ok().and_then(|t|t.duration_since(std::time::UNIX_EPOCH).ok()).map(|d|d.as_secs())}));}}}
+}Ok(serde_json::json!(images))}
+#[tauri::command]
+pub fn open_screenshot(backend:State<'_,B>,app:AppHandle,id:String,name:String)->Result<()>{use tauri_plugin_opener::OpenerExt;let path=super::artwork::screenshot(&backend,&id,&name)?;app.opener().open_path(path.to_string_lossy(),None::<&str>).map_err(|e|BackendError::new("open_folder",e.to_string()))}
+
+#[tauri::command]
+pub async fn authenticate_elyby(backend:State<'_,B>,username:String,password:String,otp:Option<String>)->Result<Account>{super::elyby::authenticate(&backend,username,password,otp).await}
+#[tauri::command]
+pub async fn restore_accounts(backend:State<'_,B>)->Result<()>{super::elyby::restore(&backend).await}
+
+#[tauri::command]
+pub async fn content_inventory(backend:State<'_,B>,id:String)->Result<super::content::State>{let b=backend.inner().clone();tokio::task::spawn_blocking(move||{if b.jobs.lock().unwrap().contains_key(&id)||b.processes.lock().unwrap().contains_key(&id){return super::content::load(&storage::instance_dir(&b.root,&id)?);}let _lease=b.lease(&id)?;super::content::scan(&b,&id)}).await.map_err(|e|BackendError::new("content_scan",e.to_string()))?}
+#[tauri::command]
+pub fn content_worlds(backend:State<'_,B>,id:String)->Result<Vec<serde_json::Value>>{super::content::worlds(&storage::instance_dir(&backend.root,&id)?)}
+#[tauri::command]
+pub async fn content_search(backend:State<'_,B>,id:String,kind:String,query:String,sort:String,offset:u32,strict:bool)->Result<serde_json::Value>{super::content_provider::search(&backend,&backend.instance(&id)?,&kind,&query,&sort,offset,strict).await}
+#[tauri::command]
+pub async fn content_project(backend:State<'_,B>,project:String)->Result<serde_json::Value>{super::content_provider::detail(&backend,&project).await}
+#[tauri::command]
+pub async fn content_versions(backend:State<'_,B>,id:String,project:String,kind:String,beta:bool)->Result<Vec<serde_json::Value>>{super::content_provider::versions(&backend,&backend.instance(&id)?,&project,&kind,beta).await}
+#[tauri::command]
+pub async fn content_preview(backend:State<'_,B>,id:String,project:String,version:Option<String>,kind:String,world:Option<String>,beta:bool)->Result<super::content_provider::Plan>{let _lease=backend.inner().lease(&id)?;super::content_provider::identify(&backend,&id).await?;super::content_provider::preview(&backend,&backend.instance(&id)?,&project,version.as_deref(),&kind,world,beta).await}
+#[tauri::command]
+pub async fn install_content(backend:State<'_,B>,app:AppHandle,id:String,project:String,version:Option<String>,kind:String,world:Option<String>,beta:bool,fingerprint:String)->Result<super::content::State>{
+ let lease=backend.inner().lease(&id)?;let job=Arc::new(Job::new(&id,Some(app.clone()),lease.cancel.clone()));
+ let result=async {let instance=backend.instance(&id)?;job.emit("content_resolve","running",&project);let plan=super::download::cancellable(&job,super::content_provider::preview(&backend,&instance,&project,version.as_deref(),&kind,world,beta)).await?;if plan.fingerprint!=fingerprint{return Err(BackendError::new("content_plan_changed","Install plan changed; review it again"));}super::content_provider::install(backend.inner().clone(),&id,plan,job.clone()).await}.await;
+ if let Err(e)=&result{job.emit(&e.stage,"failure",&e.message);}let _=app.emit("content-changed",serde_json::json!({"id":id}));result
+}
+#[tauri::command]
+pub async fn content_action(backend:State<'_,B>,app:AppHandle,id:String,ids:Vec<String>,action:String)->Result<super::content::State>{let b=backend.inner().clone();let event_id=id.clone();let result=tokio::task::spawn_blocking(move||{let _lease=b.lease(&id)?;super::content::mutate(&b,&id,&ids,&action)}).await.map_err(|e|BackendError::new("content_action",e.to_string()))?;let _=app.emit("content-changed",serde_json::json!({"id":event_id}));result}
+#[tauri::command]
+pub async fn content_rollback(backend:State<'_,B>,app:AppHandle,id:String)->Result<super::content::State>{let b=backend.inner().clone();let event_id=id.clone();let result=tokio::task::spawn_blocking(move||{let _lease=b.lease(&id)?;super::content::rollback(&b,&id)}).await.map_err(|e|BackendError::new("content_snapshot",e.to_string()))?;let _=app.emit("content-changed",serde_json::json!({"id":event_id}));result}
+#[tauri::command]
+pub async fn content_updates(backend:State<'_,B>,id:String,beta:bool)->Result<super::content::State>{let _lease=backend.inner().lease(&id)?;super::content_provider::updates(&backend,&id,beta).await}
+#[tauri::command]
+pub async fn choose_content_files(app:AppHandle)->Result<Vec<String>>{
+ tokio::task::spawn_blocking(move||{use tauri_plugin_dialog::DialogExt;Ok(app.dialog().file().add_filter("Minecraft content",&["jar","zip"]).blocking_pick_files().unwrap_or_default().into_iter().filter_map(|p|p.into_path().ok().map(|p|p.to_string_lossy().into_owned())).collect())}).await.map_err(|e|BackendError::new("content_file",e.to_string()))?
+}
+#[tauri::command]
+pub async fn inspect_content_files(backend:State<'_,B>,id:String,paths:Vec<String>)->Result<Vec<super::content::Inspection>>{let b=backend.inner().clone();tokio::task::spawn_blocking(move||{let i=b.instance(&id)?;paths.iter().map(|p|super::content::inspect(std::path::Path::new(p),&i)).collect()}).await.map_err(|e|BackendError::new("content_file",e.to_string()))?}
+#[tauri::command]
+pub async fn import_content_files(backend:State<'_,B>,app:AppHandle,id:String,paths:Vec<String>,world:Option<String>)->Result<super::content::State>{let b=backend.inner().clone();let lease=b.lease(&id)?;let job=Arc::new(Job::new(&id,Some(app.clone()),lease.cancel.clone()));let worker_job=job.clone();let event_id=id.clone();let result=tokio::task::spawn_blocking(move||{let _lease=lease;super::content_provider::import_with_job(&b,&id,paths,world,Some(&worker_job))}).await.map_err(|e|BackendError::new("content_file",e.to_string()))?;if let Err(e)=&result{job.emit(&e.stage,"failure",&e.message);}let _=app.emit("content-changed",serde_json::json!({"id":event_id}));result}
+
+#[derive(serde::Deserialize)]
+pub struct ContentRequest {project:String,version:Option<String>,kind:String,world:Option<String>,beta:bool,fingerprint:String}
+#[tauri::command]
+pub async fn bulk_install_content(backend:State<'_,B>,app:AppHandle,id:String,requests:Vec<ContentRequest>)->Result<super::content::State>{
+ let lease=backend.inner().lease(&id)?;let job=Arc::new(Job::new(&id,Some(app.clone()),lease.cancel.clone()));
+ let result=async{let instance=backend.instance(&id)?;let mut plans=vec![];if requests.len()>100{return Err(BackendError::new("dependency","Too many projects"));}for r in requests{job.check()?;job.emit("content_resolve","running",&r.project);let p=super::download::cancellable(&job,super::content_provider::preview(&backend,&instance,&r.project,r.version.as_deref(),&r.kind,r.world,r.beta)).await?;if p.fingerprint!=r.fingerprint{return Err(BackendError::new("content_plan_changed","Install plan changed"));}plans.push(p);}super::content_provider::install_many(backend.inner().clone(),&id,plans,job.clone()).await}.await;
+ if let Err(e)=&result{job.emit(&e.stage,"failure",&e.message);}let _=app.emit("content-changed",serde_json::json!({"id":id}));result
+}
+
+#[tauri::command]
+pub async fn pack_update_preview(backend:State<'_,B>,id:String,beta:bool)->Result<super::pack_update::Preview>{let _lease=backend.inner().lease(&id)?;super::pack_update::preview(&backend,&id,beta).await}
+#[tauri::command]
+pub async fn apply_pack_update(backend:State<'_,B>,app:AppHandle,id:String,beta:bool,fingerprint:String)->Result<super::content::State>{let lease=backend.inner().lease(&id)?;let job=Arc::new(Job::new(&id,Some(app.clone()),lease.cancel.clone()));let result=super::pack_update::install(backend.inner().clone(),&id,beta,&fingerprint,job.clone()).await;if let Err(e)=&result{job.emit(&e.stage,"failure",&e.message);}let _=app.emit("content-changed",serde_json::json!({"id":id}));result}

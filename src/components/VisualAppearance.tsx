@@ -15,8 +15,8 @@ export const backgrounds = [...new Set(files.map(p => p.match(/\/([^/]+)-(?:bg|s
   sidebar: files.find(p => p.includes(`/${id}-sidebar.`))?.replace("/public", ""),
 }));
 const fonts = ["Nunito", "Manrope", "Plus Jakarta Sans", "Rubik", "Monocraft"];
-type Preferences = PolishPreferences & { app: string; sidebar: string; linked: boolean; intensity: number; blur: number; sidebarBlur: number; font: string; minecraft: "headings" | "full"; ambient: "off" | "automatic" | "sakura" | "snow" };
-const defaults: Preferences = { ...polishDefaults, app: "normal", sidebar: "default", linked: false, intensity: 45, blur: 5, sidebarBlur: 12, font: "Nunito", minecraft: "headings", ambient: "off" };
+type Preferences = PolishPreferences & { app: string; sidebar: string; linked: boolean; intensity: number; blur: number; sidebarBlur: number; font: string; fontScale: 90 | 100 | 110 | 120; minecraft: "headings" | "full"; ambient: "off" | "automatic" | "sakura" | "snow" };
+const defaults: Preferences = { ...polishDefaults, app: "normal", sidebar: "default", linked: false, intensity: 45, blur: 5, sidebarBlur: 12, font: "Nunito", fontScale:100, minecraft: "headings", ambient: "off" };
 const Context = createContext<{ value: Preferences; update: (patch: Partial<Preferences>) => void }>({ value: defaults, update: () => {} });
 export function VisualAppearanceProvider({ children }: { children: ReactNode }) {
   const [value, setValue] = useState<Preferences>(() => {
@@ -24,6 +24,7 @@ export function VisualAppearanceProvider({ children }: { children: ReactNode }) 
       const saved = JSON.parse(localStorage.getItem("canary-visual") || "{}");
       return {
         ...defaults, ...saved,
+        fontScale: [90,100,110,120].includes(saved.fontScale) ? saved.fontScale : 100,
         // Old generated cursor choices migrate to the supplied native pack.
         cursor: saved.cursor === "system" ? "system" : "custom",
         globalTreatment: { ...polishDefaults.globalTreatment, ...saved.globalTreatment },
@@ -36,6 +37,7 @@ export function VisualAppearanceProvider({ children }: { children: ReactNode }) 
   useLayoutEffect(() => {
     localStorage.setItem("canary-visual", JSON.stringify(value));
     const root = document.documentElement;
+    root.style.setProperty("--ui-font-scale", String(value.fontScale / 100));
     root.dataset.uiFont = value.font; root.dataset.minecraft = value.minecraft;
     root.dataset.ambient = value.ambient;
     root.dataset.sidebarSide = value.sidebarSide; root.dataset.cursor = value.cursor;
@@ -82,6 +84,7 @@ export function VisualPreferences({ russian }: { russian: boolean }) {
     <div className="toggle-setting"><div><b>{text["Link application and sidebar backgrounds"]}</b></div><button className={value.linked ? "toggle on" : "toggle"} role="switch" aria-checked={value.linked} aria-label={text["Link backgrounds"]} onClick={() => update({ linked: !value.linked, ...(value.linked ? {} : { sidebar: value.app === "normal" ? "default" : value.app }) })}><i /></button></div>
 
     <h4>{text["Interface font"]}</h4><div className="font-options">{fonts.map(font => <button key={font} style={{ fontFamily: `"${font}", Nunito, sans-serif` }} className={value.font === font ? "selected" : ""} aria-pressed={value.font === font} onClick={() => update({ font })}>{font}</button>)}</div>
+    <h4>{text["Interface size"]}</h4><div className="font-options">{([90,100,110,120] as const).map(fontScale=><button key={fontScale} aria-pressed={value.fontScale===fontScale} className={value.fontScale===fontScale?"selected":""} onClick={()=>update({fontScale})}>{fontScale}%</button>)}</div>
     {value.font === "Monocraft" && <><h4>{text["Minecraft style"]}</h4><div className="font-options">{(["headings", "full"] as const).map(minecraft => <button key={minecraft} aria-pressed={value.minecraft === minecraft} className={value.minecraft === minecraft ? "selected" : ""} onClick={() => update({ minecraft })}>{minecraft === "headings" ? text["Headings"] : text["Full interface"]}</button>)}</div></>}
     <h4>{text["Ambient effects"]}</h4><div className="font-options">{(["off", "automatic", "sakura", "snow"] as const).map(ambient => <button key={ambient} aria-pressed={value.ambient === ambient} className={value.ambient === ambient ? "selected" : ""} onClick={() => update({ ambient })}>{({ off: text["Off"], automatic: text["Automatic"], sakura: text["Sakura"], snow: text["Snow"] })[ambient]}</button>)}</div>
   </section>;

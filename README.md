@@ -1,6 +1,6 @@
 # Canary
 
-A Tauri 2 desktop app for discovering Minecraft content and installing Modrinth modpacks. React, TypeScript, Rust and Vite; local Nunito typography and Canary artwork.
+A Tauri 2 Windows desktop Minecraft launcher with Modrinth discovery, isolated instances, Java management and real Local-profile game launching. React, TypeScript, Rust and Vite; local typography and Canary artwork.
 
 ## Development
 
@@ -11,9 +11,19 @@ npm ci
 npm run tauri dev
 ```
 
-`npm run dev` runs frontend-only inspection on port 1420. Installation requires the native Tauri window. Home and Discover are separate; Discover uses 12 results per page and preserves search, filters and sort through pagination. Servers, Microsoft authentication, Java management and Minecraft launching are not implemented in this phase.
+`npm run dev` runs frontend-only inspection on port 1420. Installation and launching require the native Tauri window. Home and Discover are separate; Discover uses 12 results per page and preserves search, filters and sort through pagination. Server listings remain unavailable. Ely.by uses its official launcher login/password protocol in the native application.
 
-Appearance includes Dark, Light, AMOLED and live System mode, surface presets, accents, compact navigation and reduced motion. Settings and the library are stored locally. Project descriptions/changelogs use safe Markdown; raw HTML and unsafe link protocols are not enabled.
+In the desktop app, create a **Local account** in the account menu, then use **Library → New instance** or install a Modrinth modpack. Canary resolves the official Minecraft runtime, compatible Java, assets, libraries and loader before Play. Local profiles are for single-player/local scenarios and do not authenticate to official online-mode servers.
+
+Runtime settings live in the existing **Settings → Canary** section. Global and per-instance Java, RAM, arguments and resolution are supported. Instances, Local profiles and playtime persist under `%LOCALAPPDATA%/Canary`; existing Modrinth instances remain in place.
+
+Ely.by sign-in is available through **Account → Sign in to Ely.by**, including the documented two-factor retry. Passwords are used once; session tokens go into Windows Credential Manager rather than JSON/localStorage. Microsoft remains disabled until its legitimate provider is implemented; `CANARY_MICROSOFT_CLIENT_ID` is its configuration point. CurseForge still needs your own `CANARY_CURSEFORGE_API_KEY` and content-provider integration.
+
+Use **Library → + Content** to manage an instance’s mods, shaders, resource packs and world-specific datapacks. Modrinth browsing prefills the Minecraft version/loader, resolves required dependencies and verifies downloads. Local JAR/ZIP import, scoped file drop, enable/disable, bulk actions, compatible updates, snapshots, rollback and recent changes are supported. Modpack updates reuse the existing installer in isolated staging, preserve user additions/worlds/configuration and block conflicting user files.
+
+See the [account/content implementation and validation report](docs/CONTENT_ACCOUNTS_PHASE.md) for tested scenarios and explicit limitations. The earlier [runtime backend report](docs/BACKEND_PHASE.md) documents the preserved Java/Minecraft pipeline. Successful Ely.by account/game authentication requires an owner-driven credential test; it is not inferred from the negative API and storage tests.
+
+Appearance includes Dark, Light, AMOLED and live System mode, surface presets, accents, compact navigation, reduced motion and immediate persisted 90/100/110/120% interface typography sizing. Settings and the library are stored locally. Project descriptions/changelogs use safe Markdown; raw HTML and unsafe link protocols are not enabled.
 
 ## Checks
 

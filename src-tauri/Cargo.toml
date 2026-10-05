@@ -1,5 +1,6 @@
 [package]
 name = "scaffold"
+default-run = "scaffold"
 version = "0.1.0"
 edition = "2021"
 [lib]
@@ -8,7 +9,7 @@ crate-type = ["staticlib", "cdylib", "rlib"]
 [build-dependencies]
 tauri-build = { version = "2", features = [] }
 [dependencies]
-tauri = { version = "2", features = [] }
+tauri = { version = "2", features = ["protocol-asset"] }
 tauri-plugin-opener = "2"
 serde = { version = "1", features = ["derive"] }
 serde_json = "1"
@@ -17,9 +18,25 @@ zip = "2"
 sha2 = "0.10"
 sha1 = "0.10"
 dirs = "6"
+tokio = { version = "1", features = ["process", "fs", "io-util", "time", "sync", "rt-multi-thread", "net", "macros"] }
+uuid = { version = "1", features = ["v4"] }
+keyring = { version = "3", features = ["windows-native"] }
+shlex = "1"
+regex = "1"
+tauri-plugin-dialog = "2"
+zeroize = "1"
+base64 = "0.22"
 [profile.release]
 codegen-units = 1
 lto = true
 opt-level = 3
 panic = "abort"
 strip = true
+
+[features]
+backend-check = []
+
+[[bin]]
+name = "canary-backend-check"
+path = "src/backend_check.rs"
+required-features = ["backend-check"]

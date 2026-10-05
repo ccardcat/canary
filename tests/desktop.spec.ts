@@ -236,6 +236,10 @@ test("structured install errors hide raw details, retry succeeds and persists th
     (globalThis as unknown as { isTauri: boolean }).isTauri = true;
     let attempts = 0;
     mocks.mockIPC((cmd: string) => {
+      if(cmd === "backend_snapshot") return {
+        instances:attempts>=2?[{id:"pack-1-version-1",name:"Project 1",provider:"modrinth",version_name:"1.0",minecraft:"1.21.1",loader:"fabric",directory:"/native/Canary/instances/pack-1-version-1",installed:1,playtime:0,favorite:false,status:"ready",overrides:{}}]:[],
+        accounts:[],settings:{min_memory:512,max_memory:4096,jvm_args:[],game_args:[]},activity:[],data_folder:"/native/Canary",providers:{}
+      };
       if (cmd !== "install_modpack") return;
       if (++attempts === 1)
         throw {
@@ -257,7 +261,8 @@ test("structured install errors hide raw details, retry succeeds and persists th
   await expect(toast.locator("pre")).toContainText("Access denied");
   await toast.getByRole("button", { name: "Retry", exact: true }).click();
   await expect(page.locator("h1")).toHaveText("Library");
-  await expect(page.locator(".installed")).toHaveText("Installed");
+  await expect(page.locator(".library-grid .chips")).toContainText("Ready");
+  await expect(page.locator(".library-grid").getByRole("button", {name:"Play",exact:true})).toBeVisible();
   expect(
     await page.evaluate(
       () =>
