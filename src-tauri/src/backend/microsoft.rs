@@ -15,28 +15,52 @@ fn random() -> String { let mut bytes=Vec::new(); for _ in 0..4 {bytes.extend_fr
 #[derive(Deserialize)] struct OAuth {access_token:String,refresh_token:Option<String>}
 impl Drop for OAuth {fn drop(&mut self){self.access_token.zeroize();if let Some(v)=&mut self.refresh_token{v.zeroize();}}}
 struct Session {token:Zeroizing<String>,uuid:String,name:String,xuid:String}
+fn denied(stage:&str,status:u16,oauth_error:Option<&str>)->BackendError{
+ let message=if status==429{"Authentication request limit reached. Wait before trying again."}else if status>=500{"Authentication service is temporarily unavailable. Try again later."}else{match (stage,status,oauth_error){
+  ("microsoft_oauth",_,Some("unauthorized_client"|"invalid_client"))=>"Microsoft denied this application client. Enable personal Microsoft accounts and public-client localhost redirects in its registration.",
+  ("microsoft_oauth",_,Some("invalid_grant"))=>"Microsoft authorization expired or was revoked. Start browser sign-in again.",
+  ("microsoft_oauth",_,_)=>"Microsoft OAuth authorization failed. Start browser sign-in again.",
+  ("xbox_auth",_,_)=>"Xbox Live rejected the Microsoft sign-in token. Sign in again and check your Xbox profile.",
+  ("xsts_auth",_,_)=>"Xbox security authorization failed. Check your Xbox profile, region and family permissions.",
+  ("minecraft_auth",403,_)=>"Minecraft Services denied this application or Xbox session. Check application access to Minecraft Services and sign in again.",
+  ("minecraft_auth",_,_)=>"Minecraft Services could not exchange the Xbox security session. Sign in again.",
+  ("minecraft_ownership",_,_)=>"Minecraft Services could not verify ownership. Sign in again; this is a service error, not proof that the account lacks a license.",
+  ("minecraft_profile",404,_)=>"Minecraft Java profile is missing. Create your Java Edition player profile on minecraft.net.",
+  ("minecraft_profile",_,_)=>"Minecraft Java profile could not be loaded. Sign in again and check your Java Edition profile.",
+  _=>"Authentication failed. Sign in again.",
+ }};let mut error=BackendError::new(stage,message);error.retryable=status==429||status>=500;error
+}
+fn network(stage:&str)->BackendError{let mut error=BackendError::new("network","Could not reach the authentication service. Check your connection and try again.");error.stage=stage.into();error}
+fn auth_stage(app:Option<&AppHandle>,stage:&str){if let Some(app)=app{let _=app.emit("microsoft-auth-stage",serde_json::json!({"stage":stage}));}}
 async fn json(response:reqwest::Response,stage:&str)->Result<serde_json::Value>{
-    let status=response.status(); if !status.is_success(){return Err(BackendError::new(stage,match status.as_u16(){401|403=>"Microsoft/Xbox rejected the session. Sign in again and verify Minecraft ownership.",429=>"Too many requests. Please try again later.",_=>"Microsoft authentication service is unavailable. Please try again."}));} Ok(response.json().await?)
+    let status=response.status();if !status.is_success(){let body:serde_json::Value=response.json().await.unwrap_or_default();return Err(denied(stage,status.as_u16(),body["error"].as_str()));}
+    response.json().await.map_err(|_|BackendError::new(stage,"Authentication service returned an invalid response"))
 }
 async fn exchange(b:&Backend,fields:&[(&str,&str)])->Result<OAuth>{
-    let response=b.private_api_client.post(TOKEN_URL).form(fields).send().await?;
+    let response=b.private_api_client.post(TOKEN_URL).form(fields).send().await.map_err(|_|network("microsoft_oauth"))?;
     let value=json(response,"microsoft_oauth").await?;
     serde_json::from_value(value).map_err(|_|BackendError::new("microsoft_oauth","Invalid Microsoft token response"))
 }
-async fn minecraft_session(b:&Backend,oauth:&str)->Result<Session>{
-    let xbox=json(b.private_api_client.post("https://user.auth.xboxlive.com/user/authenticate").json(&serde_json::json!({"Properties":{"AuthMethod":"RPS","SiteName":"user.auth.xboxlive.com","RpsTicket":format!("d={oauth}")},"RelyingParty":"http://auth.xboxlive.com","TokenType":"JWT"})).send().await?,"xbox_auth").await?;
+async fn minecraft_session(b:&Backend,oauth:&str,app:Option<&AppHandle>)->Result<Session>{
+    auth_stage(app,"xbox_auth");
+    let xbox=json(b.private_api_client.post("https://user.auth.xboxlive.com/user/authenticate").json(&serde_json::json!({"Properties":{"AuthMethod":"RPS","SiteName":"user.auth.xboxlive.com","RpsTicket":format!("d={oauth}")},"RelyingParty":"http://auth.xboxlive.com","TokenType":"JWT"})).send().await.map_err(|_|network("xbox_auth"))?,"xbox_auth").await?;
     let xt=xbox["Token"].as_str().ok_or_else(||BackendError::new("xbox_auth","Xbox token missing"))?;
-    let response=b.private_api_client.post("https://xsts.auth.xboxlive.com/xsts/authorize").json(&serde_json::json!({"Properties":{"SandboxId":"RETAIL","UserTokens":[xt]},"RelyingParty":"rp://api.minecraftservices.com/","TokenType":"JWT"})).send().await?;
+    auth_stage(app,"xsts_auth");
+    let response=b.private_api_client.post("https://xsts.auth.xboxlive.com/xsts/authorize").json(&serde_json::json!({"Properties":{"SandboxId":"RETAIL","UserTokens":[xt]},"RelyingParty":"rp://api.minecraftservices.com/","TokenType":"JWT"})).send().await.map_err(|_|network("xsts_auth"))?;
+    if response.status().as_u16()==429||response.status().as_u16()>=500{return Err(denied("xsts_auth",response.status().as_u16(),None));}
     if !response.status().is_success(){let v:serde_json::Value=response.json().await.unwrap_or_default(); let message=match v["XErr"].as_u64(){Some(2148916233)=>"Create an Xbox profile for this Microsoft account, then sign in again.",Some(2148916235)=>"Xbox Live is unavailable in this account's region.",Some(2148916236|2148916237)=>"Complete Xbox age verification before signing in.",Some(2148916238)=>"A parent must configure Xbox family permissions for this account.",_=>"Xbox authorization failed. Check your Xbox profile and sign in again."};return Err(BackendError::new("xsts_auth",message));}
     let xsts:serde_json::Value=response.json().await?;
     let hash=xsts["DisplayClaims"]["xui"][0]["uhs"].as_str().ok_or_else(||BackendError::new("xsts_auth","Xbox user hash missing"))?;
     let xuid=xsts["DisplayClaims"]["xui"][0]["xid"].as_str().unwrap_or("").to_owned();
     let token=xsts["Token"].as_str().ok_or_else(||BackendError::new("xsts_auth","Xbox session missing"))?;
-    let value=json(b.private_api_client.post("https://api.minecraftservices.com/authentication/login_with_xbox").json(&serde_json::json!({"identityToken":format!("XBL3.0 x={hash};{token}"),"ensureLegacyEnabled":true})).send().await?,"minecraft_auth").await?;
+    auth_stage(app,"minecraft_auth");
+    let value=json(b.private_api_client.post("https://api.minecraftservices.com/authentication/login_with_xbox").json(&serde_json::json!({"identityToken":format!("XBL3.0 x={hash};{token}"),"ensureLegacyEnabled":true})).send().await.map_err(|_|network("minecraft_auth"))?,"minecraft_auth").await?;
     let token=Zeroizing::new(value["access_token"].as_str().ok_or_else(||BackendError::new("minecraft_auth","Minecraft session missing"))?.to_owned());
-    let ownership=json(b.private_api_client.get("https://api.minecraftservices.com/entitlements/mcstore").bearer_auth(token.as_str()).send().await?,"minecraft_ownership").await?;
+    auth_stage(app,"minecraft_ownership");
+    let ownership=json(b.private_api_client.get("https://api.minecraftservices.com/entitlements/mcstore").bearer_auth(token.as_str()).send().await.map_err(|_|network("minecraft_ownership"))?,"minecraft_ownership").await?;
     if !ownership["items"].as_array().is_some_and(|items|items.iter().any(|i|matches!(i["name"].as_str(),Some("game_minecraft"|"product_minecraft")))){return Err(BackendError::new("minecraft_ownership","This Microsoft account does not own Minecraft Java Edition."));}
-    let profile=json(b.private_api_client.get("https://api.minecraftservices.com/minecraft/profile").bearer_auth(token.as_str()).send().await?,"minecraft_profile").await?;
+    auth_stage(app,"minecraft_profile");
+    let profile=json(b.private_api_client.get("https://api.minecraftservices.com/minecraft/profile").bearer_auth(token.as_str()).send().await.map_err(|_|network("minecraft_profile"))?,"minecraft_profile").await?;
     let uuid=profile["id"].as_str().filter(|id|id.len()==32&&id.chars().all(|c|c.is_ascii_hexdigit())).ok_or_else(||BackendError::new("minecraft_profile","A valid Minecraft Java profile is required"))?.to_owned();
     let name=profile["name"].as_str().ok_or_else(||BackendError::new("minecraft_profile","Minecraft player name missing"))?.to_owned();
     Ok(Session{token,uuid,name,xuid})
@@ -81,8 +105,9 @@ pub async fn begin(backend:Arc<Backend>,app:AppHandle)->Result<serde_json::Value
             let code=receive(listener,&state,&lease.cancel).await?;
             if lease.cancel.load(Ordering::Relaxed){return Err(BackendError::new("auth_cancelled","Sign-in cancelled"));}
             let _auth=backend.auth.lock().await;
+            auth_stage(Some(&app),"microsoft_oauth");
             let oauth=exchange(&backend,&[("client_id",&client),("grant_type","authorization_code"),("code",code.as_str()),("redirect_uri",&redirect),("code_verifier",verifier.as_str())]).await?;
-            let session=minecraft_session(&backend,&oauth.access_token).await?;
+            let session=minecraft_session(&backend,&oauth.access_token,Some(&app)).await?;
             if lease.cancel.load(Ordering::Relaxed){return Err(BackendError::new("auth_cancelled","Sign-in cancelled"));}
             let existing=backend.store.lock().unwrap().accounts.iter().find(|a|a.provider=="microsoft"&&a.uuid==session.uuid).cloned();
             let id=existing.map(|a|a.id).unwrap_or_else(||uuid::Uuid::new_v4().to_string());let reference=format!("microsoft-{id}");
@@ -101,13 +126,15 @@ pub async fn identity(b:&Backend,account:&Account)->Result<accounts::LaunchIdent
     let refresh=Zeroizing::new(accounts::credentials(reference)?);let client=client_id();
     let oauth=exchange(b,&[("client_id",client.as_str()),("grant_type","refresh_token"),("refresh_token",refresh.as_str()),("scope",SCOPE)]).await?;
     if let Some(rotated)=&oauth.refresh_token{accounts::save_credentials(reference,rotated)?;}
-    let session=minecraft_session(b,&oauth.access_token).await?;
+    let session=minecraft_session(b,&oauth.access_token,None).await?;
     if session.uuid!=account.uuid{return Err(BackendError::new("identity_mismatch","Microsoft account profile changed. Sign in again."));}
     {let mut store=b.store.lock().unwrap();if let Some(a)=store.accounts.iter_mut().find(|a|a.id==account.id){a.status="authenticated".into();a.username=session.name.clone();}}
     b.persist()?;
     Ok(accounts::LaunchIdentity{username:session.name,uuid:session.uuid,access_token:session.token.to_string(),user_type:"msa".into(),xuid:session.xuid,client_id:client})
 }
 pub async fn restore(b:&Backend){let accounts=b.store.lock().unwrap().accounts.clone();for account in accounts.into_iter().filter(|a|a.provider=="microsoft"){if let Err(error)=identity(b,&account).await{if let Some(a)=b.store.lock().unwrap().accounts.iter_mut().find(|a|a.id==account.id){a.status=if matches!(error.code.as_str(),"network"|"timeout"){"unavailable"}else{"expired"}.into();}}}let _=b.persist();}
-#[cfg(test)]mod tests{use super::*;#[test]fn callback_requires_matching_state_and_unique_code(){assert_eq!(callback("/?state=s&code=ok","s").unwrap(),"ok");for target in ["/?state=x&code=ok","/?state=s&state=s&code=ok","/?state=s&code=a&code=b","/wrong?state=s&code=a"]{assert!(callback(target,"s").is_err());}}#[test]fn pkce_verifier_is_valid(){let v=random();assert!((43..=128).contains(&v.len()));assert!(v.chars().all(|c|c.is_ascii_alphanumeric()||c=='_'||c=='-'));}}
+#[cfg(test)]mod tests{use super::*;#[test]fn callback_requires_matching_state_and_unique_code(){assert_eq!(callback("/?state=s&code=ok","s").unwrap(),"ok");for target in ["/?state=x&code=ok","/?state=s&state=s&code=ok","/?state=s&code=a&code=b","/wrong?state=s&code=a"]{assert!(callback(target,"s").is_err());}}#[test]fn pkce_verifier_is_valid(){let v=random();assert!((43..=128).contains(&v.len()));assert!(v.chars().all(|c|c.is_ascii_alphanumeric()||c=='_'||c=='-'));}
+ #[test]fn service_failures_preserve_stage_and_do_not_misdiagnose_ownership(){let stages=["microsoft_oauth","xbox_auth","xsts_auth","minecraft_auth","minecraft_ownership","minecraft_profile"];let messages:std::collections::HashSet<_>=stages.iter().map(|s|{let error=denied(s,403,None);assert_eq!(error.stage,*s);assert!(!error.message.contains("Microsoft/Xbox rejected"));error.message}).collect();assert_eq!(messages.len(),6);assert!(denied("minecraft_ownership",403,None).message.contains("not proof"));assert!(denied("minecraft_profile",404,None).message.contains("minecraft.net"));assert!(denied("microsoft_oauth",400,Some("unauthorized_client")).message.contains("public-client"));assert!(denied("xbox_auth",429,None).retryable);assert_eq!(network("xsts_auth").stage,"xsts_auth");}
+}
 
 #[cfg(test)]mod listener_tests {use super::*;#[tokio::test]async fn listener_rejects_forgery_then_accepts_real_state(){let listener=TcpListener::bind((std::net::Ipv4Addr::LOCALHOST,0)).await.unwrap();let address=listener.local_addr().unwrap();let cancel=Arc::new(std::sync::atomic::AtomicBool::new(false));let token=cancel.clone();let receive=tokio::spawn(async move{receive(listener,"actual-state",&token).await});for query in ["/?state=wrong&code=forged","/?state=actual-state&code=valid"]{let mut client=tokio::net::TcpStream::connect(address).await.unwrap();client.write_all(format!("GET {query} HTTP/1.1\r\nHost: localhost\r\n\r\n").as_bytes()).await.unwrap();let mut response=String::new();client.read_to_string(&mut response).await.unwrap();assert!(response.contains("no-store"));}assert_eq!(receive.await.unwrap().unwrap().as_str(),"valid");assert!(tokio::net::TcpStream::connect(address).await.is_err());}#[tokio::test]async fn cancellation_drops_listener(){let listener=TcpListener::bind((std::net::Ipv4Addr::LOCALHOST,0)).await.unwrap();let address=listener.local_addr().unwrap();let cancel=std::sync::atomic::AtomicBool::new(true);assert_eq!(receive(listener,"state",&cancel).await.err().unwrap().code,"auth_cancelled");assert!(tokio::net::TcpStream::connect(address).await.is_err());}}

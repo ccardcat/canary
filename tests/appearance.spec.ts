@@ -22,7 +22,7 @@ test("interface scale updates centrally and persists independently of font famil
  await page.locator(".settings-nav").getByRole("button",{name:"Language",exact:true}).click();
  await page.getByRole("button",{name:/Русский интерфейс/}).click();
  await page.locator(".settings-nav").getByRole("button",{name:"Оформление",exact:true}).click();
- await expect(page.locator(".visual-preferences")).toContainText("Размер интерфейса");
+ await expect(page.locator(".visual-preferences[data-visual-group]")).toContainText("Размер интерфейса");
  for(const font of ["Nunito","Monocraft"]){await page.locator(".font-options").getByRole("button",{name:font,exact:true}).click();for(const scale of [90,100,110,120]){await page.getByRole("button",{name:`${scale}%`,exact:true}).click();expect(await page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth)).toBe(true);}}
  await expect(page.locator(".settings-modal")).toBeVisible();
  expect(await page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth)).toBe(true);
@@ -122,4 +122,28 @@ test("Sakura pairs crossfade, persist and select automatic ambient without overr
   await page.reload();
   await expect(page.locator(".global-wallpaper .artwork-current")).toHaveCSS("background-image",/sakura1-bg.jpg/);
   await expect(page.locator(".sidebar-art .artwork-current")).toHaveCSS("background-image",/gray-sidebar.jpg/);
+});
+
+
+test("settings search finds Window and Effects, and appearance preferences persist",async({page})=>{
+ const search=page.getByRole("searchbox",{name:"Search settings",exact:true});await search.fill("F11");await page.locator(".settings-results").getByRole("button",{name:/Window/}).click();
+ await page.getByRole("combobox",{name:"Window controls style",exact:true}).click();await page.getByRole("option",{name:"Traffic Lights",exact:true}).click();
+ await page.getByRole("combobox",{name:"Control position",exact:true}).click();await page.getByRole("option",{name:"Left",exact:true}).click();await expect(page.locator(".window-titlebar")).toHaveAttribute("data-controls","traffic-lights");await expect(page.locator(".window-titlebar")).toHaveAttribute("data-controls-position","left");
+ await search.fill("Snow");await page.locator(".settings-results").getByRole("button",{name:/Effects/}).click();await page.getByRole("button",{name:"Autumn Leaves",exact:true}).click();
+ for(const [preset,count] of [["Low",6],["Medium",12],["High",16]] as const){await page.getByRole("combobox",{name:"Effect preset",exact:true}).click();await page.getByRole("option",{name:preset,exact:true}).click();await expect(page.locator(".ambient-particles i")).toHaveCount(count);}
+ await page.reload();await expect(page.locator("html")).toHaveAttribute("data-ambient","autumn");await expect(page.locator(".window-titlebar")).toHaveAttribute("data-controls-position","left");
+ await page.emulateMedia({reducedMotion:"reduce"});await expect(page.locator(".ambient-particles")).toHaveCount(0);
+});
+
+test("Hero rotates global backgrounds, pauses on hover and keeps manual controls in reduced motion",async({page})=>{
+ await page.keyboard.press("Escape");await page.clock.install();await page.reload();await expect(page.locator(".hero-art .artwork-current")).toBeVisible();
+ const artwork=page.locator(".hero-art .artwork-current");const first=await artwork.evaluate(e=>getComputedStyle(e).backgroundImage);expect(first).not.toMatch(/sidebar/);
+ await page.clock.fastForward(9500);await expect.poll(()=>artwork.evaluate(e=>getComputedStyle(e).backgroundImage)).not.toBe(first);
+ await page.locator(".home-hero").hover();const held=await artwork.evaluate(e=>getComputedStyle(e).backgroundImage);await page.clock.fastForward(20000);await expect(artwork).toHaveCSS("background-image",held);
+ await page.emulateMedia({reducedMotion:"reduce"});await page.getByRole("button",{name:"Next background",exact:true}).click();await expect.poll(()=>artwork.evaluate(e=>getComputedStyle(e).backgroundImage)).not.toBe(held);
+});
+
+test("invalid saved material preferences clamp to readable supported settings",async({page})=>{
+ await page.evaluate(()=>localStorage.setItem("canary-visual",JSON.stringify({material:"impossible",surfaceOpacity:0,surfaceBlur:999,heroSpeed:-1,windowControls:"broken",ambient:"unknown"})));await page.reload();
+ const saved=await page.evaluate(()=>JSON.parse(localStorage.getItem("canary-visual")||"{}"));expect(saved.material).toBe("solid");expect(saved.surfaceOpacity).toBe(55);expect(saved.surfaceBlur).toBe(32);expect(saved.heroSpeed).toBe(7);expect(saved.windowControls).toBe("windows");expect(saved.ambient).toBe("off");
 });

@@ -15,6 +15,7 @@ pub mod java;
 pub mod loaders;
 pub mod minecraft;
 pub mod modpacks;
+pub mod mrpack_import;
 pub mod model;
 pub mod process;
 pub mod storage;

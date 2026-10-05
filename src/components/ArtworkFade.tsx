@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState } from "react";
 
 /** Decode before committing; leave the previous artwork visible during loading. */
-export default function ArtworkFade({ source, className }: { source?: string; className: string }) {
+export default function ArtworkFade({ source, className, duration=380 }: { source?: string; className: string; duration?:number }) {
   const [layers, setLayers] = useState<{ current?: string; previous?: string }>({ current: source });
   const current = useRef(source);
   useEffect(() => {
@@ -12,7 +12,7 @@ export default function ArtworkFade({ source, className }: { source?: string; cl
       const previous = current.current;
       current.current = source;
       setLayers({ current: source, previous });
-      timer = setTimeout(() => { if (!cancelled) setLayers({ current: source }); }, 380);
+      timer = setTimeout(() => { if (!cancelled) setLayers({ current: source }); }, duration);
     };
     if (source) {
       const image = new Image();
@@ -20,7 +20,7 @@ export default function ArtworkFade({ source, className }: { source?: string; cl
       image.src = source;
     } else commit();
     return () => { cancelled = true; clearTimeout(timer); };
-  }, [source]);
+  }, [source,duration]);
   if (!layers.current && !layers.previous) return null;
   return <div className={`${className} artwork-fade`} aria-hidden="true">
     {layers.previous && <div key={`old-${layers.previous}`} className="artwork-layer artwork-previous" style={{ backgroundImage: `url("${layers.previous}")` }} />}

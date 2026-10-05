@@ -68,7 +68,11 @@ pub async fn loader_versions(backend:State<'_,B>,minecraft:String,loader:String)
     let mut url=reqwest::Url::parse(host).unwrap();url.path_segments_mut().unwrap().extend(["versions","loader",&minecraft]);super::download::json(&backend,url.as_str()).await
 }
 pub async fn prepare_instance_inner(backend:B,id:String,app:Option<AppHandle>,deep:bool)->Result<Instance>{
-    let lease=backend.lease(&id)?;let cancel=lease.cancel.clone();let job=Arc::new(Job::new(&id,app.clone(),cancel));let mut instance=backend.instance(&id)?;
+    let lease=backend.lease(&id)?;let job=Arc::new(Job::new(&id,app.clone(),lease.cancel.clone()));
+    prepare_leased(backend,id,app,deep,job).await
+}
+async fn prepare_leased(backend:B,id:String,app:Option<AppHandle>,deep:bool,job:Arc<Job>)->Result<Instance>{
+    job.check()?;let mut instance=backend.instance(&id)?;
     if instance.icon.is_none()&&instance.provider=="modrinth"{if let Some(project)=&instance.project_id{let mut url=reqwest::Url::parse("https://api.modrinth.com/v2/project/").unwrap();url.path_segments_mut().unwrap().pop_if_empty().push(project);if let Ok(data)=super::download::json(&backend,url.as_str()).await{instance.icon=data["icon_url"].as_str().map(str::to_owned);}}}
     instance.status="preparing".into();backend.save_instance(&instance)?;
     let result:Result<()>=async {let runtime=minecraft::prepare(backend.clone(),&instance,job.clone(),deep).await?;java::select(backend.clone(),&instance,runtime.java_major,job.clone()).await?;job.check()?;Ok(())}.await;
@@ -79,12 +83,31 @@ pub async fn prepare_instance_inner(backend:B,id:String,app:Option<AppHandle>,de
 #[tauri::command]
 pub async fn prepare_instance(backend:State<'_,B>,app:AppHandle,id:String,repair:bool)->Result<Instance>{prepare_instance_inner(backend.inner().clone(),id,Some(app),repair).await}
 #[tauri::command]
-pub async fn create_instance(backend:State<'_,B>,app:AppHandle,name:String,minecraft:String,loader:String,loader_version:Option<String>)->Result<Instance>{
-    if name.trim().is_empty(){return Err(BackendError::new("instance","Instance name required"));}
-    let id=uuid::Uuid::new_v4().to_string();let dir=backend.instance_path(&id)?;std::fs::create_dir(&dir)?;
+pub async fn create_instance(backend:State<'_,B>,app:AppHandle,name:String,minecraft:String,loader:String,loader_version:Option<String>,request_id:Option<String>)->Result<Instance>{
+    if name.trim().is_empty()||name.len()>256{return Err(BackendError::new("instance","Instance name required (up to 256 characters)"));}
+    let valid_version=|v:&str|!v.is_empty()&&v.len()<=96&&v.chars().all(|c|c.is_ascii_alphanumeric()||matches!(c,'.'|'-'|'_'));
+    if !valid_version(&minecraft)||!matches!(loader.as_str(),"vanilla"|"fabric"|"quilt"|"forge"|"neoforge")||loader!="vanilla"&&!loader_version.as_deref().is_some_and(valid_version){return Err(BackendError::new("loader","Choose a supported Minecraft and loader version"));}
+    let id=request_id.unwrap_or_else(||uuid::Uuid::new_v4().to_string());uuid::Uuid::parse_str(&id).map_err(|_|BackendError::new("instance","Invalid creation request ID"))?;
+    let _creation=backend.inner().lease("create-instance")?;let lease=backend.inner().lease(&id)?;let job=Arc::new(Job::new(&id,Some(app.clone()),lease.cancel.clone()));
+    let dir=backend.instance_path(&id)?;if dir.exists(){return Err(BackendError::new("content_duplicate","This creation request already has an instance"));}std::fs::create_dir(&dir)?;
     for folder in ["mods","config","resourcepacks","shaderpacks","saves","screenshots","logs"]{std::fs::create_dir_all(dir.join(folder))?;}
     let instance=Instance{id:id.clone(),name:name.trim().into(),minecraft,loader,loader_version,provider:"vanilla".into(),directory:dir.to_string_lossy().into(),status:"installing".into(),..Instance::default()};
-    backend.save_instance(&instance)?;let _=app.emit("instances-changed",());prepare_instance_inner(backend.inner().clone(),id,Some(app),false).await
+    backend.save_instance(&instance)?;let _=app.emit("instances-changed",());prepare_leased(backend.inner().clone(),id,Some(app),false,job).await
+}
+#[tauri::command]
+pub async fn choose_mrpack_file(app:AppHandle)->Result<Option<super::mrpack_import::Preview>>{
+    tokio::task::spawn_blocking(move||{use tauri_plugin_dialog::DialogExt;
+        let Some(file)=app.dialog().file().add_filter("Modrinth pack",&["mrpack"]).blocking_pick_file() else{return Ok(None)};
+        let path=file.into_path().map_err(|_|BackendError::new("mrpack_archive","Invalid archive path"))?;
+        super::mrpack_import::inspect(&path).map(Some)
+    }).await.map_err(|_|BackendError::new("mrpack_archive","Cannot inspect the chosen archive"))?
+}
+#[tauri::command]
+pub async fn import_mrpack(backend:State<'_,B>,app:AppHandle,path:String,expected_hash:String,name:Option<String>,request_id:String)->Result<Instance>{
+    uuid::Uuid::parse_str(&request_id).map_err(|_|BackendError::new("mrpack_archive","Invalid import request ID"))?;
+    let _creation=backend.inner().lease("create-instance")?;let lease=backend.inner().lease(&request_id)?;let job=Arc::new(Job::new(&request_id,Some(app.clone()),lease.cancel.clone()));
+    let instance=match super::mrpack_import::import(backend.inner().clone(),path.into(),expected_hash,name,job.clone()).await{Ok(instance)=>instance,Err(error)=>{job.emit(&error.stage,"failure",&error.message);return Err(error)}};
+    let _=app.emit("instances-changed",());prepare_leased(backend.inner().clone(),instance.id,Some(app),false,job).await
 }
 #[tauri::command]
 pub async fn launch_instance(backend:State<'_,B>,app:AppHandle,id:String)->Result<u32>{

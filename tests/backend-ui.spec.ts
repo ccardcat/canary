@@ -16,8 +16,16 @@ mockIPC((command,args)=>{
   globalThis.__backendTest.calls.push({command,args});
   if(command==='backend_snapshot')return structuredClone(state);
   if(command==='list_wallpapers')return [];
+  if(command==='window_material_capabilities')return {platform:'windows',build:22621,supported:['solid','transparent','acrylic','mica','mica-alt']};
+  if(command==='apply_window_material')return {requested:args.requested,actual:fullscreen&&args.requested.startsWith('mica')?'acrylic':args.requested,fallback:fullscreen&&args.requested.startsWith('mica')};
+  if(command==='minecraft_versions')return [{id:'1.21.1'},{id:'1.20.1'}];
+  if(command==='loader_versions')return [{loader:{version:'0.16.0'}}];
+  if(command==='choose_mrpack_file')return {path:'C:/packs/example.mrpack',name:'Imported contract pack',minecraft:'1.21.1',loader:'fabric',loader_version:'0.16.0',version:'1',files:12,download_bytes:1048576,archive_bytes:1024,sha256:'preview-checksum'};
+  if(command==='create_instance'||command==='import_mrpack'){const instance={...state.instances[0],id:args.requestId,name:args.name,provider:command==='import_mrpack'?'mrpack':'vanilla',minecraft:args.minecraft||'1.21.1',loader:args.loader||'fabric',status:'ready'};return new Promise((resolve,reject)=>{globalThis.__backendTest.cancelCreate=()=>reject({code:'cancelled',message:'Operation cancelled'});setTimeout(()=>{state.instances.push(instance);resolve(instance);},600);});}
+  if(command==='cancel_operation'){globalThis.__backendTest.cancelCreate?.();return;}
+
   if(command==='storage_usage')return {path:'D:/Canary',free:10737418240,used:1073741824,available:true,breakdown:{instances:1073741824,cache:2147483648,java:1073741824,logs:0,total:4294967296}};
-  if(command==='catalog_search'){const data={hits:[{provider:'curseforge',project_id:'100',title:globalThis.__backendTest.slowSearch&&args.query?args.query+' CF pack':'CurseForge contract pack',description:'Provider contract',author:'Author',downloads:123,versions:['1.21.1'],categories:['fabric'],project_type:'modpack'}],total_hits:1};return globalThis.__backendTest.slowSearch&&args.query?new Promise(resolve=>setTimeout(()=>resolve(data),600)):data;}
+  if(command==='catalog_search'){if(globalThis.__backendTest.manyPages)return {hits:Array.from({length:args.limit},(_,i)=>({provider:'curseforge',project_id:String(args.offset+i),title:'CF page item '+(args.offset+i),description:'Pagination contract',author:'Author',downloads:123,versions:['1.21.1'],categories:['fabric'],project_type:'modpack'})),total_hits:96};const data={hits:[{provider:'curseforge',project_id:'100',title:globalThis.__backendTest.slowSearch&&args.query?args.query+' CF pack':'CurseForge contract pack',description:'Provider contract',author:'Author',downloads:123,versions:['1.21.1'],categories:['fabric'],project_type:'modpack'}],total_hits:1};return globalThis.__backendTest.slowSearch&&args.query?new Promise(resolve=>setTimeout(()=>resolve(data),600)):data;}
   if(command==='catalog_versions')return [{provider:'curseforge',id:'200',project_id:'100',name:'Pack 2',version_number:'2',version_type:'release',game_versions:['1.21.1'],loaders:['fabric'],date_published:'2026-10-01',files:[{filename:'pack.zip',url:'https://example.invalid/pack.zip',size:1,hashes:{sha1:'contract'}}]}];
   if(command==='content_project'&&args.provider==='curseforge')return {provider:'curseforge',id:'100',slug:'contract-pack',title:'CurseForge contract pack',description:'Provider contract',body:'<p>Safe CF description</p><script>window.cfUnsafe=true</script>',body_format:'html',project_type:'modpack',downloads:123,followers:0,game_versions:['1.21.1'],categories:['fabric'],updated:'2026-10-01',gallery:[]};
   if(command==='install_curseforge_pack'){const instance={...state.instances[0],id:'curseforge-100-200',provider:'curseforge',project_id:'100',version_id:'200',name:'CurseForge contract pack',directory:'C:/Canary/instances/curseforge-100-200'};state.instances.push(instance);return instance;}
@@ -41,9 +49,9 @@ mockIPC((command,args)=>{
   if(command==='prepare_instance')throw {code:'checksum',stage:'libraries',message:'Technical checksum contract details',retryable:true};
   if(command==='detect_java')return [{path:'C:/Java/bin/java.exe',vendor:'Test vendor',version:'21.0.1',major:21,architecture:'amd64',managed:false}];
   if(command==='save_backend_settings'){state.settings=args.settings;return;}
-  if(command==='core:window|is_maximized'||command==='plugin:window|is_maximized')return false;
+  if(command==='core:window|is_maximized'||command==='plugin:window|is_maximized')return !!globalThis.__backendTest.maximized;
   if(command==='plugin:window|is_fullscreen')return fullscreen;
-  if(command==='plugin:window|set_fullscreen'){fullscreen=args.value;return;}
+  if(command==='plugin:window|set_fullscreen'){return new Promise(resolve=>setTimeout(()=>{fullscreen=args.value;resolve();},globalThis.__backendTest.fullscreenDelay||0));}
   if(command==='plugin:window|outer_position')return {x:90,y:80};
   if(command==='plugin:window|inner_size')return {width:1280,height:800};
   return null;
@@ -75,7 +83,7 @@ test("existing Settings saves real runtime settings and Java selection",async({p
   await page.getByRole("button",{name:"Settings",exact:true}).first().click();
   await page.locator(".settings-nav").getByRole("button",{name:"Canary",exact:true}).click();
   await page.getByRole("button",{name:"Find Java",exact:true}).click();
-  await page.getByRole("combobox",{name:"Java executable",exact:true}).selectOption("C:/Java/bin/java.exe");
+  await page.getByRole("combobox",{name:"Java executable",exact:true}).click();await page.getByRole("option",{name:"Test vendor · 21.0.1 · amd64 · C:/Java/bin/java.exe",exact:true}).click();
   await page.getByLabel("Maximum RAM (MB)",{exact:true}).fill("6144");
   await page.getByRole("button",{name:"Save",exact:true}).click();
   const settings=await page.evaluate(()=> (globalThis as unknown as {__backendTest:{state:{settings:{max_memory:number;java_path:string}}}}).__backendTest.state.settings);
@@ -168,10 +176,10 @@ test("internal instances stay hidden while user names remain visible and playtim
 
 test("CurseForge detail accepts ZIP pack versions and retains provider during installation",async({page})=>{
   await page.getByRole("button",{name:"Discover",exact:true}).first().click();
-  await page.getByRole("combobox",{name:"Provider",exact:true}).selectOption("curseforge");
+  await page.getByRole("combobox",{name:"Provider",exact:true}).click();await page.getByRole("option",{name:"CurseForge",exact:true}).click();
   await page.locator(".card-title").filter({hasText:"CurseForge contract pack"}).click();
   await expect(page.locator(".detail-page")).toContainText("Safe CF description");
-  await expect(page.getByRole("combobox",{name:"Version to install",exact:true})).toHaveValue("200");
+  await expect(page.getByRole("combobox",{name:"Version to install",exact:true})).toContainText("2 · 1.21.1 · fabric");
   expect(await page.evaluate(()=>(window as any).cfUnsafe)).toBeUndefined();
   await page.locator(".detail-actions").getByRole("button",{name:"Install",exact:true}).click();
   await expect(page.locator(".library-grid")).toContainText("CurseForge contract pack");
@@ -204,7 +212,7 @@ test("pending Stop waits for an explicit Force choice",async({page})=>{
 test("changing CurseForge search cancels the native request and discards stale results",async({page})=>{
   await page.evaluate(()=>(globalThis as any).__backendTest.slowSearch=true);
   await page.getByRole("button",{name:"Discover",exact:true}).first().click();
-  await page.getByRole("combobox",{name:"Provider",exact:true}).selectOption("curseforge");
+  await page.getByRole("combobox",{name:"Provider",exact:true}).click();await page.getByRole("option",{name:"CurseForge",exact:true}).click();
   const search=page.getByRole("textbox",{name:"Search projects",exact:true});
   await search.fill("first");
   await expect.poll(()=>page.evaluate(()=>(globalThis as any).__backendTest.calls.some((c:any)=>c.command==="catalog_search"&&c.args.query==="first"))).toBe(true);
@@ -227,7 +235,42 @@ test("storage cleanup requires confirmation and RAM warning leaves account defau
  await storage.getByRole("button",{name:"Clear cache",exact:true}).click();await dialog.getByRole("button",{name:"Clear",exact:true}).click();await expect(dialog).toHaveCount(0);
  expect(await page.evaluate(()=> (globalThis as any).__backendTest.calls.filter((c:any)=>c.command==="clear_download_cache").length)).toBe(1);
  const max=page.locator("label").filter({hasText:"Maximum RAM"}).getByRole("spinbutton");await max.fill("7000");await expect(page.getByText("You are allocating most of your RAM.",{exact:false})).toBeVisible();
- await page.getByLabel("Default account",{exact:true}).selectOption("");await expect(page.getByLabel("Default account",{exact:true})).toHaveValue("");
+ await page.getByRole("combobox",{name:"Default account",exact:true}).click();await page.getByRole("option",{name:"Last used account",exact:true}).click();await expect(page.getByRole("combobox",{name:"Default account",exact:true})).toContainText("Last used account");
  await page.evaluate(()=>{const state=(globalThis as any).__backendTest.state;state.accounts=[{id:"older",provider:"local",username:"OlderQA",last_used:100,status:"local"},{id:"recent",provider:"local",username:"RecentQA",last_used:200,status:"local"}];});
  await page.getByRole("button",{name:"Save",exact:true}).click();await expect(page.locator(".account-button")).toContainText("RecentQA");
+});
+
+test("rapid F11 is locked and a maximized window restores without replacing geometry",async({page})=>{
+ await page.evaluate(()=>{(globalThis as any).__backendTest.fullscreenDelay=200;(globalThis as any).__backendTest.maximized=true;for(let n=0;n<6;n++)document.dispatchEvent(new KeyboardEvent("keydown",{key:"F11",bubbles:true}));});
+ await expect(page.locator("html")).toHaveAttribute("data-window-fullscreen","true");await expect(page.locator("html")).toHaveAttribute("data-window-transition","false");
+ await page.keyboard.press("F11");await expect(page.locator("html")).toHaveAttribute("data-window-state","maximized");
+ const calls=await page.evaluate(()=>(globalThis as any).__backendTest.calls);expect(calls.filter((c:any)=>c.command==="plugin:window|set_fullscreen").map((c:any)=>c.args.value)).toEqual([true,false]);expect(calls.filter((c:any)=>c.command==="plugin:window|maximize")).toHaveLength(1);expect(calls.some((c:any)=>c.command==="plugin:window|set_size")).toBe(false);
+});
+
+test("native material uses a transparent root and restores Mica after fullscreen fallback",async({page})=>{
+ await page.getByRole("button",{name:"Settings",exact:true}).first().click();await page.getByRole("combobox",{name:"Window Material",exact:true}).click();await page.getByRole("option",{name:"Mica",exact:true}).click();
+ await expect(page.locator("html")).toHaveAttribute("data-window-material","mica");await expect(page.locator("html")).toHaveCSS("background-color","rgba(0, 0, 0, 0)");await expect(page.locator(".visual-backdrop")).toBeHidden();
+ await page.keyboard.press("F11");await expect(page.locator("html")).toHaveAttribute("data-window-material","acrylic");await page.keyboard.press("F11");await expect(page.locator("html")).toHaveAttribute("data-window-material","mica");
+ await page.reload();await expect(page.locator("html")).toHaveAttribute("data-window-material","mica");await expect(page.locator("html")).toHaveAttribute("data-window-fullscreen","false");
+});
+
+test("glass select keyboard chooses options and Escape preserves the surrounding settings",async({page})=>{
+ await page.getByRole("button",{name:"Settings",exact:true}).first().click();await page.locator(".settings-nav").getByRole("button",{name:"Window",exact:true}).click();
+ const control=page.getByRole("combobox",{name:"Titlebar branding",exact:true});await control.focus();await page.keyboard.press("ArrowDown");await page.keyboard.press("Home");await page.keyboard.press("ArrowDown");await page.keyboard.press("Enter");await expect(control).toContainText("Text");await expect(page.locator(".window-brand img")).toHaveCount(0);
+ await control.click();const popup=page.getByRole("listbox",{name:"Titlebar branding",exact:true});await expect(popup).toBeVisible();const box=await popup.boundingBox();expect(box!.x).toBeGreaterThanOrEqual(0);expect(box!.x+box!.width).toBeLessThanOrEqual(1280);expect(box!.y+box!.height).toBeLessThanOrEqual(800);
+ await page.keyboard.press("Escape");await expect(popup).toBeHidden();await expect(page.locator(".settings-modal")).toBeVisible();await expect(control).toBeFocused();
+});
+
+for(const kind of ["vanilla","fabric","mrpack"]){test(`create ${kind} prevents duplicate submissions, refreshes Library and closes`,async({page})=>{
+ await page.getByRole("button",{name:"Library",exact:true}).first().click();await page.getByRole("button",{name:"New instance",exact:true}).click();const dialog=page.getByRole("dialog",{name:"New instance",exact:true});
+ if(kind==="mrpack"){await dialog.getByRole("button",{name:"Import .mrpack",exact:true}).click();await expect(dialog.getByLabel("Pack preview")).toContainText("Imported contract pack");}else{await dialog.getByRole("textbox",{name:"Name",exact:true}).fill(`Created ${kind}`);if(kind==="fabric"){await dialog.getByRole("combobox",{name:"Loader",exact:true}).click();await page.getByRole("option",{name:"Fabric",exact:true}).click();}}
+ await dialog.getByRole("button",{name:kind==="mrpack"?"Import and prepare":"New instance",exact:true}).dblclick();await expect(dialog).toHaveCount(0);await expect(page.locator(".instance-created")).toContainText(kind==="mrpack"?"Imported contract pack":`Created ${kind}`);
+ const calls=await page.evaluate(()=>(globalThis as any).__backendTest.calls.filter((c:any)=>["create_instance","import_mrpack"].includes(c.command)));expect(calls).toHaveLength(1);if(kind==="mrpack")expect(calls[0].args.expectedHash).toBe("preview-checksum");else expect(calls[0].args.loader).toBe(kind);
+});}
+
+
+test("CurseForge pagination preserves provider and offsets through 1 → 2 → 3 → 2 → 1",async({page})=>{
+ await page.evaluate(()=>(globalThis as any).__backendTest.manyPages=true);await page.getByRole("button",{name:"Discover",exact:true}).first().click();await page.getByRole("combobox",{name:"Provider",exact:true}).click();await page.getByRole("option",{name:"CurseForge",exact:true}).click();
+ for(const [button,number] of [[null,1],["Next",2],["Next",3],["Previous",2],["Previous",1]] as const){if(button)await page.getByRole("button",{name:button,exact:true}).click();await expect(page.getByTestId("page-label")).toHaveText(`Page ${number} / 8`);await expect(page.locator(".card-title").first()).toHaveText(`CF page item ${(number-1)*12}`);}
+ const calls=await page.evaluate(()=>(globalThis as any).__backendTest.calls.filter((c:any)=>c.command==="catalog_search"));expect(calls.map((c:any)=>c.args.offset)).toEqual([0,12,24,12,0]);
 });

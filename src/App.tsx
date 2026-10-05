@@ -1,3 +1,5 @@
+import {version as appVersion} from "../package.json";
+import GlassSelect from "./components/GlassSelect";
 import {
   lazy,
   Suspense,
@@ -52,10 +54,12 @@ import {
 import "./App.css";
 
 import TitleBar from "./components/TitleBar";
+import {HeroCarousel,HeroSettings} from "./components/HeroCarousel";
+import {StorageSettings} from "./components/StorageSettings";
 import { useBackend,defaultAccount } from "./services/backend";
 import AccountAvatar from "./components/AccountAvatar";
 import { AccountsPanel, RuntimeSettingsPanel, RuntimeLibrary, RuntimeProgress, RuntimeActivity, RuntimeScreenshots, BackendErrors } from "./components/RuntimeUI";
-import { VisualPreferences, SidebarArtwork, VisualQuality } from "./components/VisualAppearance";
+import { VisualPreferences, SidebarArtwork, VisualQuality, WindowPreferencesPanel, EffectsPreferences } from "./components/VisualAppearance";
 import { en, ru, type Key, type T, categories } from "./locales";
 import {
   readStored,
@@ -254,7 +258,7 @@ function App() {
       if (!filterRef.current?.contains(e.target as Node)) setFilterOpen(false);
     };
     const esc = (e: KeyboardEvent) => {
-      if (e.key !== "Escape") return;
+      if (e.key !== "Escape" || e.defaultPrevented || document.querySelector("dialog[open]")) return;
       if (settingsOpen) setSettingsOpen(false);
       else if (accountOpen) setAccountOpen(false);
       else if (filterOpen) setFilterOpen(false);
@@ -576,6 +580,7 @@ function App() {
                 />
               ) : page === "Home" ? (
                 <HomePage
+                  russian={lang === "ru"}
                   t={t}
                   lib={homeLibrary}
                   projects={community}
@@ -714,6 +719,7 @@ function AccountPopover({ t, onClose }: { t: T; onClose: () => void }) {
 }
 function HomePage({
   t,
+  russian,
   lib,
   projects,
   communityError,
@@ -724,6 +730,7 @@ function HomePage({
   busy,
 }: {
   t: T;
+  russian:boolean;
   lib: Project[];
   projects: Project[];
   communityError: boolean;
@@ -735,8 +742,7 @@ function HomePage({
 }) {
   return (
     <section className="home-page">
-      <div className="home-hero">
-        <div className="hero-art" aria-hidden="true" />
+      <HeroCarousel russian={russian}>
         <div className="hero-content">
           <div className="overline">CANARY / {t("home").toUpperCase()}</div>
           <h2>{t("discoverTitle")}</h2>
@@ -750,7 +756,7 @@ function HomePage({
             {t("heroCaption")}
           </div>
         </div>
-      </div>
+      </HeroCarousel>
       <div className="home-section-head">
         <div>
           <h3>{t("continue")}</h3>
@@ -902,7 +908,7 @@ function DiscoverPage({
         <p>{t("discoverSub")}</p>
         <div className="provider-badge">
           <span className="provider-dot" />
-          <select aria-label="Provider" value={provider} onChange={e=>setProvider(e.target.value as Provider)}><option value="modrinth">Modrinth</option><option value="curseforge">CurseForge</option></select>
+          <GlassSelect aria-label="Provider" value={provider} onChange={e=>setProvider(e.target.value as Provider)}><option value="modrinth">Modrinth</option><option value="curseforge">CurseForge</option></GlassSelect>
         </div>
       </div>
       <div className="type-tabs" role="tablist" aria-label={t("contentTypes")}>
@@ -965,7 +971,7 @@ function DiscoverPage({
           </AnimatePresence>
         </div>
         <div className="sort-wrap">
-          <select
+          <GlassSelect
             value={sort}
             onChange={(e) => setSort(e.target.value)}
             aria-label={t("sort")}
@@ -975,7 +981,7 @@ function DiscoverPage({
             <option value="updated">{t("updated")}</option>
             <option value="newest">{t("newest")}</option>
             {provider==="modrinth"&&<option value="follows">{t("follows")}</option>}
-          </select>
+          </GlassSelect>
           <ChevronDown size={14} />
         </div>
       </div>
@@ -1098,7 +1104,7 @@ function FilterPopover({
       </div>
       <label>
         {t("gameVersion")}
-        <select
+        <GlassSelect
           value={filters.game}
           onChange={(e) => update("game", e.target.value)}
         >
@@ -1106,12 +1112,12 @@ function FilterPopover({
           {["1.21.1", "1.21", "1.20.1", "1.20", "1.19.2", "1.16.5"].map((x) => (
             <option key={x}>{x}</option>
           ))}
-        </select>
+        </GlassSelect>
       </label>
       {type !== "resourcepack" && type !== "shader" && (
         <label>
           {t("loader")}
-          <select
+          <GlassSelect
             value={filters.loader}
             onChange={(e) => update("loader", e.target.value)}
           >
@@ -1121,12 +1127,12 @@ function FilterPopover({
                 {x[0].toUpperCase() + x.slice(1)}
               </option>
             ))}
-          </select>
+          </GlassSelect>
         </label>
       )}
       {provider==="modrinth"&&(<label>
         {t("category")}
-        <select
+        <GlassSelect
           value={filters.category}
           onChange={(e) => update("category", e.target.value)}
         >
@@ -1138,19 +1144,19 @@ function FilterPopover({
                 {t(key)}
               </option>
             ))}
-        </select>
+        </GlassSelect>
       </label>)}
       {type === "mod" && provider==="modrinth" && (
         <label>
           {t("environment")}
-          <select
+          <GlassSelect
             value={filters.environment}
             onChange={(e) => update("environment", e.target.value)}
           >
             <option value="">{t("any")}</option>
             <option value="client">{t("client")}</option>
             <option value="server">{t("serverSide")}</option>
-          </select>
+          </GlassSelect>
         </label>
       )}
     </motion.div>
@@ -1337,7 +1343,7 @@ function DetailPage({
               <>
                 <label className="version-control">
                   <span>{t("selectedVersion")}</span>
-                  <select
+                  <GlassSelect
                     aria-label={t("selectedVersion")}
                     value={selected}
                     onChange={(e) => setSelected(e.target.value)}
@@ -1350,7 +1356,7 @@ function DetailPage({
                         {v.loaders.join(", ")}
                       </option>
                     ))}
-                  </select>
+                  </GlassSelect>
                 </label>
                 <button
                   className="primary-button"
@@ -1648,6 +1654,7 @@ function SettingsModal({
   setPreset: (x: string) => void;
 }) {
   const panel = useRef<HTMLDivElement>(null);
+  const [search,setSearch]=useState("");
   useEffect(() => {
     const previous = document.activeElement as HTMLElement | null;
     panel.current?.querySelector<HTMLElement>("button")?.focus();
@@ -1655,7 +1662,7 @@ function SettingsModal({
       if (event.key !== "Tab") return;
       const elements = [
         ...(panel.current?.querySelectorAll<HTMLElement>(
-          "button:not(:disabled),select,input,a[href],[tabindex='0']",
+          "button:not(:disabled),select:not([aria-hidden='true']),input,a[href],[tabindex='0']",
         ) || []),
       ];
       const first = elements[0],
@@ -1674,14 +1681,23 @@ function SettingsModal({
       previous?.focus();
     };
   }, []);
-  const sections: [string, Key, typeof Palette][] = [
-    ["appearance", "appearance", Palette],
-    ["language", "language", SlidersHorizontal],
-    ["accountSettings", "accountSettings", UserRound],
-    ["canary", "canary", Download],
-    ["advanced", "advanced", SettingsIcon],
-    ["about", "about", Info],
+  const russian=lang==="ru";
+  const sections: [string,string,typeof Palette,string][] = [
+    ["appearance",t("appearance"),Palette,"appearance material vibrancy glass opacity blur tint acrylic mica transparency оформление материал стекло прозрачность размытие"],
+    ["window",russian?"Окно":"Window",Monitor,"window titlebar branding controls F11 fullscreen maximize окно заголовок кнопки fullscreen"],
+    ["background",russian?"Фон":"Background",Image,"background wallpaper hero rotation import фон обои главная карусель"],
+    ["effects",russian?"Эффекты":"Effects",Sun,"effects particles snow sakura autumn wind motion эффекты снег сакура листья ветер"],
+    ["typography",russian?"Типографика":"Typography",SlidersHorizontal,"font typography size Monocraft шрифт масштаб размер"],
+    ["storage",russian?"Хранилище":"Storage",LibraryIcon,"storage directory migration cache папка диск хранилище перенос кэш"],
+    ["minecraft","Minecraft",Boxes,"minecraft java memory ram arguments resolution игра память аргументы разрешение"],
+    ["downloads",t("downloads"),Download,"downloads concurrency загрузки параллельные"],
+    ["accountSettings",t("accountSettings"),UserRound,"accounts Microsoft Ely.by local профиль аккаунт вход"],
+    ["advanced",t("advanced"),SettingsIcon,"advanced quality performance logs backups restore retention дополнительные качество логи резервные"],
+    ["language",t("language"),SlidersHorizontal,"language locale язык локализация"],
+    ["canary",t("canary"),Download,"canary runtime settings настройки minecraft"],
+    ["about",t("about"),Info,"about version версия информация"],
   ];
+  const results=sections.filter(([id,label,_icon,words])=>(id+" "+label+" "+words).toLowerCase().includes(search.toLowerCase().trim()));
   return (
     <motion.div
       className="modal-backdrop"
@@ -1712,14 +1728,15 @@ function SettingsModal({
             <X size={19} />
           </button>
         </div>
+        <div className="settings-search"><input type="search" aria-label={russian?"Поиск настроек":"Search settings"} placeholder={russian?"Поиск настроек: Vibrancy, F11, фон, шрифт…":"Search settings: Vibrancy, F11, background, font…"} value={search} onChange={e=>setSearch(e.target.value)}/></div>
         <div className="settings-layout">
           <nav className="settings-nav" aria-label={t("settings")}>
-            {sections.map(([id, key, Icon]) => (
+            {sections.map(([id, label, Icon]) => (
               <button
                 key={id}
                 className={tab === id ? "active" : ""}
                 aria-current={tab === id ? "page" : undefined}
-                onClick={() => setTab(id)}
+                onClick={() => {setSearch("");setTab(id);}}
               >
                 {tab === id && (
                   <motion.span
@@ -1728,7 +1745,7 @@ function SettingsModal({
                   />
                 )}
                 <Icon size={17} />
-                <span>{t(key)}</span>
+                <span>{label}</span>
               </button>
             ))}
           </nav>
@@ -1740,7 +1757,7 @@ function SettingsModal({
                 animate={{ opacity: 1, y: 0 }}
                 exit={{ opacity: 0, y: -4 }}
               >
-                {tab === "appearance" ? (
+                {search.trim()?<div className="settings-results">{results.length?results.map(([id,label,Icon,words])=><button key={id} onClick={()=>{setTab(id);setSearch("");}}><Icon size={17}/> {label}<small>{words.split(" ").slice(0,7).join(" · ")}</small></button>):<p>{russian?"Настройки не найдены":"No settings found"}</p>}</div>:tab === "window" ? <WindowPreferencesPanel russian={russian}/> :tab === "background" ? <><VisualPreferences russian={russian} group="background"/><HeroSettings russian={russian}/></> :tab === "effects" ? <EffectsPreferences russian={russian}/> :tab === "typography" ? <VisualPreferences russian={russian} group="typography"/> :tab === "storage" ? <StorageSettings russian={russian}/> :tab === "minecraft"?<RuntimeSettingsPanel russian={russian} section="minecraft"/> :tab === "downloads"?<RuntimeSettingsPanel russian={russian} section="downloads"/> :tab === "appearance" ? (
                   <Appearance
                     t={t}
                     mode={mode}
@@ -1759,7 +1776,7 @@ function SettingsModal({
                 ) : tab === "canary" && isTauri() ? (
                   <RuntimeSettingsPanel russian={lang === "ru"}/>
                 ) : tab === "advanced" ? (
-                  <VisualQuality russian={lang === "ru"} />
+                  <><VisualQuality russian={lang === "ru"}/>{isTauri()&&<RuntimeSettingsPanel russian={russian} section="advanced"/>}</>
                 ) : tab === "language" ? (
                   <LanguageSettings t={t} lang={lang} setLang={setLang} />
                 ) : (
@@ -1786,7 +1803,7 @@ function SettingsModal({
                           ? t("noDownloadsSub")
                           : tab === "advanced"
                             ? t("advancedSub")
-                            : `${t("aboutSub")} ${t("version")} 0.1.0 · Modrinth`
+                            : `${t("aboutSub")} ${t("version")} ${appVersion} · Modrinth / CurseForge`
                     }
                   />
                 )}

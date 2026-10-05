@@ -1,7 +1,7 @@
 [package]
 name = "scaffold"
 default-run = "scaffold"
-version = "0.1.2"
+version = "0.1.3"
 edition = "2021"
 [lib]
 name = "scaffold_lib"
@@ -48,5 +48,6 @@ required-features = ["backend-check"]
 
 [target.'cfg(windows)'.dependencies]
 keyring = {version="3",features= ["windows-native"] }
+window-vibrancy = "=0.8.1"
 [target.'cfg(target_os="linux")'.dependencies]
 keyring = {version="3",features= ["sync-secret-service", "crypto-rust"] }

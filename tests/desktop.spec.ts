@@ -119,17 +119,14 @@ test("query, sort, filters and type reset only when changed; stale queries canno
   const sorted = page.waitForRequest(
     (r) => r.url().includes("index=updated") && r.url().includes("offset=0"),
   );
-  await page.getByLabel("Sort", { exact: true }).selectOption("updated");
+  await page.getByRole("combobox", {name:"Sort",exact:true}).click();await page.getByRole("option",{name:"Recently updated",exact:true}).click();
   await sorted;
   await expect(page.getByTestId("page-label")).toHaveText("Page 1 / 8");
   await page.getByRole("button", { name: "Filters", exact: true }).click();
   const filtered = page.waitForRequest((r) =>
     decodeURIComponent(r.url()).includes("categories:fabric"),
   );
-  await page
-    .locator(".filter-popover")
-    .getByRole("combobox", { name: "Loader", exact: true })
-    .selectOption("fabric");
+  await page.locator(".filter-popover").getByRole("combobox",{name:"Loader",exact:true}).click();await page.getByRole("option",{name:"Fabric",exact:true}).click();
   await filtered;
   await page.keyboard.press("Escape");
   await page.getByRole("tab", { name: "Mods", exact: true }).click();

@@ -1,11 +1,32 @@
-import {useEffect} from "react";
+import {useEffect,useRef} from "react";
 import {isTauri} from "@tauri-apps/api/core";
 import {getCurrentWindow,type PhysicalPosition,type PhysicalSize} from "@tauri-apps/api/window";
+type Previous={maximized:boolean;position:PhysicalPosition;size:PhysicalSize};
 export function useWindowFullscreen(onError:()=>void){
- useEffect(()=>{if(!isTauri())return;const win=getCurrentWindow();let queue=Promise.resolve();let previous:{maximized:boolean;position:PhysicalPosition;size:PhysicalSize}|null=null;let mounted=true;let operations=0;
- const setFullscreen=async(value:boolean)=>{await win.setFullscreen(value);for(let attempt=0;attempt<40;attempt++){if(await win.isFullscreen()===value)return;await new Promise(resolve=>setTimeout(resolve,50));}throw Error("Fullscreen transition was not acknowledged");};
- const toggle=async()=>{const fullscreen=await win.isFullscreen();if(!fullscreen){previous={maximized:await win.isMaximized(),position:await win.outerPosition(),size:await win.innerSize()};await setFullscreen(true);}else{await setFullscreen(false);if(previous){if(previous.maximized)await win.maximize();else{await win.unmaximize();await win.setSize(previous.size);await win.setPosition(previous.position);}}}document.documentElement.dataset.windowFullscreen=String(await win.isFullscreen());};
- const key=(event:KeyboardEvent)=>{if(event.repeat)return;if(event.key==="F11"){operations++;event.preventDefault();queue=queue.then(()=>mounted?toggle():undefined).catch(onError);}else if(event.key==="Escape"&&!event.defaultPrevented&&!document.querySelector('dialog[open],.settings-modal,.instance-surface,.popover,.detail-page,.runtime-error')){queue=queue.then(async()=>{if(mounted&&await win.isFullscreen())await toggle();}).catch(onError);}};
- document.addEventListener("keydown",key);void win.isFullscreen().then(value=>{if(mounted&&operations===0)document.documentElement.dataset.windowFullscreen=String(value);});return()=>{mounted=false;document.removeEventListener("keydown",key);};
+ const error=useRef(onError);error.current=onError;
+ useEffect(()=>{
+  if(!isTauri())return;
+  const win=getCurrentWindow();let previous:Previous|null=null;let mounted=true;let busy=false;let dispose:(()=>void)|undefined;
+  const root=document.documentElement;
+  const sync=async()=>{const fullscreen=await win.isFullscreen();const maximized=await win.isMaximized();if(mounted){root.dataset.windowFullscreen=String(fullscreen);root.dataset.windowState=fullscreen?"fullscreen":maximized?"maximized":"normal";}};
+  const acknowledged=async(value:boolean)=>{await win.setFullscreen(value);for(let n=0;n<60;n++){if(await win.isFullscreen()===value)return;await new Promise(resolve=>setTimeout(resolve,50));}throw Error("Fullscreen transition was not acknowledged");};
+  const transition=async(exitOnly=false)=>{
+   if(busy||!mounted)return;busy=true;root.dataset.windowTransition="true";
+   try{
+    const fullscreen=await win.isFullscreen();
+    if(exitOnly&&!fullscreen)return;
+    if(!fullscreen){previous={maximized:await win.isMaximized(),position:await win.outerPosition(),size:await win.innerSize()};await acknowledged(true);}
+    else{await acknowledged(false);if(previous){if(previous.maximized)await win.maximize();else{await win.unmaximize();await win.setSize(previous.size);await win.setPosition(previous.position);}}previous=null;}
+    await sync();
+   }catch{await sync().catch(()=>{});error.current();}
+   finally{busy=false;if(mounted)root.dataset.windowTransition="false";}
+  };
+  const key=(event:KeyboardEvent)=>{
+   if(event.key==="F11"){event.preventDefault();if(!event.repeat&&!busy)void transition();}
+   else if(event.key==="Escape"&&!event.defaultPrevented&&!event.repeat&&!document.querySelector('dialog[open],[role="dialog"],.instance-surface,.popover,.detail-page,.runtime-error,[role="menu"]')){void transition(true);}
+  };
+  document.addEventListener("keydown",key);void sync().catch(()=>{});
+  void win.onResized(()=>{if(!busy)void sync().catch(()=>{});}).then(fn=>{if(mounted)dispose=fn;else fn();}).catch(()=>{});
+  return()=>{mounted=false;dispose?.();document.removeEventListener("keydown",key);root.dataset.windowTransition="false";};
  },[]);
 }

@@ -3,12 +3,13 @@ use serde_json::{Value,json};
 use std::{sync::Arc,io::Read};
 pub async fn verify(backend:Arc<Backend>,instance:&Instance,job:Arc<Job>,deep:bool)->Result<()> {
     if instance.provider=="curseforge"{return super::curseforge::verify(backend,instance,job).await;}
-    if instance.provider!="modrinth"{return Ok(());}
+    if !matches!(instance.provider.as_str(),"modrinth"|"mrpack"){return Ok(());}
     let dir=backend.instance_path(&instance.id)?;let receipt=dir.join("provider-files.json");
     if !deep&&receipt.is_file(){let files:Vec<(String,u64)>=serde_json::from_slice(&std::fs::read(&receipt)?)?;
         if files.iter().all(|(p,size)|storage::safe_join(&dir,p).is_ok_and(|p|std::fs::metadata(p).is_ok_and(|m|m.len()==*size))){return Ok(());}}
     job.emit("mods","running",&instance.name);let index=dir.join("modrinth.index.json");
     if !index.is_file(){
+        if instance.provider=="mrpack"{return Err(BackendError::new("mrpack_archive","Local pack manifest is missing. Back up your worlds and import the original MRPACK again."));}
         let version=instance.version_id.as_ref().ok_or_else(||BackendError::new("modpack","Pack version ID missing"))?;
         let mut url=reqwest::Url::parse("https://api.modrinth.com/v2/version/").unwrap();url.path_segments_mut().unwrap().pop_if_empty().push(version);
         let metadata=download::json(&backend,url.as_str()).await?;
@@ -44,10 +45,10 @@ pub async fn verify(backend:Arc<Backend>,instance:&Instance,job:Arc<Job>,deep:bo
 pub async fn updates(backend:Arc<Backend>)->Result<Value> {
     let mut result=vec![];for mut instance in backend.instances()?{
         let Ok(_lease)=backend.lease(&instance.id) else{continue};
-        if instance.status=="unavailable"{continue;}if instance.provider=="curseforge"{if let Some(project)=&instance.project_id{let latest=super::curseforge_content::versions(&backend,project,"modpack",&instance.minecraft,&instance.loader,false).await?.into_iter().next();instance.update_available=latest.as_ref().and_then(|v|v["id"].as_str()).is_some_and(|id|Some(id)!=instance.version_id.as_deref());backend.save_instance(&instance)?;result.push(json!({"id":instance.id,"available":instance.update_available,"latest":latest}));}continue;}if instance.provider!="modrinth"{continue;}
+        if instance.status=="unavailable"{continue;}if instance.provider=="curseforge"{if let Some(project)=&instance.project_id{let latest=match super::curseforge_content::versions(&backend,project,"modpack",&instance.minecraft,&instance.loader,false).await{Ok(versions)=>versions.into_iter().next(),Err(error)=>{result.push(json!({"id":instance.id,"error":error}));continue;}};instance.update_available=latest.as_ref().and_then(|v|v["id"].as_str()).is_some_and(|id|Some(id)!=instance.version_id.as_deref());backend.save_instance(&instance)?;result.push(json!({"id":instance.id,"available":instance.update_available,"latest":latest}));}continue;}if instance.provider!="modrinth"{continue;}
         let Some(project)=&instance.project_id else{continue};let mut url=reqwest::Url::parse("https://api.modrinth.com/v2/project/").unwrap();url.path_segments_mut().unwrap().pop_if_empty().push(project).push("version");
         url.query_pairs_mut().append_pair("game_versions",&json!([instance.minecraft]).to_string()).append_pair("loaders",&json!([instance.loader]).to_string());
-        let versions=download::json(&backend,url.as_str()).await?;let latest=versions.as_array().and_then(|v|v.first());
+        let versions=match download::json(&backend,url.as_str()).await{Ok(versions)=>versions,Err(error)=>{result.push(json!({"id":instance.id,"error":error}));continue;}};let latest=versions.as_array().and_then(|v|v.first());
         instance.update_available=latest.and_then(|v|v["id"].as_str()).is_some_and(|id|Some(id)!=instance.version_id.as_deref());backend.save_instance(&instance)?;result.push(json!({"id":instance.id,"available":instance.update_available,"latest":latest}));
     }Ok(json!(result))
 }

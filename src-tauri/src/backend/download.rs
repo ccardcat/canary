@@ -37,7 +37,7 @@ pub async fn file(backend:&Backend,item:&Artifact,job:&Job,stage:&str)->Result<(
     let partial=item.path.with_extension(format!("{}.part",uuid::Uuid::new_v4()));
     let mut last=BackendError::new("download","Download failed");
     for attempt in 0..3 {
-        job.check()?;let mut received=0;
+        job.check()?;let mut received=0u64;
         let result:Result<()>=async {
             let request=backend.client.get(parsed.clone()).send();tokio::pin!(request);
             let mut response=loop{tokio::select!{result=&mut request=>break result?,_=tokio::time::sleep(std::time::Duration::from_millis(250))=>{job.check()?;}}};
@@ -47,7 +47,7 @@ pub async fn file(backend:&Backend,item:&Artifact,job:&Job,stage:&str)->Result<(
             loop {
                 let chunk=tokio::select!{result=response.chunk()=>result?,_=tokio::time::sleep(std::time::Duration::from_millis(250))=>{job.check()?;continue;}};
                 let Some(chunk)=chunk else{break;};
-                job.check()?;output.write_all(&chunk).await?;received+=chunk.len() as u64;job.network.fetch_add(chunk.len() as u64,Ordering::Relaxed);job.downloaded.fetch_add(chunk.len() as u64,Ordering::Relaxed);
+                job.check()?;if length.is_some_and(|limit|received.saturating_add(chunk.len() as u64)>limit){return Err(BackendError::new("checksum","Download exceeds the declared file size"));}output.write_all(&chunk).await?;received+=chunk.len() as u64;job.network.fetch_add(chunk.len() as u64,Ordering::Relaxed);job.downloaded.fetch_add(chunk.len() as u64,Ordering::Relaxed);
                 if tick.elapsed().as_millis()>120 {job.emit(stage,"running",&item.path.file_name().unwrap_or_default().to_string_lossy());tick=Instant::now();}
             }
             output.sync_all().await?;drop(output);
