@@ -1,0 +1,115 @@
+{
+  "commit": "cffdd669ad23bf3ea2795ec4808b49b347f5db51",
+  "status": "running",
+  "platform": "linux",
+  "run_url": "https://github.com/ccardcat/canary/actions/runs/37375588711",
+  "recent_jobs": [
+    {
+      "run_url": "https://github.com/ccardcat/canary/actions/runs/37374940227",
+      "job": "desktop (ubuntu-22.04, linux, deb)",
+      "status": "in_progress",
+      "conclusion": null,
+      "steps": [
+        {
+          "name": "Set up job",
+          "status": "completed",
+          "conclusion": "success"
+        },
+        {
+          "name": "Run actions/checkout@v4",
+          "status": "in_progress",
+          "conclusion": null
+        },
+        {
+          "name": "Record started verification",
+          "status": "pending",
+          "conclusion": null
+        },
+        {
+          "name": "Run actions/setup-node@v4",
+          "status": "pending",
+          "conclusion": null
+        },
+        {
+          "name": "Run dtolnay/rust-toolchain@stable",
+          "status": "pending",
+          "conclusion": null
+        },
+        {
+          "name": "Run Swatinem/rust-cache@v2",
+          "status": "pending",
+          "conclusion": null
+        },
+        {
+          "name": "Linux dependencies",
+          "status": "pending",
+          "conclusion": null
+        },
+        {
+          "name": "Run set -o pipefail; npm ci 2>&1 | tee npm-ci.log",
+          "status": "pending",
+          "conclusion": null
+        },
+        {
+          "name": "Run set -o pipefail; npm run build 2>&1 | tee frontend-build.log",
+          "status": "pending",
+          "conclusion": null
+        },
+        {
+          "name": "Run set -o pipefail; cargo check --locked --manifest-path src-tauri/Cargo.toml 2>&1 | tee cargo-check.log",
+          "status": "pending",
+          "conclusion": null
+        },
+        {
+          "name": "Run set -o pipefail; cargo test --locked --manifest-path src-tauri/Cargo.toml 2>&1 | tee cargo-test.log",
+          "status": "pending",
+          "conclusion": null
+        },
+        {
+          "name": "Build desktop installers",
+          "status": "pending",
+          "conclusion": null
+        },
+        {
+          "name": "Windows native window and material QA",
+          "status": "pending",
+          "conclusion": null
+        },
+        {
+          "name": "Upload Windows visual QA",
+          "status": "pending",
+          "conclusion": null
+        },
+        {
+          "name": "Run actions/upload-artifact@v4",
+          "status": "pending",
+          "conclusion": null
+        },
+        {
+          "name": "Record verification result",
+          "status": "pending",
+          "conclusion": null
+        },
+        {
+          "name": "Post Run actions/checkout@v4",
+          "status": "pending",
+          "conclusion": null
+        }
+      ]
+    },
+    {
+      "run_url": "https://github.com/ccardcat/canary/actions/runs/37374022716",
+      "job": "desktop (ubuntu-22.04, linux, deb)",
+      "status": "completed",
+      "conclusion": "cancelled",
+      "steps": []
+    },
+    {
+      "run_url": "https://github.com/ccardcat/canary/actions/runs/37373437963",
+      "job": "desktop (ubuntu-22.04, linux, deb)",
+      "status": "completed",
+      "conclusion": "cancelled",
+      "steps": []
+    }
+  ]
+}
