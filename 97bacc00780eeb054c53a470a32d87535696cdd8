@@ -1,26 +1,7 @@
 {
   "tag": "v0.1.0",
   "commit": "97bacc00780eeb054c53a470a32d87535696cdd8",
-  "status": "failed",
-  "build": "cancelled",
-  "publish": "skipped",
-  "run_url": "https://github.com/ccardcat/canary/actions/runs/37336903341",
-  "jobs": [
-    {
-      "name": "record-start",
-      "conclusion": "cancelled",
-      "url": "https://github.com/ccardcat/canary/actions/runs/37336903341/job/111853867594"
-    },
-    {
-      "name": "build (windows-latest, nsis,msi, windows-x64)",
-      "conclusion": "cancelled",
-      "url": "https://github.com/ccardcat/canary/actions/runs/37336903341/job/111853867991"
-    },
-    {
-      "name": "publish",
-      "conclusion": null,
-      "url": "https://github.com/ccardcat/canary/actions/runs/37336903341/job/111854511363"
-    }
-  ],
-  "failure_log": ""
+  "status": "building",
+  "windows_only": true,
+  "run_url": "https://github.com/ccardcat/canary/actions/runs/37338289954"
 }
