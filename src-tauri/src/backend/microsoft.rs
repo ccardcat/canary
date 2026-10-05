@@ -76,7 +76,8 @@ pub async fn begin(backend:Arc<Backend>,app:AppHandle)->Result<serde_json::Value
     let challenge=URL_SAFE_NO_PAD.encode(Sha256::digest(verifier.as_bytes()));let client=client_id();
     let mut url=reqwest::Url::parse("https://login.microsoftonline.com/consumers/oauth2/v2.0/authorize").unwrap();url.query_pairs_mut().extend_pairs([("client_id",client.as_str()),("response_type","code"),("redirect_uri",redirect.as_str()),("scope",SCOPE),("state",state.as_str()),("code_challenge",challenge.as_str()),("code_challenge_method","S256"),("prompt","select_account")]);
     tokio::spawn(async move {
-        let result=async {
+        let auth_job=super::download::Job::new("auth-microsoft",None,lease.cancel.clone());
+        let result=super::download::cancellable(&auth_job,async {
             let code=receive(listener,&state,&lease.cancel).await?;
             if lease.cancel.load(Ordering::Relaxed){return Err(BackendError::new("auth_cancelled","Sign-in cancelled"));}
             let _auth=backend.auth.lock().await;
@@ -89,7 +90,7 @@ pub async fn begin(backend:Arc<Backend>,app:AppHandle)->Result<serde_json::Value
             let account=Account{id:id.clone(),provider:"microsoft".into(),uuid:session.uuid,username:session.name,avatar:None,status:"authenticated".into(),last_used:None,credential_ref:Some(reference)};
             {let mut store=backend.store.lock().unwrap();store.accounts.retain(|a|a.id!=id);store.accounts.push(account);store.settings.active_account=Some(id);}
             backend.persist()?;Ok::<_,BackendError>(())
-        }.await;
+        }).await.map_err(|error|if error.code=="cancelled"{BackendError::new("auth_cancelled","Sign-in cancelled")}else{error});
         // Drop the listener/job before notifying the UI, so a retry can start immediately.
         drop(lease);let _=app.emit("microsoft-auth-result",match result{Ok(())=>serde_json::json!({"status":"success"}),Err(e)=>serde_json::json!({"status":"error","error":e})});let _=app.emit("instances-changed",());
     });

@@ -5,7 +5,7 @@ use tauri_plugin_dialog::DialogExt;
 fn canonical_root(path:&Path)->Result<PathBuf>{
     if !path.is_absolute()||path.parent().is_none(){return Err(BackendError::new("storage_path","Choose a dedicated absolute folder, not a drive root"));}
     for ancestor in path.ancestors(){if std::fs::symlink_metadata(ancestor).is_ok_and(|m|m.file_type().is_symlink()){return Err(BackendError::new("unsafe_path","Storage folders must not be symbolic links"));}}
-    std::fs::create_dir_all(path)?;let root=std::fs::canonicalize(path)?;
+    std::fs::create_dir_all(path)?;let root=dunce::canonicalize(path)?;
     let probe=root.join(format!(".canary-write-test-{}",uuid::Uuid::new_v4()));std::fs::OpenOptions::new().create_new(true).write(true).open(&probe)?;std::fs::remove_file(probe)?;Ok(root)
 }
 fn tree(root:&Path)->Result<Vec<(String,u64)>>{
@@ -18,7 +18,7 @@ struct Maintenance(Arc<Backend>);impl Drop for Maintenance{fn drop(&mut self){se
 pub fn change(b:Arc<Backend>,app:Option<AppHandle>,path:String,migrate:bool)->Result<serde_json::Value>{
     {let jobs=b.jobs.lock().unwrap();if !jobs.is_empty()||!b.processes.lock().unwrap().is_empty()||b.maintenance.swap(true,Ordering::AcqRel){return Err(BackendError::new("busy","Stop Minecraft and finish active operations before changing storage"));}}
     let _guard=Maintenance(b.clone());let root=canonical_root(Path::new(&path))?;
-    for registered in b.instance_roots(){let registered=std::fs::canonicalize(&registered).unwrap_or(registered);if root!=registered&&(root.starts_with(&registered)||registered.starts_with(&root)){return Err(BackendError::new("storage_path","Storage folders must not overlap existing instance storage"));}}
+    for registered in b.instance_roots(){let registered=dunce::canonicalize(&registered).unwrap_or(registered);if root!=registered&&(root.starts_with(&registered)||registered.starts_with(&root)){return Err(BackendError::new("storage_path","Storage folders must not overlap existing instance storage"));}}
     if root==b.instances_root(){return usage(&b);}
     let instances=b.instances()?;if migrate&&instances.iter().any(|i|i.status=="unavailable"){return Err(BackendError::new("storage_unavailable","Reconnect every instance drive before migration"));}
     let mut staged=vec![];let mut sources=vec![];let mut published=vec![];let mut required=0;

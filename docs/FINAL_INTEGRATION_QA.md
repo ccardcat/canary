@@ -40,7 +40,7 @@ F11 вызывает настоящий `setFullscreen`; переходы сер
 
 ## Microsoft
 
-Authorization Code + PKCE S256, системный браузер, consumer Microsoft account, loopback `http://localhost:<port>`, случайный state, ограниченный listener, cancellation/timeout/cleanup. Далее Xbox Live → XSTS → Minecraft token → entitlements → Java profile. Client ID e96175e4-2fd4-43ec-8911-8335f7783ebd; при необходимости override `CANARY_MICROSOFT_CLIENT_ID`. Client Secret не используется. Refresh token хранится только в OS keyring; Minecraft access token не сохраняется в JSON и не возвращается frontend.
+Authorization Code + PKCE S256, системный браузер, consumer Microsoft account, loopback `http://localhost:<port>`, случайный state, ограниченный listener, cancellation/timeout/cleanup. Отмена прерывает также текущие запросы token/Xbox/Minecraft, а не только ожидание callback. Далее Xbox Live → XSTS → Minecraft token → entitlements → Java profile. Client ID e96175e4-2fd4-43ec-8911-8335f7783ebd; при необходимости override `CANARY_MICROSOFT_CLIENT_ID`. Client Secret не используется. Refresh token хранится только в OS keyring; Minecraft access token не сохраняется в JSON и не возвращается frontend.
 
 Launch использует реальное имя, UUID, Minecraft token и `user_type=msa`; Local fallback и Ely.by agent для Microsoft отсутствуют. Реальный TCP listener протестирован на поддельном state, правильном callback, cancellation и закрытии порта; native begin/cancel проверены. Полный вход, entitlement, online gameplay и исчезновение offline warning НЕ проверены без лицензированного аккаунта и разрешённого приложения Microsoft. На Local-запуске в этой среде Java дополнительно не имеет прямого DNS-доступа к Minecraft services; это не доказательство ошибки Microsoft identity.
 
@@ -50,7 +50,7 @@ Launch использует реальное имя, UUID, Minecraft token и `u
 
 ## Stop Game
 
-Windows отправляет WM_CLOSE окнам собственного Java PID; Linux SIGTERM собственному child. Ожидание фактического завершения до 8 секунд. Если игра не закрылась, пользователь видит Wait/Force/Cancel и предупреждение о несохранённом прогрессе. Force выполняется только отдельным подтверждённым действием. Повторный Stop после завершения безопасен; UI Stopping и backend atomic guard препятствуют повторной остановке. Console command `stop` и общий `taskkill java` не используются. Реальная Vanilla Java 21/Minecraft 1.21.1 запускалась и остановилась штатно; первый проход сохранил 122 секунды playtime.
+Windows отправляет WM_CLOSE окнам собственного Java PID; Linux через XCB отправляет WM_DELETE_WINDOW только игровому окну с соответствующим PID и поддержкой WM_PROTOCOLS. Если подходящего окна нет, Canary предлагает ручное закрытие/Force, не посылая SIGTERM. Child mutex удерживается до запроса закрытия, чтобы monitor не позволил повторно использовать OS PID между проверкой и запросом. Ожидание фактического завершения до 8 секунд. Если игра не закрылась, пользователь видит Wait/Force/Cancel и предупреждение о несохранённом прогрессе. Force выполняется только отдельным подтверждённым действием. Повторный Stop после завершения безопасен; UI Stopping и backend atomic guard препятствуют повторной остановке. Console command `stop` и общий `taskkill java` не используются. Реальная Vanilla Java 21/Minecraft 1.21.1 запускалась и остановилась штатно; первый проход сохранил 122 секунды playtime.
 
 ## Modrinth
 
@@ -68,9 +68,9 @@ Provider относится к item/project, updates остаются у исх�
 
 ## Build / Tests
 
-Фактически выполнены `npm run build`, `cargo check --locked --manifest-path src-tauri/Cargo.toml --all-targets --features backend-check`, полный `cargo test --locked --manifest-path src-tauri/Cargo.toml` (46 passed, 5 отдельно обозначенных network tests ignored), `BROWSER_EXECUTABLE_PATH=/usr/bin/chromium npm test` (25 первоначальных проверок прошли; добавлена и отдельно пройдена 26-я проверка CF detail/install), `npm run tauri dev` через helper с GTK/WebKit, реальная подготовка/запуск/Stop/migration Minecraft, отдельно network tests real_content_install и real_pack_update_preserves_additions. Проверка реального Ely.by rejected login завершилась ошибкой network, причина подтверждена curl CONNECT 403. Сетевая проверка real_public_artwork_and_agent тоже остановилась на недоступном Ely.by profile endpoint.
+Фактически выполнены `npm run build`, `cargo check --locked --manifest-path src-tauri/Cargo.toml --all-targets --features backend-check`, полный `cargo test --locked --manifest-path src-tauri/Cargo.toml` (47 passed, 5 отдельно обозначенных network tests ignored), `BROWSER_EXECUTABLE_PATH=/usr/bin/chromium npm test` (27 passed), `npm run tauri dev` через helper с GTK/WebKit, реальная подготовка/запуск/Stop/migration Minecraft, отдельно network tests real_content_install и real_pack_update_preserves_additions. Проверка реального Ely.by rejected login завершилась ошибкой network, причина подтверждена curl CONNECT 403. Сетевая проверка real_public_artwork_and_agent тоже остановилась на недоступном Ely.by profile endpoint.
 
-Добавлен Desktop verification workflow: Windows/Linux check/test, release installers EXE/MSI/DEB, Windows native EXE startup/window smoke check, artifacts и git notes receipts. Результат CI будет записан после фактического выполнения. Локально выполнен `npm run tauri build -- --debug --ci --bundles deb -- --locked`: DEB 114500306 bytes; это debug package, не объявляется release-сборкой.
+Добавлен Desktop verification workflow: Windows/Linux check/test, release installers EXE/MSI/DEB, Windows native EXE startup/window smoke check, artifacts и git notes receipts. Первая Linux CI release-сборка успешна (93e7abe, run 37325198927). Windows cargo check прошёл; тесты выявили различие canonical Windows paths, исправленное нормализацией dunce. Финальный результат CI будет записан после выполнения. Локально выполнен `npm run tauri build -- --debug --ci --bundles deb -- --locked`: DEB 114500306 bytes; это debug package, не объявляется release-сборкой.
 
 ## Remaining blockers
 
@@ -179,3 +179,4 @@ Provider относится к item/project, updates остаются у исх�
 - `src/services/backgrounds.ts`
 - `src/services/providers.ts`
 
+- Новый backend файл `src-tauri/src/backend/client_window.rs` реализует безопасное закрытие окна Linux.

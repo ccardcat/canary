@@ -45,8 +45,8 @@ jobs:
                   jobs = json.loads(subprocess.check_output(['gh', 'api', root + f"/actions/runs/{run['id']}/jobs"], text=True))['jobs']
                   failed = next((j for j in jobs if j['conclusion'] == 'failure' and os.environ['VERIFY_PLATFORM'] in j['name']), None)
                   if failed:
-                      receipt['previous_failure'] = {'run_url': run['html_url'], 'steps': [s['name'] for s in failed['steps'] if s['conclusion'] == 'failure'],
-                                                     'log': subprocess.check_output(['gh', 'api', root + f"/actions/jobs/{failed['id']}/logs"], text=True)[-24000:]}
+                      receipt['previous_failure'] = {'run_url': run['html_url'], 'steps': [s['name'] for s in failed['steps'] if s['conclusion'] == 'failure']}
+                      receipt['previous_failure']['log'] = subprocess.check_output(['gh', 'api', root + f"/actions/jobs/{failed['id']}/logs"], text=True)[-24000:]
                       break
           except (subprocess.CalledProcessError, KeyError) as error:
               receipt['previous_log_unavailable'] = str(error)

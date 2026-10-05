@@ -1,5 +1,6 @@
 pub mod elyby;
 pub mod microsoft;
+#[cfg(target_os="linux")]mod client_window;
 pub mod content;
 pub mod content_provider;
 pub mod pack_update;

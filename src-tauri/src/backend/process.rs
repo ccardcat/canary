@@ -89,22 +89,47 @@ fn request_close(pid:u32)->Result<()> {
     unsafe extern "system" fn close(window:Hwnd,param:isize)->i32 {let mut owner=0;unsafe {GetWindowThreadProcessId(window,&mut owner);if owner==param as u32 {PostMessageW(window,0x0010,0,0);}}1}
     unsafe{EnumWindows(close,pid as isize);}Ok(())
 }
-#[cfg(unix)]
+#[cfg(target_os="linux")]
 fn request_close(pid:u32)->Result<()> {
-    unsafe extern "C" {fn kill(pid:i32,signal:i32)->i32;}
-    let result=unsafe{kill(pid as i32,15)};if result!=0 {let e=std::io::Error::last_os_error();if e.raw_os_error()!=Some(3){return Err(e.into());}}Ok(())
+    if super::client_window::close(pid){Ok(())}else{Err(BackendError::new("stop_pending","Canary could not find a game window that supports normal closing. Save your world and close Minecraft manually, or explicitly choose Force stop."))}
 }
-#[cfg(not(any(unix,windows)))]
+#[cfg(not(any(target_os="linux",windows)))]
 fn request_close(_pid:u32)->Result<()>{Err(BackendError::new("stop_pending","Close Minecraft normally, or explicitly choose Force stop."))}
 pub async fn stop(backend:&Backend,id:&str,force:bool)->Result<()> {
     use std::sync::atomic::Ordering;
     let (pid,child,stopping)={let processes=backend.processes.lock().unwrap();let Some(process)=processes.get(id) else{return Ok(());};(process.pid,process.child.clone(),process.stopping.clone())};
-    if child.lock().await.try_wait()?.is_some(){return Ok(());}
-    if force {stopping.store(true,Ordering::Relaxed);let mut child=child.lock().await;if child.try_wait()?.is_none(){child.kill().await?;}return Ok(());}
-    if !stopping.swap(true,Ordering::AcqRel){if let Err(error)=request_close(pid){stopping.store(false,Ordering::Relaxed);return Err(error);}}
+    {
+        // Hold the child lock through the signal so the monitor cannot reap it
+        // and allow its OS PID to be reused between the check and the request.
+        let mut process=child.lock().await;
+        if process.try_wait()?.is_some(){return Ok(());}
+        if force {stopping.store(true,Ordering::Relaxed);process.kill().await?;return Ok(());}
+        if !stopping.swap(true,Ordering::AcqRel){if let Err(error)=request_close(pid){stopping.store(false,Ordering::Relaxed);return Err(error);}}
+    }
     let deadline=std::time::Instant::now()+std::time::Duration::from_secs(8);
     while std::time::Instant::now()<deadline {if child.lock().await.try_wait()?.is_some(){return Ok(());}tokio::time::sleep(std::time::Duration::from_millis(200)).await;}
     Err(BackendError::new("stop_pending","Minecraft has not closed yet. Save the world and close the game normally. Force stop can lose unsaved progress."))
 }
 
-#[cfg(all(test,unix))]mod tests{use super::*;#[tokio::test]async fn graceful_stop_waits_for_real_exit_and_repeated_stop_is_safe(){let root=std::env::temp_dir().join(format!("canary-stop-{}",uuid::Uuid::new_v4()));let _cleanup=storage::Staging(root.clone());let b=Backend::with_root(root).unwrap();let process=tokio::process::Command::new("/bin/sleep").arg("30").spawn().unwrap();let pid=process.id().unwrap();let child=Arc::new(Mutex::new(process));b.processes.lock().unwrap().insert("test".into(),Running{pid,account:String::new(),child:child.clone(),stopping:Arc::new(std::sync::atomic::AtomicBool::new(false))});stop(&b,"test",false).await.unwrap();assert!(child.lock().await.try_wait().unwrap().is_some());stop(&b,"test",false).await.unwrap();b.processes.lock().unwrap().remove("test");stop(&b,"test",true).await.unwrap();}}
+#[cfg(all(test,unix))]mod tests{use super::*;#[tokio::test]async fn already_exited_child_and_repeated_stop_are_safe(){let root=std::env::temp_dir().join(format!("canary-stop-{}",uuid::Uuid::new_v4()));let _cleanup=storage::Staging(root.clone());let b=Backend::with_root(root).unwrap();let process=tokio::process::Command::new("/bin/true").spawn().unwrap();let pid=process.id().unwrap();let child=Arc::new(Mutex::new(process));child.lock().await.wait().await.unwrap();b.processes.lock().unwrap().insert("test".into(),Running{pid,account:String::new(),child:child.clone(),stopping:Arc::new(std::sync::atomic::AtomicBool::new(false))});stop(&b,"test",false).await.unwrap();assert!(child.lock().await.try_wait().unwrap().is_some());stop(&b,"test",false).await.unwrap();b.processes.lock().unwrap().remove("test");stop(&b,"test",true).await.unwrap();}}
+
+#[cfg(all(test,unix))]
+mod pending_stop_test {
+    use super::*;
+    use tokio::io::AsyncBufReadExt;
+    #[tokio::test]
+    async fn unresponsive_child_survives_normal_stop_until_explicit_force() {
+        let root=std::env::temp_dir().join(format!("canary-stop-pending-{}",uuid::Uuid::new_v4()));
+        let _cleanup=storage::Staging(root.clone());let b=Backend::with_root(root).unwrap();
+        let mut process=tokio::process::Command::new("/bin/sh").args(["-c","trap '' TERM; echo ready; exec /bin/sleep 60"])
+            .stdout(std::process::Stdio::piped()).kill_on_drop(true).spawn().unwrap();
+        let mut output=tokio::io::BufReader::new(process.stdout.take().unwrap());let mut ready=String::new();
+        tokio::time::timeout(std::time::Duration::from_secs(3),output.read_line(&mut ready)).await.unwrap().unwrap();
+        assert_eq!(ready.trim(),"ready");
+        let pid=process.id().unwrap();let child=Arc::new(Mutex::new(process));
+        b.processes.lock().unwrap().insert("test".into(),Running{pid,account:String::new(),child:child.clone(),stopping:Arc::new(std::sync::atomic::AtomicBool::new(false))});
+        let result=stop(&b,"test",false).await.unwrap_err();
+        assert_eq!(result.code,"stop_pending");assert!(child.lock().await.try_wait().unwrap().is_none());
+        stop(&b,"test",true).await.unwrap();assert!(child.lock().await.try_wait().unwrap().is_some());
+    }
+}

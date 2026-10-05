@@ -36,7 +36,7 @@ mockIPC((command,args)=>{
   if(command==='delete_instance'){state.instances=state.instances.filter(i=>i.id!==args.id);return;}
   if(command==='switch_account'){state.settings.active_account=args.id;return;}
   if(command==='launch_instance'){state.instances[0].status='running';return 123;}
-  if(command==='stop_instance'){state.instances[0].status='ready';state.instances[0].playtime=30;return;}
+  if(command==='stop_instance'){if(globalThis.__backendTest.stopPending&&!args.force){state.instances[0].status='stopping';throw {code:'stop_pending',message:'Close the game normally'};}state.instances[0].status='ready';state.instances[0].playtime=30;return;}
   if(command==='prepare_instance')throw {code:'checksum',stage:'libraries',message:'Technical checksum contract details',retryable:true};
   if(command==='detect_java')return [{path:'C:/Java/bin/java.exe',vendor:'Test vendor',version:'21.0.1',major:21,architecture:'amd64',managed:false}];
   if(command==='save_backend_settings'){state.settings=args.settings;return;}
@@ -177,4 +177,24 @@ test("CurseForge detail accepts ZIP pack versions and retains provider during in
   const calls=await page.evaluate(()=>(globalThis as any).__backendTest.calls);
   expect(calls.find((call:any)=>call.command==="install_curseforge_pack")?.args).toEqual({projectId:100,fileId:200});
   expect(calls.some((call:any)=>call.command==="install_modpack")).toBe(false);
+});
+
+
+test("pending Stop waits for an explicit Force choice",async({page})=>{
+  await page.evaluate(()=>{const test=(globalThis as any).__backendTest;test.state.instances[0].status="running";test.stopPending=true;});
+  await page.getByRole("button",{name:"Library",exact:true}).first().click();
+  await page.getByRole("button",{name:"Check updates",exact:true}).click();
+  await page.getByRole("button",{name:"Stop game",exact:true}).click();
+  const dialog=page.getByRole("dialog",{name:"Minecraft is still running"});
+  await expect(dialog).toContainText("unsaved progress");
+  let calls=await page.evaluate(()=>(globalThis as any).__backendTest.calls.filter((c:any)=>c.command==="stop_instance"));
+  expect(calls.map((c:any)=>c.args.force)).toEqual([false]);
+  await dialog.getByRole("button",{name:"Wait",exact:true}).click();
+  await expect(dialog.getByRole("button",{name:"Wait",exact:true})).toBeEnabled();
+  calls=await page.evaluate(()=>(globalThis as any).__backendTest.calls.filter((c:any)=>c.command==="stop_instance"));
+  expect(calls.map((c:any)=>c.args.force)).toEqual([false,false]);
+  await dialog.getByRole("button",{name:"Force stop",exact:true}).click();
+  await expect(dialog).toHaveCount(0);
+  calls=await page.evaluate(()=>(globalThis as any).__backendTest.calls.filter((c:any)=>c.command==="stop_instance"));
+  expect(calls.map((c:any)=>c.args.force)).toEqual([false,false,true]);
 });
