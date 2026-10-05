@@ -1,6 +1,6 @@
 Canary desktop launcher for Windows x64 and Linux x64.
 
-This source adds browser Microsoft PKCE sign-in, shared Modrinth/CurseForge discovery and content management, verified instance-storage migration, native custom backgrounds, compact cursors, the Canary bird desktop icon, real F11 fullscreen, and graceful Minecraft stopping. Existing Ely.by and Local providers and Java/Minecraft preparation are retained.
+Version **0.1.3** adds native Windows Acrylic/Mica/Mica Alt with supported fallbacks, configurable glass materials, titlebar styles, improved snow/sakura/autumn effects, rotating Home artwork, keyboard-accessible glass dropdowns and local `.mrpack` preview/import. F11 restores normal window geometry or maximized state; instance creation closes after success and shows the new Library card. Microsoft authentication and CurseForge failures now identify the failed stage or key/service problem. Existing providers, content management, storage migration, Minecraft/Java preparation and graceful stopping are retained.
 
 ## Downloads
 
@@ -10,7 +10,7 @@ This source adds browser Microsoft PKCE sign-in, shared Modrinth/CurseForge disc
 
 Microsoft requires a licensed Java Edition account and application permission for Minecraft services. CurseForge requires an official `CANARY_CURSEFORGE_API_KEY` in the launcher's environment; restricted publisher downloads remain manual. Local profiles are for single-player/local scenarios.
 
-Validation and remaining account, network and platform checks are documented in [the integration QA report](https://github.com/ccardcat/canary/blob/main/docs/FINAL_INTEGRATION_QA.md). Real Local-profile Minecraft launching, graceful stopping, Unicode-path migration and Modrinth content/pack updates were exercised on Linux. Licensed Microsoft gameplay and live CurseForge installation were not verified without account credentials/API key.
+Validation and remaining account, network and platform checks for this version are documented in [the 0.1.3 QA report](https://github.com/ccardcat/canary/blob/v0.1.3/docs/FOLLOWUP_INTEGRATION_QA.md). Linux uses an opaque native window with a truthful Solid fallback for Windows-only materials. Licensed Microsoft gameplay and live CurseForge installation require account credentials/API key and are not claimed as verified in the cloud environment. Windows CI opens the packaged EXE and checks real window transitions/materials before publishing its installers.
 
 ## Recovering a failed Actions run
 

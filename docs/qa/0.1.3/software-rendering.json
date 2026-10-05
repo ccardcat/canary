@@ -1,0 +1,29 @@
+{
+  "platform": "Linux Xvfb / WebKit software compositing / proot",
+  "high": {
+    "samples": 180,
+    "median_ms": 234,
+    "p95_ms": 304,
+    "max_ms": 428,
+    "over_50ms": 179,
+    "particles": 24,
+    "fullscreen": true
+  },
+  "interpretation": "High glass/particles is slow in this software-rendered headless session. This measurement does not establish Windows GPU performance.",
+  "low_blur_4px": {
+    "samples": 60,
+    "median_ms": 101,
+    "p95_ms": 137,
+    "max_ms": 225,
+    "particles": 6
+  },
+  "low_blur_disabled": {
+    "samples": 60,
+    "median_ms": 152,
+    "p95_ms": 222,
+    "max_ms": 336,
+    "particles": 6,
+    "backdrop_filter": "none"
+  },
+  "limitations": "Headless software renderer; concurrent release compilation changes CPU load. These intervals are not a controlled before/after or a Windows hardware FPS measurement."
+}

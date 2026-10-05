@@ -1,0 +1,21 @@
+{
+  "source": "a894006",
+  "pid": 137703,
+  "world_before": {
+    "bytes": 2254,
+    "sha256": "12ccd596cc60eaa333500cdd224893aa5c1fbccfa1bbebad3532eb76d0f39865",
+    "mtime": 1791213761.2508755
+  },
+  "world_after": {
+    "bytes": 2253,
+    "sha256": "fae8d3d0891fd910c2e9c8e6f5cbae73a7043a2a8d17461cfc06875c8332050f",
+    "mtime": 1791234710.508282
+  },
+  "last_played_ms": 1791234710505,
+  "stop": {
+    "force": false,
+    "elapsed_ms": 6773,
+    "all_dimensions_saved": true
+  },
+  "status": "success"
+}

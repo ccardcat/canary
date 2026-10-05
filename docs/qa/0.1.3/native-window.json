@@ -1,0 +1,114 @@
+{
+  "source": "cffdd669ad23bf3ea2795ec4808b49b347f5db51",
+  "cases": [
+    {
+      "name": "normal-fullscreen-normal",
+      "normal": {
+        "size": {
+          "width": 1080,
+          "height": 680
+        },
+        "position": {
+          "x": 70,
+          "y": 40
+        },
+        "fullscreen": false,
+        "maximized": false,
+        "x11": "_NET_WM_STATE(ATOM) ="
+      },
+      "full": {
+        "size": {
+          "width": 1280,
+          "height": 800
+        },
+        "position": {
+          "x": 0,
+          "y": 0
+        },
+        "fullscreen": true,
+        "maximized": false,
+        "x11": "_NET_WM_STATE(ATOM) = _NET_WM_STATE_FULLSCREEN"
+      },
+      "restored": {
+        "size": {
+          "width": 1080,
+          "height": 680
+        },
+        "position": {
+          "x": 70,
+          "y": 40
+        },
+        "fullscreen": false,
+        "maximized": false,
+        "x11": "_NET_WM_STATE(ATOM) ="
+      }
+    },
+    {
+      "name": "maximized restoration",
+      "max": {
+        "size": {
+          "width": 1280,
+          "height": 800
+        },
+        "position": {
+          "x": 0,
+          "y": 0
+        },
+        "fullscreen": false,
+        "maximized": true,
+        "x11": "_NET_WM_STATE(ATOM) = _NET_WM_STATE_MAXIMIZED_VERT, _NET_WM_STATE_MAXIMIZED_HORZ"
+      }
+    },
+    {
+      "name": "six rapid F11 then Escape",
+      "state": {
+        "size": {
+          "width": 1080,
+          "height": 680
+        },
+        "position": {
+          "x": 70,
+          "y": 40
+        },
+        "fullscreen": false,
+        "maximized": false,
+        "x11": "_NET_WM_STATE(ATOM) ="
+      }
+    },
+    {
+      "name": "theme",
+      "theme": "Light",
+      "root": "rgb(245, 246, 245)"
+    },
+    {
+      "name": "theme",
+      "theme": "Dark",
+      "root": "rgb(8, 10, 11)"
+    },
+    {
+      "name": "theme",
+      "theme": "AMOLED",
+      "root": "rgb(0, 0, 0)"
+    },
+    {
+      "name": "Escape consumes modal before fullscreen"
+    },
+    {
+      "name": "Linux truthful solid fallback",
+      "cap": {
+        "platform": "linux",
+        "build": 0,
+        "supported": [
+          "solid"
+        ]
+      },
+      "fallback": {
+        "requested": "mica",
+        "actual": "solid",
+        "fallback": true,
+        "reason": "unsupported-platform-version"
+      }
+    }
+  ],
+  "status": "success"
+}

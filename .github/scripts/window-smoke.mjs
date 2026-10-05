@@ -71,6 +71,17 @@ try{
  await click(textButton('.settings-nav button','Window'));await choose('Window controls style','Traffic Lights');await choose('Control position','Left');await screenshot('left-traffic-controls');
  await choose('Titlebar branding','Text');assert.equal(await evaluate(`document.querySelectorAll('.window-brand img').length`),0);await screenshot('centered-text-brand');
  await click(`[...document.querySelectorAll('button[role="combobox"]')].find(b=>b.getAttribute('aria-label')==='Titlebar branding')`);await screenshot('glass-dropdown');await key('Escape',27);assert.equal(await evaluate(`!!document.querySelector('.settings-modal')`),true);
+ // Sample the real compositor with desktop material, glass, ambient motion and
+ // Hero enabled. Record runner timings, without inventing a hardware FPS result.
+ report.performance=[];
+ for(const quality of ['high','low']){
+  await evaluate(`(()=>{const old=JSON.parse(localStorage.getItem('canary-visual')||'{}');localStorage.setItem('canary-visual',JSON.stringify({...old,quality:${JSON.stringify(quality)},backgroundSource:'desktop',material:${JSON.stringify(report.capabilities.supported.includes('acrylic')?'acrylic':'solid')},ambient:'autumn',effectPreset:'high',density:24,heroRotation:true,heroSpeed:9,glassIntensity:55,surfaceOpacity:82,surfaceBlur:24}));localStorage.setItem('canary-mode','dark');})()`);await call('Page.reload');
+  await until(()=>evaluate(`!!document.querySelector('.home-hero')&&document.documentElement.dataset.quality===${JSON.stringify(quality)}&&document.documentElement.dataset.windowTransition==='false'`),'performance UI');
+  await win('set_focus');await key('F11',122);await until(()=>win('is_fullscreen'),'performance fullscreen');await finished();await delay(500);
+  const timing=await evaluate(`new Promise(resolve=>{const samples=[];const start=performance.now();let last=start,complete=false;function finish(){if(complete)return;complete=true;const sorted=[...samples].sort((a,b)=>a-b);resolve({quality:${JSON.stringify(quality)},durationMs:performance.now()-start,frames:samples.length,medianMs:sorted[Math.floor(sorted.length*.5)]??null,p95Ms:sorted[Math.floor(sorted.length*.95)]??null,over50ms:samples.filter(n=>n>50).length,particles:document.querySelectorAll('.ambient-particles i').length,sidebarBlur:getComputedStyle(document.querySelector('.sidebar')).backdropFilter,material:document.documentElement.dataset.windowMaterial,fullscreen:document.documentElement.dataset.windowFullscreen});}function frame(now){if(complete)return;samples.push(now-last);last=now;if(now-start>=4000)finish();else requestAnimationFrame(frame);}setTimeout(finish,6000);requestAnimationFrame(frame);})`);
+  assert.ok(timing.frames>0,'Real WebView2 must paint frames');if(quality==='low'){assert.ok(timing.particles<=6);assert.equal(timing.sidebarBlur,'none');}report.performance.push(timing);await screenshot(`performance-${quality}-fullscreen`);
+  await key('Escape',27);await until(async()=>!await win('is_fullscreen'),'performance restore');await finished();
+ }
  report.status='success';console.log('WINDOWS_NATIVE_FULLSCREEN_GEOMETRY_MATERIAL_THEMES_DROPDOWNS_VERIFIED');
 }catch(error){report.status='failure';report.error=String(error);throw error;}
 finally{await writeFile(resolve(folder,'result.json'),JSON.stringify(report,null,2));socket?.close();app.kill();}
