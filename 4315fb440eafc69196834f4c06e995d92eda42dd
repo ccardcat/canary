@@ -1,6 +1,6 @@
 {
   "commit": "4315fb440eafc69196834f4c06e995d92eda42dd",
-  "status": "running",
+  "status": "success",
   "platform": "linux",
   "run_url": "https://github.com/ccardcat/canary/actions/runs/37334954917"
 }
