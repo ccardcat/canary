@@ -1,31 +1,7 @@
 {
   "tag": "v0.1.1",
   "commit": "7a8a884d91954d8503bb8447c5a72641c53d8fa7",
-  "status": "failed",
-  "build": "failure",
-  "publish": "skipped",
-  "run_url": "https://github.com/ccardcat/canary/actions/runs/37343599960",
-  "jobs": [
-    {
-      "name": "record-start",
-      "conclusion": "success",
-      "url": "https://github.com/ccardcat/canary/actions/runs/37343599960/job/111876529599"
-    },
-    {
-      "name": "build (ubuntu-22.04, deb,appimage, linux-x64)",
-      "conclusion": "failure",
-      "url": "https://github.com/ccardcat/canary/actions/runs/37343599960/job/111876529756"
-    },
-    {
-      "name": "build (windows-latest, nsis,msi, windows-x64)",
-      "conclusion": "failure",
-      "url": "https://github.com/ccardcat/canary/actions/runs/37343599960/job/111876529775"
-    },
-    {
-      "name": "publish",
-      "conclusion": null,
-      "url": "https://github.com/ccardcat/canary/actions/runs/37343599960/job/111877310998"
-    }
-  ],
-  "failure_log": "Command '['gh', 'api', 'repos/ccardcat/canary/actions/jobs/111876529756/logs']' returned non-zero exit status 1."
+  "status": "building",
+  "windows_only": true,
+  "run_url": "https://github.com/ccardcat/canary/actions/runs/37344206697"
 }
