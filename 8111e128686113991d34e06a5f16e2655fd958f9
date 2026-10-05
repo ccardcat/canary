@@ -1,221 +1,24 @@
 {
   "commit": "8111e128686113991d34e06a5f16e2655fd958f9",
-  "status": "running",
+  "status": "failure",
   "platform": "windows",
   "run_url": "https://github.com/ccardcat/canary/actions/runs/37376325840",
-  "recent_jobs": [
-    {
-      "run_url": "https://github.com/ccardcat/canary/actions/runs/37375588711",
-      "job": "desktop (windows-latest, windows, nsis,msi)",
-      "status": "in_progress",
-      "conclusion": null,
-      "steps": [
-        {
-          "name": "Set up job",
-          "status": "completed",
-          "conclusion": "success"
-        },
-        {
-          "name": "Run actions/checkout@v4",
-          "status": "completed",
-          "conclusion": "success"
-        },
-        {
-          "name": "Record started verification",
-          "status": "completed",
-          "conclusion": "success"
-        },
-        {
-          "name": "Run actions/setup-node@v4",
-          "status": "completed",
-          "conclusion": "success"
-        },
-        {
-          "name": "Run dtolnay/rust-toolchain@stable",
-          "status": "completed",
-          "conclusion": "success"
-        },
-        {
-          "name": "Run Swatinem/rust-cache@v2",
-          "status": "completed",
-          "conclusion": "success"
-        },
-        {
-          "name": "Linux dependencies",
-          "status": "completed",
-          "conclusion": "skipped"
-        },
-        {
-          "name": "Run set -o pipefail; npm ci 2>&1 | tee npm-ci.log",
-          "status": "completed",
-          "conclusion": "success"
-        },
-        {
-          "name": "Run set -o pipefail; npm run build 2>&1 | tee frontend-build.log",
-          "status": "completed",
-          "conclusion": "success"
-        },
-        {
-          "name": "Run set -o pipefail; cargo check --locked --manifest-path src-tauri/Cargo.toml 2>&1 | tee cargo-check.log",
-          "status": "completed",
-          "conclusion": "success"
-        },
-        {
-          "name": "Run set -o pipefail; cargo test --locked --manifest-path src-tauri/Cargo.toml 2>&1 | tee cargo-test.log",
-          "status": "completed",
-          "conclusion": "success"
-        },
-        {
-          "name": "Build desktop installers",
-          "status": "in_progress",
-          "conclusion": null
-        },
-        {
-          "name": "Windows native window and material QA",
-          "status": "pending",
-          "conclusion": null
-        },
-        {
-          "name": "Upload Windows visual QA",
-          "status": "pending",
-          "conclusion": null
-        },
-        {
-          "name": "Run actions/upload-artifact@v4",
-          "status": "pending",
-          "conclusion": null
-        },
-        {
-          "name": "Record verification result",
-          "status": "pending",
-          "conclusion": null
-        },
-        {
-          "name": "Post Run Swatinem/rust-cache@v2",
-          "status": "pending",
-          "conclusion": null
-        },
-        {
-          "name": "Post Run actions/setup-node@v4",
-          "status": "pending",
-          "conclusion": null
-        },
-        {
-          "name": "Post Run actions/checkout@v4",
-          "status": "pending",
-          "conclusion": null
-        }
-      ]
-    },
-    {
-      "run_url": "https://github.com/ccardcat/canary/actions/runs/37374940227",
-      "job": "desktop (windows-latest, windows, nsis,msi)",
-      "status": "in_progress",
-      "conclusion": null,
-      "steps": [
-        {
-          "name": "Set up job",
-          "status": "completed",
-          "conclusion": "success"
-        },
-        {
-          "name": "Run actions/checkout@v4",
-          "status": "completed",
-          "conclusion": "success"
-        },
-        {
-          "name": "Record started verification",
-          "status": "completed",
-          "conclusion": "success"
-        },
-        {
-          "name": "Run actions/setup-node@v4",
-          "status": "completed",
-          "conclusion": "success"
-        },
-        {
-          "name": "Run dtolnay/rust-toolchain@stable",
-          "status": "completed",
-          "conclusion": "success"
-        },
-        {
-          "name": "Run Swatinem/rust-cache@v2",
-          "status": "completed",
-          "conclusion": "success"
-        },
-        {
-          "name": "Linux dependencies",
-          "status": "completed",
-          "conclusion": "skipped"
-        },
-        {
-          "name": "Run set -o pipefail; npm ci 2>&1 | tee npm-ci.log",
-          "status": "completed",
-          "conclusion": "success"
-        },
-        {
-          "name": "Run set -o pipefail; npm run build 2>&1 | tee frontend-build.log",
-          "status": "completed",
-          "conclusion": "success"
-        },
-        {
-          "name": "Run set -o pipefail; cargo check --locked --manifest-path src-tauri/Cargo.toml 2>&1 | tee cargo-check.log",
-          "status": "completed",
-          "conclusion": "success"
-        },
-        {
-          "name": "Run set -o pipefail; cargo test --locked --manifest-path src-tauri/Cargo.toml 2>&1 | tee cargo-test.log",
-          "status": "completed",
-          "conclusion": "success"
-        },
-        {
-          "name": "Build desktop installers",
-          "status": "in_progress",
-          "conclusion": null
-        },
-        {
-          "name": "Windows native window and material QA",
-          "status": "pending",
-          "conclusion": null
-        },
-        {
-          "name": "Upload Windows visual QA",
-          "status": "pending",
-          "conclusion": null
-        },
-        {
-          "name": "Run actions/upload-artifact@v4",
-          "status": "pending",
-          "conclusion": null
-        },
-        {
-          "name": "Record verification result",
-          "status": "pending",
-          "conclusion": null
-        },
-        {
-          "name": "Post Run Swatinem/rust-cache@v2",
-          "status": "pending",
-          "conclusion": null
-        },
-        {
-          "name": "Post Run actions/setup-node@v4",
-          "status": "pending",
-          "conclusion": null
-        },
-        {
-          "name": "Post Run actions/checkout@v4",
-          "status": "pending",
-          "conclusion": null
-        }
-      ]
-    },
-    {
-      "run_url": "https://github.com/ccardcat/canary/actions/runs/37374022716",
-      "job": "desktop (windows-latest, windows, nsis,msi)",
-      "status": "completed",
-      "conclusion": "cancelled",
-      "steps": []
-    }
-  ]
+  "step_logs": {
+    "npm-ci.log": "\nadded 139 packages, and audited 140 packages in 15s\n\n95 packages are looking for funding\n  run `npm fund` for details\n\nfound 0 vulnerabilities\n",
+    "frontend-build.log": "\n> canary@0.1.3 build\n> tsc && vite build\n\n\u001b[36mvite v8.3.2 \u001b[32mbuilding client environment for production...\u001b[36m\u001b[39m\ntransforming...\n\u00e2\u0153\u201c 2604 modules transformed.\nrendering chunks...\ncomputing gzip size...\ndist/index.html                     0.49 kB \u00e2\u201d\u201a gzip:   0.31 kB\ndist/assets/index-WTHwOB1G.css     87.70 kB \u00e2\u201d\u201a gzip:  16.84 kB\ndist/assets/Markdown-CXww1h-j.js  184.12 kB \u00e2\u201d\u201a gzip:  57.36 kB\ndist/assets/index-Dx6wgeno.js     573.70 kB \u00e2\u201d\u201a gzip: 175.59 kB\n\n\u001b[33m[plugin builtin:vite-reporter] \n(!) Some chunks are larger than 500 kB after minification. Consider:\n- Using dynamic import() to code-split the application\n- Use build.rolldownOptions.output.codeSplitting to improve chunking: https://rolldown.rs/reference/OutputOptions.codeSplitting\n- Adjust chunk size limit for this warning via build.chunkSizeWarningLimit.\u001b[39m\n\u001b[32m\u00e2\u0153\u201c built in 1.24s\u001b[39m\n",
+    "cargo-check.log": "\u001b[1m\u001b[92m    Updating\u001b[0m crates.io index\n\u001b[1m\u001b[92m   Compiling\u001b[0m scaffold v0.1.3 (D:\\a\\canary\\canary\\src-tauri)\n\u001b[1m\u001b[92m    Finished\u001b[0m `dev` profile [unoptimized + debuginfo] target(s) in 39.94s\n",
+    "cargo-test.log": "\u001b[1m\u001b[92m   Compiling\u001b[0m scaffold v0.1.3 (D:\\a\\canary\\canary\\src-tauri)\n\u001b[1m\u001b[92m    Finished\u001b[0m `test` profile [unoptimized + debuginfo] target(s) in 1m 06s\n\u001b[1m\u001b[92m     Running\u001b[0m unittests src\\lib.rs (src-tauri\\target\\debug\\deps\\scaffold_lib-8d9bfdc695852aab.exe)\n\nrunning 61 tests\ntest backend::accounts::selection_tests::last_used_default_respects_explicit_account_and_instance_override ... ok\ntest backend::accounts::tests::provider_identity_is_explicit ... ok\ntest backend::accounts::tests::local_accounts_restore_and_switch_independently ... ok\ntest backend::content_tests::archive_types_and_loader_safety ... ok\ntest backend::content_tests::cancelled_local_import_never_applies_files ... ok\ntest backend::commands::provider_cancel_test::cancelled_provider_request_drops_future_and_releases_job ... ok\ntest backend::content_tests::datapack_requires_world_and_preserves_save ... ok\ntest backend::content_tests::failed_apply_restores_all_original_files ... ok\ntest backend::content_tests::curseforge_pack_update_preserves_provenance_user_files_and_rollback ... ok\ntest backend::content_tests::local_datapack_can_be_added_to_different_worlds ... ok\ntest backend::content_tests::manually_replaced_pack_file_keeps_local_provenance ... ok\ntest backend::content_tests::local_import_toggle_duplicate_and_rollback ... ok\ntest backend::content_tests::pack_update_blocks_conflicting_user_file_without_changing_it ... ok\ntest backend::content_tests::partial_update_rolls_back_a_replaced_same_filename ... ok\ntest backend::content_tests::provider_version_must_match_game_and_loader ... ok\ntest backend::content_tests::real_content_install ... ignored, Downloads real compatible Modrinth content into a disposable instance\ntest backend::content_tests::real_pack_update_preserves_additions ... ignored, Downloads two real Modrinth pack versions and checks safe update/rollback in a disposable instance\ntest backend::content_tests::repair_respects_pack_disable_receipt ... ok\ntest backend::content_tests::pack_update_preserves_user_content_configuration_worlds_and_rolls_back ... ok\ntest backend::content_tests::rollback_preserves_new_external_manual_files ... ok\ntest backend::content_tests::rollback_never_overwrites_unknown_files ... ok\ntest backend::content_tests::switching_provider_cannot_duplicate_a_mod_or_overwrite_its_file ... ok\ntest backend::content_tests::same_size_external_changes_are_detected ... ok\ntest backend::curseforge::tests::credential_authorization_and_rate_limit_are_distinct ... ok\ntest backend::curseforge::tests::refuses_restricted_downloads ... ok\ntest backend::curseforge_content::tests::normalized_file_keeps_restriction_and_provider ... ok\ntest backend::elyby::integration_tests::real_public_artwork_and_agent ... ignored, Downloads a public Ely.by example skin and the official hashed authlib-injector; no account login\ntest backend::elyby::integration_tests::real_rejected_login ... ignored, One official Ely.by request with a generated nonexistent test login\ntest backend::download::tests::streaming_hash ... ok\ntest backend::elyby::tests::profile_validation ... ok\ntest backend::java::tests::java_versions ... ok\ntest backend::loaders::tests::installer_sources ... ok\ntest backend::elyby::integration_tests::secure_session_never_enters_metadata ... ok\ntest backend::microsoft::listener_tests::cancellation_drops_listener ... ok\ntest backend::microsoft::tests::callback_requires_matching_state_and_unique_code ... ok\ntest backend::microsoft::tests::pkce_verifier_is_valid ... ok\ntest backend::microsoft::tests::service_failures_preserve_stage_and_do_not_misdiagnose_ownership ... ok\ntest backend::minecraft::tests::loader_merges ... ok\ntest backend::minecraft::tests::rules_and_placeholders ... ok\ntest backend::mrpack_import::tests::changed_archive_rolls_back_without_publishing_an_instance ... ok\ntest backend::microsoft::listener_tests::listener_rejects_forgery_then_accepts_real_state ... ok\ntest backend::mrpack_import::tests::real_local_archive_import ... ignored, Imports a real official MRPACK into a disposable local instance\ntest backend::mrpack_import::tests::rejects_missing_index_unsafe_overrides_and_incompatible_loaders ... ok\ntest backend::storage::tests::legacy_migration_preserves_identity_and_worlds ... ok\ntest backend::storage::tests::traversal ... ok\ntest backend::mrpack_import::tests::import_commits_verified_metadata_and_preserves_existing_worlds ... ok\ntest backend::storage_settings::failure_tests::conflicting_destination_keeps_original_world_and_settings ... ok\ntest backend::storage_settings::cache_tests::cache_cleanup_preserves_worlds_java_and_accounts_and_obeys_operations ... ok\ntest backend::storage_settings::tests::new_only_preserves_previous_instances ... ok\ntest backend::storage_settings::failure_tests::disconnected_drive_retains_catalog_and_blocks_launch_path ... ok\ntest backend::system::tests::rejects_invalid_allocations ... ok\ntest backend::storage_settings::tests::verified_migration_preserves_world_and_identity ... ok\ntest installer::tests::checksum_failure_preserves_expected_actual_and_stage ... ok\ntest installer::tests::override_directories_and_client_precedence ... ok\ntest installer::tests::override_failure_preserves_stage_path_and_os_cause ... ok\ntest installer::tests::reads_real_modrinth_field_names_and_optional_environment ... ok\ntest installer::tests::real_modrinth_install ... ignored, Downloads a real Modrinth pack; run explicitly when network is available\ntest installer::tests::rejects_cross_platform_traversal ... ok\ntest window_material::tests::fullscreen_fallback_is_reversible ... ok\ntest window_material::tests::native_modes_are_gated_by_the_real_windows_build ... ok\ntest backend::wallpapers::tests::imported_image_is_managed_deduplicated_persistent_and_removable ... ok\n\ntest result: ok. 55 passed; 0 failed; 6 ignored; 0 measured; 0 filtered out; finished in 14.02s\n\n\u001b[1m\u001b[92m     Running\u001b[0m unittests src\\main.rs (src-tauri\\target\\debug\\deps\\scaffold-07a96e46077eacdd.exe)\n\nrunning 0 tests\n\ntest result: ok. 0 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s\n\n\u001b[1m\u001b[92m   Doc-tests\u001b[0m scaffold_lib\n\nrunning 0 tests\n\ntest result: ok. 0 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s\n\n",
+    "desktop-build.log": "\n> canary@0.1.3 tauri\n> tauri build --ci --bundles nsis,msi -- --locked\n\n        Info Looking up installed tauri packages to check mismatched versions...\n        Warn The bundle identifier \"com.canary.app\" set in `\"tauri.conf.json\" identifier` ends with `.app`. This is not recommended because it conflicts with the application bundle extension on macOS.\n     Running beforeBuildCommand `npm run build`\n\n> canary@0.1.3 build\n> tsc && vite build\n\n\u001b[36mvite v8.3.2 \u001b[32mbuilding client environment for production...\u001b[36m\u001b[39m\ntransforming...\n\u00e2\u0153\u201c 2604 modules transformed.\nrendering chunks...\ncomputing gzip size...\ndist/index.html                     0.49 kB \u00e2\u201d\u201a gzip:   0.31 kB\ndist/assets/index-WTHwOB1G.css     87.70 kB \u00e2\u201d\u201a gzip:  16.84 kB\ndist/assets/Markdown-CXww1h-j.js  184.12 kB \u00e2\u201d\u201a gzip:  57.36 kB\ndist/assets/index-Dx6wgeno.js     573.70 kB \u00e2\u201d\u201a gzip: 175.59 kB\n\n\u001b[33m[plugin builtin:vite-reporter] \n(!) Some chunks are larger than 500 kB after minification. Consider:\n- Using dynamic import() to code-split the application\n- Use build.rolldownOptions.output.codeSplitting to improve chunking: https://rolldown.rs/reference/OutputOptions.codeSplitting\n- Adjust chunk size limit for this warning via build.chunkSizeWarningLimit.\u001b[39m\n\u001b[32m\u00e2\u0153\u201c built in 1.33s\u001b[39m\n\u001b[1m\u001b[92m   Compiling\u001b[0m scaffold v0.1.3 (D:\\a\\canary\\canary\\src-tauri)\n\u001b[1m\u001b[92m    Finished\u001b[0m `release` profile [optimized] target(s) in 6m 37s\n       Built application at: D:\\a\\canary\\canary\\src-tauri\\target\\release\\scaffold.exe\n        Info Patching D:\\a\\canary\\canary\\src-tauri\\target\\release\\scaffold.exe with bundle type information: nsis\n        Info Verifying NSIS package\n Downloading https://github.com/tauri-apps/binary-releases/releases/download/nsis-3.11/nsis-3.11.zip\n        Info validating hash\n        Info extracting NSIS\n Downloading https://github.com/tauri-apps/nsis-tauri-utils/releases/download/nsis_tauri_utils-v0.5.3/nsis_tauri_utils.dll\n        Info validating hash\n        Info Target: x64\n     Running makensis to produce D:\\a\\canary\\canary\\src-tauri\\target\\release\\bundle\\nsis\\Canary_0.1.3_x64-setup.exe\n        Info Patching D:\\a\\canary\\canary\\src-tauri\\target\\release\\scaffold.exe with bundle type information: msi\n        Info Verifying wix package\n Downloading https://github.com/wixtoolset/wix3/releases/download/wix3141rtm/wix314-binaries.zip\n        Info validating hash\n        Info extracting WIX\n        Info Target: x64\n     Running candle for \"D:\\\\a\\\\canary\\\\canary\\\\src-tauri\\\\target\\\\release\\\\wix\\\\x64\\\\main.wxs\"\n     Running light to produce D:\\a\\canary\\canary\\src-tauri\\target\\release\\bundle\\msi\\Canary_0.1.3_x64_en-US.msi\n    Finished 2 bundles at:\n        D:\\a\\canary\\canary\\src-tauri\\target\\release\\bundle\\nsis\\Canary_0.1.3_x64-setup.exe (19.67 MiB)\n        D:\\a\\canary\\canary\\src-tauri\\target\\release\\bundle\\msi\\Canary_0.1.3_x64_en-US.msi (21.00 MiB)\n\n",
+    "windows-window-smoke.log": "node:internal/modules/run_main:107\n    triggerUncaughtException(\n    ^\n\n[TypeError: fetch failed] {\n  [cause]: Error: connect ECONNREFUSED 127.0.0.1:9384\n      at TCPConnectWrap.afterConnect [as oncomplete] (node:net:2021:16) {\n    errno: -4078,\n    code: 'ECONNREFUSED',\n    syscall: 'connect',\n    address: '127.0.0.1',\n    port: 9384\n  }\n}\n\nNode.js v24.21.0\n"
+  },
+  "failed_steps": [],
+  "failure_log": "",
+  "window_qa": {
+    "platform": "win32",
+    "cases": [],
+    "captures": [],
+    "thumbnails": [],
+    "status": "failure",
+    "error": "TypeError: fetch failed"
+  }
 }
