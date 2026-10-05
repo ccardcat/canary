@@ -1,26 +1,7 @@
 {
-  "tag": "0.1.1",
+  "tag": "v0.1.1",
   "commit": "7a8a884d91954d8503bb8447c5a72641c53d8fa7",
-  "status": "failed",
-  "build": "failure",
-  "publish": "skipped",
-  "run_url": "https://github.com/ccardcat/canary/actions/runs/37340076657",
-  "jobs": [
-    {
-      "name": "build (windows-latest, nsis,msi, windows-x64)",
-      "conclusion": "failure",
-      "url": "https://github.com/ccardcat/canary/actions/runs/37340076657/job/111864645987"
-    },
-    {
-      "name": "record-start",
-      "conclusion": "success",
-      "url": "https://github.com/ccardcat/canary/actions/runs/37340076657/job/111864646098"
-    },
-    {
-      "name": "publish",
-      "conclusion": null,
-      "url": "https://github.com/ccardcat/canary/actions/runs/37340076657/job/111865693829"
-    }
-  ],
-  "failure_log": "Command '['gh', 'api', 'repos/ccardcat/canary/actions/jobs/111864645987/logs']' returned non-zero exit status 1."
+  "status": "building",
+  "windows_only": false,
+  "run_url": "https://github.com/ccardcat/canary/actions/runs/37343599960"
 }
