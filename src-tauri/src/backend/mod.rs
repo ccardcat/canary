@@ -32,6 +32,7 @@ pub struct Backend {
     pub private_api_client:reqwest::Client,
     pub store: Mutex<model::Store>,
     pub jobs: Mutex<HashMap<String, Arc<AtomicBool>>>,
+    pub provider_requests: Mutex<HashMap<String, Arc<AtomicBool>>>,
     pub processes: Mutex<HashMap<String, process::Running>>,
 }
 pub struct JobLease {pub backend:Arc<Backend>,pub id:String,pub cancel:Arc<AtomicBool>}
@@ -44,7 +45,7 @@ impl Backend {
     pub fn with_root(root:std::path::PathBuf)->Result<Self>{
         for folder in ["instances", "cache", "logs", "java", "temp"] { std::fs::create_dir_all(root.join(folder))?; }
         let store = storage::load(&root)?;
-        Ok(Self { root,wallpaper_lock:Mutex::new(()),maintenance:AtomicBool::new(false),auth:tokio::sync::Mutex::new(()), store: Mutex::new(store), jobs: Mutex::new(HashMap::new()), processes: Mutex::new(HashMap::new()),
+        Ok(Self { root,wallpaper_lock:Mutex::new(()),maintenance:AtomicBool::new(false),auth:tokio::sync::Mutex::new(()), store: Mutex::new(store), jobs: Mutex::new(HashMap::new()), provider_requests:Mutex::new(HashMap::new()), processes: Mutex::new(HashMap::new()),
             private_api_client:reqwest::Client::builder().user_agent("Canary/0.1.0").redirect(reqwest::redirect::Policy::none()).timeout(std::time::Duration::from_secs(30)).build()?,
             client: reqwest::Client::builder().user_agent("Canary/0.1.0 (https://github.com/ccardcat/canary)")
                 .connect_timeout(std::time::Duration::from_secs(20)).timeout(std::time::Duration::from_secs(300)).build()? })

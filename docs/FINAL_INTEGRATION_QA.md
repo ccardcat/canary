@@ -50,7 +50,7 @@ Launch использует реальное имя, UUID, Minecraft token и `u
 
 ## Stop Game
 
-Windows отправляет WM_CLOSE окнам собственного Java PID; Linux через XCB отправляет WM_DELETE_WINDOW только игровому окну с соответствующим PID и поддержкой WM_PROTOCOLS. Если подходящего окна нет, Canary предлагает ручное закрытие/Force, не посылая SIGTERM. Child mutex удерживается до запроса закрытия, чтобы monitor не позволил повторно использовать OS PID между проверкой и запросом. Ожидание фактического завершения до 8 секунд. Если игра не закрылась, пользователь видит Wait/Force/Cancel и предупреждение о несохранённом прогрессе. Force выполняется только отдельным подтверждённым действием. Повторный Stop после завершения безопасен; UI Stopping и backend atomic guard препятствуют повторной остановке. Console command `stop` и общий `taskkill java` не используются. Реальная Vanilla Java 21/Minecraft 1.21.1 запускалась и остановилась штатно; первый проход сохранил 122 секунды playtime.
+Windows отправляет WM_CLOSE окнам собственного Java PID; Linux через XCB отправляет WM_DELETE_WINDOW только игровому окну с соответствующим PID и поддержкой WM_PROTOCOLS. Если подходящего окна нет, Canary предлагает ручное закрытие/Force, не посылая SIGTERM. Child mutex удерживается до запроса закрытия, чтобы monitor не позволил повторно использовать OS PID между проверкой и запросом. Ожидание фактического завершения до 8 секунд. Если игра не закрылась, пользователь видит Wait/Force/Cancel и предупреждение о несохранённом прогрессе. Force выполняется только отдельным подтверждённым действием. Повторный Stop после завершения безопасен; UI Stopping и backend atomic guard препятствуют повторной остановке. Console command `stop` и общий `taskkill java` не используются. Реальная Vanilla Java 21/Minecraft 1.21.1 запускалась и остановилась штатно; подтверждено сохранение playtime. На финальном проходе создан настоящий мир, затем повторно открыт; Stop через XCB завершил игру за четыре секунды. Лог содержит Saving players, Saving worlds и All dimensions are saved; level.dat/playerdata читаются как gzip NBT. Force не использовался.
 
 ## Modrinth
 
@@ -58,7 +58,7 @@ Windows отправляет WM_CLOSE окнам собственного Java P
 
 ## CurseForge
 
-Официальный API adapter, backend-only `CANARY_CURSEFORGE_API_KEY`, без ключа во frontend/Java children/JSON. Один Discover и Content UI с Modrinth: shared ProjectCard/detail/versions/review/progress/errors. Поддержаны mods/modpacks/resourcepacks/shaders/datapacks, game/loader filtering, стабильные версии, обязательные dependencies, optional review, конфликтующие зависимости, provenance, updates и pack repair/update/rollback. Server projects не выдаются как поддержанные. Проверен UI contract Discover → CF detail → ZIP version → install_curseforge_pack с сохранением provider и очисткой HTML; этот тест не считается сетевой установкой. Ограниченные файлы требуют официального manual download; CDN URL не угадывается.
+Официальный API adapter, backend-only `CANARY_CURSEFORGE_API_KEY`, без ключа во frontend/Java children/JSON. Один Discover и Content UI с Modrinth: shared ProjectCard/detail/versions/review/progress/errors. Поддержаны mods/modpacks/resourcepacks/shaders/datapacks, game/loader filtering, стабильные версии, обязательные dependencies, optional review, конфликтующие зависимости, provenance, updates и pack repair/update/rollback. Server projects не выдаются как поддержанные. Проверен UI contract Discover → CF detail → ZIP version → install_curseforge_pack с сохранением provider и очисткой HTML. Отмена и смена поиска/проекта прерывают нативные CF-запросы; отдельный реестр read-only запросов не блокирует миграцию/закрытие launcher. Проверены освобождение request lease и игнорирование устаревших ответов; этот тест не считается сетевой установкой. Ограниченные файлы требуют официального manual download; CDN URL не угадывается.
 
 Без настоящего API key сетевая установка CurseForge НЕ проверена. Реальные filesystem tests проверяют CF provenance, staged pack update/rollback, сохранение миров и блокировку cross-provider duplicate. Совместимость search metadata CF обозначается possible до проверки выбранного file; неполный latest-file список не выдаётся за достоверную несовместимость.
 
@@ -68,9 +68,9 @@ Provider относится к item/project, updates остаются у исх�
 
 ## Build / Tests
 
-Фактически выполнены `npm run build`, `cargo check --locked --manifest-path src-tauri/Cargo.toml --all-targets --features backend-check`, полный `cargo test --locked --manifest-path src-tauri/Cargo.toml` (47 passed, 5 отдельно обозначенных network tests ignored), `BROWSER_EXECUTABLE_PATH=/usr/bin/chromium npm test` (27 passed), `npm run tauri dev` через helper с GTK/WebKit, реальная подготовка/запуск/Stop/migration Minecraft, отдельно network tests real_content_install и real_pack_update_preserves_additions. Проверка реального Ely.by rejected login завершилась ошибкой network, причина подтверждена curl CONNECT 403. Сетевая проверка real_public_artwork_and_agent тоже остановилась на недоступном Ely.by profile endpoint.
+Фактически выполнены `npm run build`, `cargo check --locked --manifest-path src-tauri/Cargo.toml --all-targets --features backend-check`, полный `cargo test --locked --manifest-path src-tauri/Cargo.toml` (48 passed, 5 отдельно обозначенных network tests ignored), `BROWSER_EXECUTABLE_PATH=/usr/bin/chromium npm test` (28 passed), `npm run tauri dev` через helper с GTK/WebKit, реальная подготовка/запуск/Stop/migration Minecraft, отдельно network tests real_content_install и real_pack_update_preserves_additions. Проверка реального Ely.by rejected login завершилась ошибкой network, причина подтверждена curl CONNECT 403. Сетевая проверка real_public_artwork_and_agent тоже остановилась на недоступном Ely.by profile endpoint.
 
-Добавлен Desktop verification workflow: Windows/Linux check/test, release installers EXE/MSI/DEB, Windows native EXE startup/window smoke check, artifacts и git notes receipts. Первая Linux CI release-сборка успешна (93e7abe, run 37325198927). Windows cargo check прошёл; тесты выявили различие canonical Windows paths, исправленное нормализацией dunce. Финальный результат CI будет записан после выполнения. Локально выполнен `npm run tauri build -- --debug --ci --bundles deb -- --locked`: DEB 114500306 bytes; это debug package, не объявляется release-сборкой.
+Добавлен Desktop verification workflow: Windows/Linux check/test, release installers EXE/MSI/DEB, Windows native EXE startup/window smoke check, artifacts и git notes receipts. Первая Linux CI release-сборка успешна (93e7abe, run 37325198927). Windows cargo check прошёл; тесты выявили различие canonical Windows paths, исправленное нормализацией dunce. Финальный результат CI будет записан после выполнения. Локально выполнен `npm run tauri build -- --ci --bundles deb -- --locked`: получен release DEB около 22 MB. Финальные размеры и результат Windows CI будут записаны после выполнения. Windows-тест сравнивает путь нового экземпляра с каноническим выбранным каталогом: Windows canonicalization меняет представление временного пути, поэтому сравнение с ненормализованным temp_dir некорректно.
 
 ## Remaining blockers
 
@@ -168,6 +168,7 @@ Provider относится к item/project, updates остаются у исх�
 - `public/cursors/compact/working-static.cur`
 - `scripts/prepare-desktop-assets.py`
 - `src-tauri/icons/64x64.png`
+- `src-tauri/src/backend/client_window.rs`
 - `src-tauri/src/backend/curseforge_content.rs`
 - `src-tauri/src/backend/microsoft.rs`
 - `src-tauri/src/backend/storage_settings.rs`
@@ -178,5 +179,3 @@ Provider относится к item/project, updates остаются у исх�
 - `src/components/WindowFullscreen.ts`
 - `src/services/backgrounds.ts`
 - `src/services/providers.ts`
-
-- Новый backend файл `src-tauri/src/backend/client_window.rs` реализует безопасное закрытие окна Linux.

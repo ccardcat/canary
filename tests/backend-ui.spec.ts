@@ -16,7 +16,7 @@ mockIPC((command,args)=>{
   globalThis.__backendTest.calls.push({command,args});
   if(command==='backend_snapshot')return structuredClone(state);
   if(command==='list_wallpapers')return [];
-  if(command==='catalog_search')return {hits:[{provider:'curseforge',project_id:'100',title:'CurseForge contract pack',description:'Provider contract',author:'Author',downloads:123,versions:['1.21.1'],categories:['fabric'],project_type:'modpack'}],total_hits:1};
+  if(command==='catalog_search'){const data={hits:[{provider:'curseforge',project_id:'100',title:globalThis.__backendTest.slowSearch&&args.query?args.query+' CF pack':'CurseForge contract pack',description:'Provider contract',author:'Author',downloads:123,versions:['1.21.1'],categories:['fabric'],project_type:'modpack'}],total_hits:1};return globalThis.__backendTest.slowSearch&&args.query?new Promise(resolve=>setTimeout(()=>resolve(data),600)):data;}
   if(command==='catalog_versions')return [{provider:'curseforge',id:'200',project_id:'100',name:'Pack 2',version_number:'2',version_type:'release',game_versions:['1.21.1'],loaders:['fabric'],date_published:'2026-10-01',files:[{filename:'pack.zip',url:'https://example.invalid/pack.zip',size:1,hashes:{sha1:'contract'}}]}];
   if(command==='content_project'&&args.provider==='curseforge')return {provider:'curseforge',id:'100',slug:'contract-pack',title:'CurseForge contract pack',description:'Provider contract',body:'<p>Safe CF description</p><script>window.cfUnsafe=true</script>',body_format:'html',project_type:'modpack',downloads:123,followers:0,game_versions:['1.21.1'],categories:['fabric'],updated:'2026-10-01',gallery:[]};
   if(command==='install_curseforge_pack'){const instance={...state.instances[0],id:'curseforge-100-200',provider:'curseforge',project_id:'100',version_id:'200',name:'CurseForge contract pack',directory:'C:/Canary/instances/curseforge-100-200'};state.instances.push(instance);return instance;}
@@ -197,4 +197,21 @@ test("pending Stop waits for an explicit Force choice",async({page})=>{
   await expect(dialog).toHaveCount(0);
   calls=await page.evaluate(()=>(globalThis as any).__backendTest.calls.filter((c:any)=>c.command==="stop_instance"));
   expect(calls.map((c:any)=>c.args.force)).toEqual([false,false,true]);
+});
+
+
+test("changing CurseForge search cancels the native request and discards stale results",async({page})=>{
+  await page.evaluate(()=>(globalThis as any).__backendTest.slowSearch=true);
+  await page.getByRole("button",{name:"Discover",exact:true}).first().click();
+  await page.getByRole("combobox",{name:"Provider",exact:true}).selectOption("curseforge");
+  const search=page.getByRole("textbox",{name:"Search projects",exact:true});
+  await search.fill("first");
+  await expect.poll(()=>page.evaluate(()=>(globalThis as any).__backendTest.calls.some((c:any)=>c.command==="catalog_search"&&c.args.query==="first"))).toBe(true);
+  await search.fill("second");
+  await expect(page.locator(".card-title")).toContainText("second CF pack");
+  const calls=await page.evaluate(()=>(globalThis as any).__backendTest.calls);
+  const first=calls.find((c:any)=>c.command==="catalog_search"&&c.args.query==="first");
+  expect(first.args.requestId).toMatch(/^provider-/);
+  expect(calls.some((c:any)=>c.command==="cancel_operation"&&c.args.id===first.args.requestId)).toBe(true);
+  await expect(page.locator(".card-title")).not.toContainText("first CF pack");
 });

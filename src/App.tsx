@@ -542,7 +542,7 @@ function App() {
           <AnimatePresence mode="wait" initial={false}>
             <motion.div
               className="page-transition"
-              key={detail ? `project-${detail.id}` : page}
+              key={detail ? `project-${detail.provider || "modrinth"}-${detail.id}` : page}
               initial={{ opacity: 0, y: 8 }}
               animate={{ opacity: 1, y: 0 }}
               exit={{ opacity: 0, y: -6 }}
@@ -759,7 +759,7 @@ function HomePage({
       {lib.length ? (
         <div className="home-row">
           {lib.slice(0, 3).map((p) => (
-            <MiniCard key={p.project_id} p={p} t={t} onOpen={onOpen} />
+            <MiniCard key={p.native_instance_id || `${p.provider || "modrinth"}:${p.project_id}`} p={p} t={t} onOpen={onOpen} />
           ))}
         </div>
       ) : (
@@ -791,7 +791,7 @@ function HomePage({
         <div className="home-community">
           {projects.map((p) => (
             <ProjectCard
-              key={p.project_id}
+              key={p.native_instance_id || `${p.provider || "modrinth"}:${p.project_id}`}
               p={p}
               t={t}
               type="modpack"
@@ -1010,7 +1010,7 @@ function DiscoverPage({
               <div className="project-grid">
                 {projects.map((p) => (
                   <ProjectCard
-                    key={p.project_id}
+                    key={p.native_instance_id || `${p.provider || "modrinth"}:${p.project_id}`}
                     p={p}
                     t={t}
                     type={type}
@@ -1226,7 +1226,7 @@ function LibraryPage({
         <div className="project-grid library-grid">
           {shown.map((p) => (
             <ProjectCard
-              key={p.project_id}
+              key={p.native_instance_id || `${p.provider || "modrinth"}:${p.project_id}`}
               p={p}
               t={t}
               type="modpack"

@@ -95,7 +95,7 @@ pub async fn launch_instance(backend:State<'_,B>,app:AppHandle,id:String)->Resul
 pub async fn stop_instance(backend:State<'_,B>,id:String,force:bool)->Result<()>{process::stop(&backend,&id,force).await}
 #[tauri::command]
 pub fn cancel_operation(backend:State<'_,B>,id:String)->Result<()>{
-    let jobs=backend.jobs.lock().unwrap();let job=jobs.get(&id).ok_or_else(||BackendError::new("operation","Operation not found"))?;job.store(true,Ordering::Relaxed);Ok(())
+    let job=backend.jobs.lock().unwrap().get(&id).cloned().or_else(||backend.provider_requests.lock().unwrap().get(&id).cloned()).ok_or_else(||BackendError::new("operation","Operation not found"))?;job.store(true,Ordering::Relaxed);Ok(())
 }
 #[tauri::command]
 pub fn update_instance(backend:State<'_,B>,instance:Instance)->Result<Instance>{
@@ -139,12 +139,37 @@ pub async fn restore_accounts(backend:State<'_,B>)->Result<()>{{super::elyby::re
 pub async fn content_inventory(backend:State<'_,B>,id:String)->Result<super::content::State>{let b=backend.inner().clone();tokio::task::spawn_blocking(move||{if b.jobs.lock().unwrap().contains_key(&id)||b.processes.lock().unwrap().contains_key(&id){return super::content::load(&b.instance_path(&id)?);}let _lease=b.lease(&id)?;super::content::scan(&b,&id)}).await.map_err(|e|BackendError::new("content_scan",e.to_string()))?}
 #[tauri::command]
 pub fn content_worlds(backend:State<'_,B>,id:String)->Result<Vec<serde_json::Value>>{super::content::worlds(&backend.instance_path(&id)?)}
+async fn provider_request<T>(backend:&B,id:Option<String>,future:impl std::future::Future<Output=Result<T>>)->Result<T>{
+    let Some(id)=id else{return future.await;};
+    if id.strip_prefix("provider-").and_then(|value|uuid::Uuid::parse_str(value).ok()).is_none(){return Err(BackendError::new("provider_request","Invalid provider request ID"));}
+    struct RequestLease{backend:B,id:String}
+    impl Drop for RequestLease{fn drop(&mut self){self.backend.provider_requests.lock().unwrap().remove(&self.id);}}
+    // Read-only catalog requests must not block launcher closing or storage migration.
+    let cancel=Arc::new(std::sync::atomic::AtomicBool::new(false));
+    {let mut requests=backend.provider_requests.lock().unwrap();if requests.contains_key(&id){return Err(BackendError::new("busy","Provider request already active"));}requests.insert(id.clone(),cancel.clone());}
+    let _lease=RequestLease{backend:backend.clone(),id:id.clone()};let job=Job::new(&id,None,cancel);
+    super::download::cancellable(&job,future).await
+}
+#[cfg(test)]mod provider_cancel_test{
+    use super::*;
+    #[tokio::test]async fn cancelled_provider_request_drops_future_and_releases_job(){
+        let root=std::env::temp_dir().join(format!("canary-provider-cancel-{}",uuid::Uuid::new_v4()));
+        let _cleanup=storage::Staging(root.clone());let b=Arc::new(Backend::with_root(root).unwrap());
+        let id=format!("provider-{}",uuid::Uuid::new_v4());let task_backend=b.clone();let task_id=id.clone();
+        let task=tokio::spawn(async move{provider_request(&task_backend,Some(task_id),std::future::pending::<Result<serde_json::Value>>()).await});
+        for _ in 0..50{if b.provider_requests.lock().unwrap().contains_key(&id){break;}tokio::time::sleep(std::time::Duration::from_millis(10)).await;}
+        assert!(b.jobs.lock().unwrap().is_empty());
+        b.provider_requests.lock().unwrap().get(&id).unwrap().store(true,std::sync::atomic::Ordering::Relaxed);
+        let result=tokio::time::timeout(std::time::Duration::from_secs(2),task).await.unwrap().unwrap().unwrap_err();
+        assert_eq!(result.code,"cancelled");assert!(!b.provider_requests.lock().unwrap().contains_key(&id));
+    }
+}
 #[tauri::command]
-pub async fn content_search(backend:State<'_,B>,id:String,kind:String,query:String,sort:String,offset:u32,strict:bool,provider:Option<String>)->Result<serde_json::Value>{let i=backend.instance(&id)?;match provider.as_deref().unwrap_or("modrinth"){"modrinth"=>super::content_provider::search(&backend,&i,&kind,&query,&sort,offset,strict).await,"curseforge"=>super::curseforge_content::search(&backend,&kind,&query,&sort,offset,20,if strict{&i.minecraft}else{""},if strict{&i.loader}else{""}).await,_=>Err(BackendError::new("provider","Unknown provider"))}}
+pub async fn content_search(backend:State<'_,B>,id:String,kind:String,query:String,sort:String,offset:u32,strict:bool,provider:Option<String>,request_id:Option<String>)->Result<serde_json::Value>{provider_request(&backend,request_id,async{let i=backend.instance(&id)?;match provider.as_deref().unwrap_or("modrinth"){"modrinth"=>super::content_provider::search(&backend,&i,&kind,&query,&sort,offset,strict).await,"curseforge"=>super::curseforge_content::search(&backend,&kind,&query,&sort,offset,20,if strict{&i.minecraft}else{""},if strict{&i.loader}else{""}).await,_=>Err(BackendError::new("provider","Unknown provider"))}}).await}
 #[tauri::command]
-pub async fn content_project(backend:State<'_,B>,project:String,provider:Option<String>)->Result<serde_json::Value>{if provider.as_deref()==Some("curseforge"){super::curseforge_content::detail(&backend,&project).await}else{super::content_provider::detail(&backend,&project).await}}
+pub async fn content_project(backend:State<'_,B>,project:String,provider:Option<String>,request_id:Option<String>)->Result<serde_json::Value>{provider_request(&backend,request_id,async{if provider.as_deref()==Some("curseforge"){super::curseforge_content::detail(&backend,&project).await}else{super::content_provider::detail(&backend,&project).await}}).await}
 #[tauri::command]
-pub async fn content_versions(backend:State<'_,B>,id:String,project:String,kind:String,beta:bool,provider:Option<String>)->Result<Vec<serde_json::Value>>{super::content_provider::provider_versions(&backend,provider.as_deref().unwrap_or("modrinth"),&backend.instance(&id)?,&project,&kind,beta).await}
+pub async fn content_versions(backend:State<'_,B>,id:String,project:String,kind:String,beta:bool,provider:Option<String>,request_id:Option<String>)->Result<Vec<serde_json::Value>>{provider_request(&backend,request_id,async{super::content_provider::provider_versions(&backend,provider.as_deref().unwrap_or("modrinth"),&backend.instance(&id)?,&project,&kind,beta).await}).await}
 #[tauri::command]
 pub async fn content_preview(backend:State<'_,B>,id:String,project:String,version:Option<String>,kind:String,world:Option<String>,beta:bool,provider:Option<String>)->Result<super::content_provider::Plan>{let _lease=backend.inner().lease(&id)?;super::content_provider::identify(&backend,&id).await?;super::content_provider::provider_preview(&backend,provider.as_deref().unwrap_or("modrinth"),&backend.instance(&id)?,&project,version.as_deref(),&kind,world,beta).await}
 #[tauri::command]
@@ -190,8 +215,8 @@ pub async fn begin_microsoft_login(app:AppHandle,backend:State<'_,B>)->Result<se
 #[tauri::command]pub async fn change_storage(backend:State<'_,B>,app:AppHandle,path:String,migrate:bool)->Result<serde_json::Value>{let b=backend.inner().clone();tokio::task::spawn_blocking(move||super::storage_settings::change(b,Some(app),path,migrate)).await.map_err(|_|BackendError::new("storage","Storage migration failed"))?}
 #[tauri::command]pub fn open_storage_folder(backend:State<'_,B>,app:AppHandle)->Result<()>{use tauri_plugin_opener::OpenerExt;app.opener().open_path(backend.instances_root().to_string_lossy(),None::<&str>).map_err(|_|BackendError::new("open_folder","Cannot open storage folder"))}
 
-#[tauri::command]pub async fn catalog_search(backend:State<'_,B>,kind:String,query:String,sort:String,offset:u32,limit:u32,game:String,loader:String)->Result<serde_json::Value>{super::curseforge_content::search(&backend,&kind,&query,&sort,offset,limit,&game,&loader).await}
-#[tauri::command]pub async fn catalog_versions(backend:State<'_,B>,project:String,kind:String)->Result<Vec<serde_json::Value>>{super::curseforge_content::versions(&backend,&project,&kind,"","",true).await}
+#[tauri::command]pub async fn catalog_search(backend:State<'_,B>,kind:String,query:String,sort:String,offset:u32,limit:u32,game:String,loader:String,request_id:Option<String>)->Result<serde_json::Value>{provider_request(&backend,request_id,async{super::curseforge_content::search(&backend,&kind,&query,&sort,offset,limit,&game,&loader).await}).await}
+#[tauri::command]pub async fn catalog_versions(backend:State<'_,B>,project:String,kind:String,request_id:Option<String>)->Result<Vec<serde_json::Value>>{provider_request(&backend,request_id,async{super::curseforge_content::versions(&backend,&project,&kind,"","",true).await}).await}
 
 #[tauri::command]pub fn reset_backend_settings(backend:State<'_,B>)->Result<()>{let old=backend.settings();backend.store.lock().unwrap().settings=Settings{instances_path:old.instances_path,active_account:old.active_account,..Settings::default()};backend.persist()}
 #[tauri::command]pub async fn cleanup_logs(backend:State<'_,B>)->Result<u32>{let b=backend.inner().clone();tokio::task::spawn_blocking(move||{let days=b.settings().log_retention_days;if days==0{return Ok(0);}let cutoff=now().saturating_sub(days as u64*86400);let mut removed=0;for instance in b.instances()?{if instance.status=="unavailable"||b.processes.lock().unwrap().contains_key(&instance.id){continue;}let root=b.instance_path(&instance.id)?;if let Ok(entries)=std::fs::read_dir(root.join("logs")){for entry in entries.flatten(){let name=entry.file_name().to_string_lossy().into_owned();if entry.file_type()?.is_file()&&name.starts_with("canary-")&&name.ends_with(".log")&&entry.metadata()?.modified()?.duration_since(std::time::UNIX_EPOCH).unwrap_or_default().as_secs()<cutoff{std::fs::remove_file(storage::safe_join(&root,&format!("logs/{name}"))?)?;removed+=1;}}}}Ok(removed)}).await.map_err(|_|BackendError::new("logs","Log cleanup failed"))?}
