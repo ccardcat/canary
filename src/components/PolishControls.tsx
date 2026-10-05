@@ -11,7 +11,7 @@ export type PolishPreferences = typeof polishDefaults;
 type Props = { russian: boolean; value: PolishPreferences & { intensity: number; blur: number; sidebarBlur: number }; update: (patch: Partial<Props["value"]>) => void };
 export function QualityControls({ russian, value, update }: Props) {
   const text = polishMessages[russian ? "ru" : "en"];
-  return <section className="visual-preferences"><h3>{text.quality}</h3><div className="font-options">{["low", "balanced", "high"].map(quality => <button key={quality} className={value.quality === quality ? "selected" : ""} aria-pressed={value.quality === quality} onClick={() => update({ quality })}>{text[quality as "low"]}</button>)}</div></section>;
+  return <section className="visual-preferences"><h3>{text.quality}</h3><div className="font-options">{["low", "balanced", "high"].map(quality => <button key={quality} className={value.quality === quality ? "selected" : ""} aria-pressed={value.quality === quality} onClick={() => update({ quality })}>{text[quality as "low"]}</button>)}</div><p className="settings-note">{russian?"Низкое качество отключает размытие UI и frost, ограничивая эффекты шестью частицами.":"Low quality disables UI blur and frost, and limits effects to six particles."}</p></section>;
 }
 export function PolishControls({ russian, value, update }: Props) {
   const text = polishMessages[russian ? "ru" : "en"];

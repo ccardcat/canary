@@ -79,7 +79,7 @@ export function VisualAppearanceProvider({ children }: { children: ReactNode }) 
     root.dataset.focus = String(value.focus); root.dataset.quality = value.quality;
     root.dataset.backgroundSource=value.backgroundSource;root.dataset.frost=String(value.frost);
     root.style.setProperty("--surface-opacity",`${value.focus?97:value.surfaceOpacity}%`);
-    root.style.setProperty("--material-blur",`${value.focus||value.quality==="low"?Math.min(value.surfaceBlur,4):value.surfaceBlur}px`);
+    root.style.setProperty("--material-blur",`${value.quality==="low"?0:value.focus?Math.min(value.surfaceBlur,4):value.surfaceBlur}px`);
     root.style.setProperty("--glass-strength",String(value.glassIntensity/100));
     const tint=value.tint==="strong"?12:value.tint==="neutral"?-8:0;
     root.style.setProperty("--window-veil-opacity",`${Math.min(100,Math.max(0,100-value.windowTransparency+tint))}%`);

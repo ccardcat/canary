@@ -156,8 +156,7 @@ test("light dialogs remain readable and low quality limits surface blur",async({
  const alpha=async(selector:string)=>page.locator(selector).evaluate(e=>{const canvas=document.createElement("canvas");canvas.width=canvas.height=1;const context=canvas.getContext("2d")!;context.fillStyle=getComputedStyle(e).backgroundColor;context.fillRect(0,0,1,1);return context.getImageData(0,0,1,1).data[3]/255;});
  expect(await alpha(".settings-modal")).toBeGreaterThanOrEqual(.94);
  await expect(page.locator("html")).toHaveAttribute("data-quality","low");
- const blur=await page.locator(".settings-modal").evaluate(e=>Number(getComputedStyle(e).backdropFilter.match(/blur\(([\d.]+)px\)/)?.[1]));
- expect(blur).toBeGreaterThanOrEqual(0);expect(blur).toBeLessThanOrEqual(6);
+ await expect(page.locator(".settings-modal")).toHaveCSS("backdrop-filter","none");
  await page.getByRole("combobox",{name:"Background source",exact:true}).click();
  expect(await alpha("dialog.glass-select-popup[open]")).toBeGreaterThanOrEqual(.96);
  await page.keyboard.press("Escape");await expect(page.locator(".settings-modal")).toBeVisible();
