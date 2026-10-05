@@ -155,7 +155,8 @@ jobs:
           PY
           (cd "$CANARY_RELEASE_ASSETS" && sha256sum * > SHA256SUMS)
           gh release create "$RELEASE_TAG" "$CANARY_RELEASE_ASSETS"/* --draft --verify-tag --title "Canary $RELEASE_TAG" --notes-file release-notes.md
-          gh release edit "$RELEASE_TAG" --draft=false --latest
+          gh release edit "$RELEASE_TAG" --draft=false
+          gh release edit "$RELEASE_TAG" --latest
       - name: Record publication result
         if: always()
         env:
