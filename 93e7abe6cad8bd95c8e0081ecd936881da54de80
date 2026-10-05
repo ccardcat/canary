@@ -1,0 +1,7 @@
+{
+  "commit": "93e7abe6cad8bd95c8e0081ecd936881da54de80",
+  "status": "failure",
+  "platform": "windows",
+  "run_url": "https://github.com/ccardcat/canary/actions/runs/37325198927",
+  "log_unavailable": "Command '['gh', 'api', 'repos/ccardcat/canary/actions/runs/37325198927/jobs']' returned non-zero exit status 1."
+}
