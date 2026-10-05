@@ -228,4 +228,6 @@ test("storage cleanup requires confirmation and RAM warning leaves account defau
  expect(await page.evaluate(()=> (globalThis as any).__backendTest.calls.filter((c:any)=>c.command==="clear_download_cache").length)).toBe(1);
  const max=page.locator("label").filter({hasText:"Maximum RAM"}).getByRole("spinbutton");await max.fill("7000");await expect(page.getByText("You are allocating most of your RAM.",{exact:false})).toBeVisible();
  await page.getByLabel("Default account",{exact:true}).selectOption("");await expect(page.getByLabel("Default account",{exact:true})).toHaveValue("");
+ await page.evaluate(()=>{const state=(globalThis as any).__backendTest.state;state.accounts=[{id:"older",provider:"local",username:"OlderQA",last_used:100,status:"local"},{id:"recent",provider:"local",username:"RecentQA",last_used:200,status:"local"}];});
+ await page.getByRole("button",{name:"Save",exact:true}).click();await expect(page.locator(".account-button")).toContainText("RecentQA");
 });

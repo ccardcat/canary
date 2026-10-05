@@ -1,11 +1,16 @@
 import { createContext, useCallback, useContext, useEffect, useRef, useState, type ReactNode } from "react";
 import { invoke, isTauri } from "@tauri-apps/api/core";
 import { listen } from "@tauri-apps/api/event";
-export interface Account { id:string; provider:string; uuid:string; username:string; status:string; avatar?:string; }
+export interface Account { id:string; provider:string; uuid:string; username:string; status:string; avatar?:string; last_used?:number; }
 export interface RuntimeInstance { internal?:boolean; id:string; name:string; provider:string; project_id?:string; version_id?:string; version_name:string; minecraft:string; loader:string; loader_version?:string; directory:string; icon?:string; installed:number; last_played?:number; playtime:number; favorite:boolean; update_available?:boolean; status:string; error?:{code:string;message:string}; overrides: {java?:string;min_memory?:number;max_memory?:number;jvm_args?:string[];game_args?:string[];width?:number;height?:number;fullscreen?:boolean;account?:string}; }
 export interface RuntimeSettings {instances_path?:string;backup_before_changes:boolean;backup_retention:number;log_retention_days:number;update_checks:boolean;automatic_java:boolean;java_path?:string;min_memory:number;max_memory:number;jvm_args:string[];game_args:string[];width:number;height:number;fullscreen:boolean;concurrency:number;snapshots:boolean;active_account?:string}
 export interface BackendProgress {id:string;stage:string;status:string;file:string;completed:number;total:number;downloaded:number;bytes_total:number;percent:number;speed:number}
 export interface Snapshot {instances:RuntimeInstance[];accounts:Account[];settings:RuntimeSettings;activity:{id?:string;timestamp:number;instance?:string;kind:string;message:string}[];data_folder:string;physical_memory_mb?:number;providers:Record<string,{configured:boolean;requirement?:string}>}
+export function defaultAccount(snapshot:Snapshot|null):Account|undefined {
+ if(!snapshot)return undefined;const id=snapshot.settings.active_account;
+ if(id)return snapshot.accounts.find(account=>account.id===id);
+ return snapshot.accounts.reduce<Account|undefined>((latest,account)=>!latest||(account.last_used??0)>=(latest.last_used??0)?account:latest,undefined);
+}
 export interface Java {path:string;version:string;major:number;vendor:string;architecture:string;managed:boolean}
 interface ContextValue {snapshot:Snapshot|null;progress:BackendProgress|null;error:unknown;clearError:()=>void;refresh:()=>Promise<void>;run:<T>(command:string,args?:Record<string,unknown>)=>Promise<T>;logs:string[]}
 const Context=createContext<ContextValue>({snapshot:null,progress:null,error:null,clearError:()=>{},refresh:async()=>{},run:async()=>{throw Error("Desktop application required")},logs:[]});

@@ -1,7 +1,7 @@
 import { useEffect, useState } from "react";
 import { isTauri, convertFileSrc } from "@tauri-apps/api/core";
 import { Play, Square, FolderOpen, Heart, Package, Plus, RefreshCw, Check, X } from "lucide-react";
-import { useBackend, type Java, type RuntimeInstance, type RuntimeSettings } from "../services/backend";
+import { useBackend,defaultAccount, type Java, type RuntimeInstance, type RuntimeSettings } from "../services/backend";
 import { backendMessages } from "../locales/backend";
 import RemoteImage from "./RemoteImage";
 import AccountAvatar from "./AccountAvatar";
@@ -20,7 +20,7 @@ const ignore=(promise:Promise<unknown>)=>void promise.catch(()=>{});
 export function AccountsPanel({russian}:{russian:boolean}) {
   const text=useText(russian);const {snapshot,run}=useBackend();const [username,setUsername]=useState("");const [remove,setRemove]=useState("");const [edit,setEdit]=useState("");const [ely,setEly]=useState(false);const [microsoft,setMicrosoft]=useState(false);const ct=contentMessages[russian?"ru":"en"];
   return <div className="runtime-panel accounts-panel">
-    {snapshot?.accounts.map(account=><div className="runtime-account" key={account.id}><button className="popover-action" onClick={()=>ignore(run("switch_account",{id:account.id}))}><AccountAvatar key={account.avatar} username={account.username} skin={account.avatar}/><span><b>{account.username}</b><small>{account.provider==="local"?text.local:account.provider==="elyby"?"Ely.by":account.provider} · {account.provider==="local"?text.local:account.status==="authenticated"?ct.authenticated:account.status==="unavailable"?ct.authUnavailable:ct.relogin}</small></span>{snapshot.settings.active_account===account.id&&<Check size={16}/>}</button>
+    {snapshot?.accounts.map(account=><div className="runtime-account" key={account.id}><button className="popover-action" onClick={()=>ignore(run("switch_account",{id:account.id}))}><AccountAvatar key={account.avatar} username={account.username} skin={account.avatar}/><span><b>{account.username}</b><small>{account.provider==="local"?text.local:account.provider==="elyby"?"Ely.by":account.provider} · {account.provider==="local"?text.local:account.status==="authenticated"?ct.authenticated:account.status==="unavailable"?ct.authUnavailable:ct.relogin}</small></span>{defaultAccount(snapshot)?.id===account.id&&<Check size={16}/>}</button>
       {account.provider==="elyby"&&<small className="selectable content-path">{account.uuid}</small>}
       {account.provider==="local"&&(edit===account.id?<form onSubmit={e=>{e.preventDefault();ignore(run("rename_local_account",{id:account.id,username}).then(()=>{setEdit("");setUsername("");}));}}><input aria-label={text.username} value={username} onChange={e=>setUsername(e.target.value)}/><button className="quiet-button">{text.save}</button></form>:<button className="quiet-button" onClick={()=>{setEdit(account.id);setUsername(account.username);}}>{text.rename}</button>)}
       <button className="quiet-button" onClick={()=>remove===account.id?ignore(run("remove_account",{id:account.id}).then(()=>setRemove(""))):setRemove(account.id)}>{remove===account.id?text.confirm:account.provider==="elyby"?ct.logout:text.remove}</button>{remove===account.id&&<button className="quiet-button" onClick={()=>setRemove("")}>{text.cancel}</button>}</div>)}

@@ -52,7 +52,7 @@ import {
 import "./App.css";
 
 import TitleBar from "./components/TitleBar";
-import { useBackend } from "./services/backend";
+import { useBackend,defaultAccount } from "./services/backend";
 import AccountAvatar from "./components/AccountAvatar";
 import { AccountsPanel, RuntimeSettingsPanel, RuntimeLibrary, RuntimeProgress, RuntimeActivity, RuntimeScreenshots, BackendErrors } from "./components/RuntimeUI";
 import { VisualPreferences, SidebarArtwork, VisualQuality } from "./components/VisualAppearance";
@@ -123,6 +123,7 @@ function getInitialLanguage() {
 }
 function App() {
   const backend = useBackend();
+  const activeAccount=defaultAccount(backend.snapshot);
   const [lang, setLang] = useState<"en" | "ru">(getInitialLanguage);
   const dict = lang === "ru" ? ru : en;
   const t = useCallback<T>((key) => dict[key] ?? en[key], [dict]);
@@ -503,10 +504,10 @@ function App() {
                 aria-expanded={accountOpen}
                 aria-label={t("account")}
               >
-                <AccountAvatar key={backend.snapshot?.settings.active_account} username={backend.snapshot?.accounts.find(a => a.id === backend.snapshot?.settings.active_account)?.username} skin={backend.snapshot?.accounts.find(a => a.id === backend.snapshot?.settings.active_account)?.avatar}/>
+                <AccountAvatar key={activeAccount?.id} username={activeAccount?.username} skin={activeAccount?.avatar}/>
                 <div className="account-label">
                   <small>{t("account")}</small>
-                  <b>{backend.snapshot?.accounts.find(a => a.id === backend.snapshot?.settings.active_account)?.username || t("noAccount")}</b>
+                  <b>{activeAccount?.username || t("noAccount")}</b>
                 </div>
                 <ChevronDown
                   className={accountOpen ? "rotated" : ""}
