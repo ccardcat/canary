@@ -110,6 +110,7 @@
 :root[data-window-fullscreen="true"] .canary-app {padding-top:0;}
 :root[data-window-fullscreen="true"] :is(.sidebar,.content-shell) {height:100dvh;}
 :root[data-window-fullscreen="true"] .ambient-particles {top:0;}
+:root[data-window-fullscreen="true"] .modal-backdrop {top:0;}
 :root[data-window-fullscreen="true"] .instance-surface {top:24px;}
 .markdown img {max-width:100%;height:auto;border-radius:12px;} .markdown table {display:block;max-width:100%;overflow:auto;}
 .provider-badge select {color:var(--text);background:transparent;border:0;font:inherit;} .provider-badge select option {color:var(--text);background:var(--surface);}
