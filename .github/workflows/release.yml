@@ -97,6 +97,16 @@ jobs:
         env:
           APPIMAGE_EXTRACT_AND_RUN: '1'
         run: npm run tauri build -- --ci --bundles ${{ matrix.bundles }} -- --locked
+      - name: Windows native window and material QA
+        if: runner.os == 'Windows'
+        run: node .github/scripts/window-smoke.mjs
+      - name: Upload Windows visual QA
+        if: runner.os == 'Windows' && always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: canary-release-windows-window-qa
+          path: qa/windows-window-smoke/
+          if-no-files-found: warn
       - name: Upload installers
         uses: actions/upload-artifact@v4
         with:
