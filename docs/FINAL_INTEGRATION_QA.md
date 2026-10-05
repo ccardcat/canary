@@ -4,7 +4,7 @@
 
 ## Bugs fixed
 
-Исправлены порядок React providers для нативных обоев, устаревающие результаты backend refresh, отображение реальных экземпляров на Home, повторное использование Windows runtime на Linux, разделитель Java classpath, определение Java и установка JRE на Linux, замена файлов на Windows, потеря резервных метаданных при откате обновления сборки, перенос вспомогательных файлов между дисками, выбор активной копии после миграции. Идентификаторы экземпляров, карточек и новых событий Activity используются как React keys. Ошибки показывают понятное описание, технические данные доступны отдельно через Details.
+Исправлены отсеивание ZIP-версий CurseForge фильтром mrpack, потеря provider при установке из detail, неподдерживаемый CF sort по followers, отображение импортированных обоев через asset URL в WebKit, порядок React providers для нативных обоев, устаревающие результаты backend refresh, отображение реальных экземпляров на Home, повторное использование Windows runtime на Linux, разделитель Java classpath, определение Java и установка JRE на Linux, замена файлов на Windows, потеря резервных метаданных при откате обновления сборки, перенос вспомогательных файлов между дисками, выбор активной копии после миграции. Идентификаторы экземпляров, карточек и новых событий Activity используются как React keys. Ошибки показывают понятное описание, технические данные доступны отдельно через Details.
 
 ## Library
 
@@ -14,7 +14,7 @@
 
 Центральный registry подключает уже находившиеся в репозитории Axolotl Pink, Bees Green, Garden Awakens, Minecraft New Year, Pink Sidebar и Green 2 Sidebar. Явные пары: Dark Blue, Gray, Green, Sakura 1, Sakura 2. Pink/Green 2 независимы; остальные новые основные фоны не получают выдуманных пар. Новые непарные assets обнаруживаются через glob.
 
-Собственный фон: нативный image picker; App/Sidebar/Both; управляемая копия WebP до 3840 px, миниатюра до 320 px, SHA-256 дедупликация, ограничение входа 32 MB и декодирования. Удаляются только импортированные изображения. Настройки выбора, linked/unlinked, эффектов, позиции и масштаба сохраняются; fullscreen убирает зазор titlebar. Автоматический тест проверяет импорт, объединение targets, удаление исходника, повторное открытие и удаление управляемых копий.
+Собственный фон: нативный image picker; App/Sidebar/Both; управляемая копия WebP до 3840 px, миниатюра до 320 px, SHA-256 дедупликация, ограничение входа 32 MB и декодирования. Удаляются только импортированные изображения. Настройки выбора, linked/unlinked, эффектов, позиции и масштаба сохраняются; fullscreen убирает зазор titlebar. Нативный file picker реально импортировал PNG; фон появился в Settings после перезапуска. Прямой asset URL декодирования WebKit заменён управляемым Blob URL с освобождением памяти; нативно подтверждено отображение фона и sidebar, включая F11. Автоматический тест проверяет импорт, объединение targets, удаление исходника, повторное открытие и удаление управляемых копий.
 
 ## Cursor
 
@@ -58,7 +58,7 @@ Windows отправляет WM_CLOSE окнам собственного Java P
 
 ## CurseForge
 
-Официальный API adapter, backend-only `CANARY_CURSEFORGE_API_KEY`, без ключа во frontend/Java children/JSON. Один Discover и Content UI с Modrinth: shared ProjectCard/detail/versions/review/progress/errors. Поддержаны mods/modpacks/resourcepacks/shaders/datapacks, game/loader filtering, стабильные версии, обязательные dependencies, optional review, конфликтующие зависимости, provenance, updates и pack repair/update/rollback. Server projects не выдаются как поддержанные. Ограниченные файлы требуют официального manual download; CDN URL не угадывается.
+Официальный API adapter, backend-only `CANARY_CURSEFORGE_API_KEY`, без ключа во frontend/Java children/JSON. Один Discover и Content UI с Modrinth: shared ProjectCard/detail/versions/review/progress/errors. Поддержаны mods/modpacks/resourcepacks/shaders/datapacks, game/loader filtering, стабильные версии, обязательные dependencies, optional review, конфликтующие зависимости, provenance, updates и pack repair/update/rollback. Server projects не выдаются как поддержанные. Проверен UI contract Discover → CF detail → ZIP version → install_curseforge_pack с сохранением provider и очисткой HTML; этот тест не считается сетевой установкой. Ограниченные файлы требуют официального manual download; CDN URL не угадывается.
 
 Без настоящего API key сетевая установка CurseForge НЕ проверена. Реальные filesystem tests проверяют CF provenance, staged pack update/rollback, сохранение миров и блокировку cross-provider duplicate. Совместимость search metadata CF обозначается possible до проверки выбранного file; неполный latest-file список не выдаётся за достоверную несовместимость.
 
@@ -68,9 +68,9 @@ Provider относится к item/project, updates остаются у исх�
 
 ## Build / Tests
 
-Фактически выполнены `npm run build`, `cargo check --locked --manifest-path src-tauri/Cargo.toml --all-targets --features backend-check`, полный `cargo test --locked --manifest-path src-tauri/Cargo.toml` (46 passed, 5 отдельно обозначенных network tests ignored), `BROWSER_EXECUTABLE_PATH=/usr/bin/chromium npm test` (25 passed), `npm run tauri dev` через helper с GTK/WebKit, реальная подготовка/запуск/Stop/migration Minecraft, отдельно network tests real_content_install и real_pack_update_preserves_additions. Проверка реального Ely.by rejected login завершилась ошибкой network, причина подтверждена curl CONNECT 403.
+Фактически выполнены `npm run build`, `cargo check --locked --manifest-path src-tauri/Cargo.toml --all-targets --features backend-check`, полный `cargo test --locked --manifest-path src-tauri/Cargo.toml` (46 passed, 5 отдельно обозначенных network tests ignored), `BROWSER_EXECUTABLE_PATH=/usr/bin/chromium npm test` (25 первоначальных проверок прошли; добавлена и отдельно пройдена 26-я проверка CF detail/install), `npm run tauri dev` через helper с GTK/WebKit, реальная подготовка/запуск/Stop/migration Minecraft, отдельно network tests real_content_install и real_pack_update_preserves_additions. Проверка реального Ely.by rejected login завершилась ошибкой network, причина подтверждена curl CONNECT 403. Сетевая проверка real_public_artwork_and_agent тоже остановилась на недоступном Ely.by profile endpoint.
 
-Добавлен Desktop verification workflow: Windows/Linux check/test, release installers EXE/MSI/DEB, Windows native EXE startup/window smoke check, artifacts и git notes receipts. Результат CI будет записан после фактического выполнения.
+Добавлен Desktop verification workflow: Windows/Linux check/test, release installers EXE/MSI/DEB, Windows native EXE startup/window smoke check, artifacts и git notes receipts. Результат CI будет записан после фактического выполнения. Локально выполнен `npm run tauri build -- --debug --ci --bundles deb -- --locked`: DEB 114500306 bytes; это debug package, не объявляется release-сборкой.
 
 ## Remaining blockers
 

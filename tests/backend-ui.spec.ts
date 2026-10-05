@@ -16,6 +16,10 @@ mockIPC((command,args)=>{
   globalThis.__backendTest.calls.push({command,args});
   if(command==='backend_snapshot')return structuredClone(state);
   if(command==='list_wallpapers')return [];
+  if(command==='catalog_search')return {hits:[{provider:'curseforge',project_id:'100',title:'CurseForge contract pack',description:'Provider contract',author:'Author',downloads:123,versions:['1.21.1'],categories:['fabric'],project_type:'modpack'}],total_hits:1};
+  if(command==='catalog_versions')return [{provider:'curseforge',id:'200',project_id:'100',name:'Pack 2',version_number:'2',version_type:'release',game_versions:['1.21.1'],loaders:['fabric'],date_published:'2026-10-01',files:[{filename:'pack.zip',url:'https://example.invalid/pack.zip',size:1,hashes:{sha1:'contract'}}]}];
+  if(command==='content_project'&&args.provider==='curseforge')return {provider:'curseforge',id:'100',slug:'contract-pack',title:'CurseForge contract pack',description:'Provider contract',body:'<p>Safe CF description</p><script>window.cfUnsafe=true</script>',body_format:'html',project_type:'modpack',downloads:123,followers:0,game_versions:['1.21.1'],categories:['fabric'],updated:'2026-10-01',gallery:[]};
+  if(command==='install_curseforge_pack'){const instance={...state.instances[0],id:'curseforge-100-200',provider:'curseforge',project_id:'100',version_id:'200',name:'CurseForge contract pack',directory:'C:/Canary/instances/curseforge-100-200'};state.instances.push(instance);return instance;}
   if(command==='content_inventory')return structuredClone(inventory);
   if(command==='content_worlds')return [];
   if(command==='content_search')return {hits:[{project_id:'sodium',title:'Sodium',author:'Author',description:'A compatible optimization mod',downloads:123,versions:['1.21.1'],categories:['fabric']}],total_hits:1};
@@ -160,3 +164,17 @@ test("pack updates require review and preserve the selected instance identity",a
 
 test("F11 changes native fullscreen and Escape respects the settings dialog",async({page})=>{await expect(page.locator(".window-titlebar")).toBeVisible();await page.keyboard.press("F11");await expect(page.locator("html")).toHaveAttribute("data-window-fullscreen","true");await expect(page.locator(".window-titlebar")).toBeHidden();await page.getByRole("button",{name:"Settings",exact:true}).first().click();await page.keyboard.press("Escape");await expect(page.locator(".settings-modal")).toHaveCount(0);await expect(page.locator("html")).toHaveAttribute("data-window-fullscreen","true");await page.keyboard.press("Escape");await expect(page.locator("html")).toHaveAttribute("data-window-fullscreen","false");const calls=await page.evaluate(()=>(globalThis as any).__backendTest.calls);expect(calls.filter((c:any)=>c.command==="plugin:window|set_fullscreen").map((c:any)=>c.args.value)).toEqual([true,false]);expect(calls.some((c:any)=>c.command==="plugin:window|set_position")).toBe(true);});
 test("internal instances stay hidden while user names remain visible and playtime is human readable",async({page})=>{await page.evaluate(()=>{const t=(globalThis as any).__backendTest;t.state.instances[0].name="User validation world";t.state.instances[0].playtime=4320;t.state.instances.push({...t.state.instances[0],id:"internal-validation",name:"Technical QA",internal:true});});await page.getByRole("button",{name:"Library",exact:true}).first().click();await page.getByRole("button",{name:"Check updates",exact:true}).click();await expect(page.locator(".library-grid .project-card")).toHaveCount(1);await expect(page.locator(".library-grid")).toContainText("User validation world");await expect(page.locator(".library-grid")).toContainText("1 h 12 min");});
+
+test("CurseForge detail accepts ZIP pack versions and retains provider during installation",async({page})=>{
+  await page.getByRole("button",{name:"Discover",exact:true}).first().click();
+  await page.getByRole("combobox",{name:"Provider",exact:true}).selectOption("curseforge");
+  await page.locator(".card-title").filter({hasText:"CurseForge contract pack"}).click();
+  await expect(page.locator(".detail-page")).toContainText("Safe CF description");
+  await expect(page.getByRole("combobox",{name:"Version to install",exact:true})).toHaveValue("200");
+  expect(await page.evaluate(()=>(window as any).cfUnsafe)).toBeUndefined();
+  await page.locator(".detail-actions").getByRole("button",{name:"Install",exact:true}).click();
+  await expect(page.locator(".library-grid")).toContainText("CurseForge contract pack");
+  const calls=await page.evaluate(()=>(globalThis as any).__backendTest.calls);
+  expect(calls.find((call:any)=>call.command==="install_curseforge_pack")?.args).toEqual({projectId:100,fileId:200});
+  expect(calls.some((call:any)=>call.command==="install_modpack")).toBe(false);
+});

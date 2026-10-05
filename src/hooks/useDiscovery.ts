@@ -58,7 +58,7 @@ export function useDiscovery() {
   return {
     ...state,
     ...result,
-    setProvider:(provider:Provider)=>dispatch({type:"criteria",value:{provider,filters:initialDiscovery.filters}}),
+    setProvider:(provider:Provider)=>dispatch({type:"criteria",value:{provider,sort:provider==="curseforge"&&state.sort==="follows"?"downloads":state.sort,filters:initialDiscovery.filters}}),
     setType: (type: ContentType) =>
       dispatch({
         type: "criteria",

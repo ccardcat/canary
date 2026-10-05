@@ -1,4 +1,4 @@
-import { createContext, useContext, useEffect, useLayoutEffect, useState, type ReactNode } from "react";
+import { createContext, useContext, useEffect, useLayoutEffect, useRef, useState, type ReactNode } from "react";
 import type { CSSProperties } from "react";
 import "./VisualAppearance.css";
 import "./CursorPack.css";
@@ -17,7 +17,23 @@ const defaults: Preferences = { ...polishDefaults, app: "normal", sidebar: "defa
 const Context = createContext<{ registry:Background[];reload:()=>Promise<void>;value: Preferences; update: (patch: Partial<Preferences>) => void }>({registry:backgrounds,reload:async()=>{},value: defaults, update: () => {} });
 export function VisualAppearanceProvider({ children }: { children: ReactNode }) {
   const {run}=useBackend();const [custom,setCustom]=useState<Background[]>([]);
-  const reload=async()=>{if(!isTauri())return;const data=await run<{id:string;name:string;target:string;image:string;thumbnail:string}[]>("list_wallpapers");setCustom(data.map(p=>({id:p.id,name:p.name,ambient:"off",custom:true,thumbnail:convertFileSrc(p.thumbnail),...(p.target!=="sidebar"?{app:convertFileSrc(p.image)}:{}),...(p.target!=="app"?{sidebar:convertFileSrc(p.image)}:{})})));};
+  const objectUrls=useRef(new Set<string>());const loadSequence=useRef(0);
+  useEffect(()=>()=>{loadSequence.current++;objectUrls.current.forEach(url=>URL.revokeObjectURL(url));objectUrls.current.clear();},[]);
+  const reload=async()=>{
+    if(!isTauri())return;const sequence=++loadSequence.current;const created:string[]=[];
+    const imageUrl=async(path:string)=>{const url=convertFileSrc(path);if(!url.startsWith("asset:"))return url;
+      // WebKit can fetch the registered asset protocol but reject it for image decoding.
+      const response=await fetch(url);if(!response.ok)throw Error("Cannot read imported background");
+      const result=URL.createObjectURL(await response.blob());created.push(result);return result;};
+    try{
+      const data=await run<{id:string;name:string;target:string;image:string;thumbnail:string}[]>("list_wallpapers");
+      const results=await Promise.allSettled(data.map(async p=>{const image=await imageUrl(p.image);const thumbnail=await imageUrl(p.thumbnail);return {id:p.id,name:p.name,ambient:"off" as const,custom:true,thumbnail,...(p.target!=="sidebar"?{app:image}:{}),...(p.target!=="app"?{sidebar:image}:{})};}));
+      const entries=results.map(result=>{if(result.status==="rejected")throw result.reason;return result.value;});
+      if(sequence!==loadSequence.current){created.forEach(url=>URL.revokeObjectURL(url));return;}
+      const retired=[...objectUrls.current];created.forEach(url=>objectUrls.current.add(url));setCustom(entries);
+      setTimeout(()=>{retired.forEach(url=>{URL.revokeObjectURL(url);objectUrls.current.delete(url);});},1000);
+    }catch(error){created.forEach(url=>URL.revokeObjectURL(url));throw error;}
+  };
   useEffect(()=>{void reload().catch(()=>{});},[run]);const registry=[...backgrounds,...custom];
 
   const [value, setValue] = useState<Preferences>(() => {

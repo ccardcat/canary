@@ -558,6 +558,8 @@ function App() {
                   onInstall={() =>
                     install(
                       {
+                        provider: detail.provider || "modrinth",
+                        project_type: detail.project_type,
                         project_id: detail.id,
                         title: detail.title,
                         description: detail.description,
@@ -971,7 +973,7 @@ function DiscoverPage({
             <option value="relevance">{t("relevance")}</option>
             <option value="updated">{t("updated")}</option>
             <option value="newest">{t("newest")}</option>
-            <option value="follows">{t("follows")}</option>
+            {provider==="modrinth"&&<option value="follows">{t("follows")}</option>}
           </select>
           <ChevronDown size={14} />
         </div>
@@ -1273,7 +1275,7 @@ function DetailPage({
   const [tab, setTab] = useState("description");
   const gallery = detail.gallery?.filter((x) => x.url) || [];
   const available =
-    detail.project_type === "modpack"
+    detail.project_type === "modpack" && detail.provider !== "curseforge"
       ? versions.filter((v) =>
           v.files.some((f) => f.filename.endsWith(".mrpack")),
         )

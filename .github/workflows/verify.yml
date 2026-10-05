@@ -23,8 +23,27 @@ jobs:
     runs-on: ${{ matrix.os }}
     permissions:
       contents: write
+      actions: read
     steps:
       - uses: actions/checkout@v4
+      - name: Record started verification
+        shell: bash
+        env:
+          VERIFY_PLATFORM: ${{ matrix.platform }}
+        run: |
+          python - <<'PY'
+          import json, os, subprocess
+          with open('desktop-verification.json', 'w') as output:
+              json.dump({'commit': subprocess.check_output(['git', 'rev-parse', 'HEAD'], text=True).strip(),
+                         'status': 'running', 'platform': os.environ['VERIFY_PLATFORM'],
+                         'run_url': f"https://github.com/{os.environ['GITHUB_REPOSITORY']}/actions/runs/{os.environ['GITHUB_RUN_ID']}"}, output)
+          PY
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          note="refs/notes/qa-${VERIFY_PLATFORM}"
+          if git ls-remote --exit-code origin "$note"; then git fetch origin "$note:$note"; fi
+          git notes --ref="qa-${VERIFY_PLATFORM}" add -f -F desktop-verification.json HEAD
+          git push origin "$note"
       - uses: actions/setup-node@v4
         with:
           node-version: '24'
@@ -101,3 +120,36 @@ jobs:
           fi
           git notes --ref="qa-${VERIFY_PLATFORM}" add -f -F desktop-verification.json HEAD
           git push origin "$note"
+  report-failure:
+    needs: desktop
+    if: failure()
+    runs-on: ubuntu-22.04
+    permissions:
+      contents: write
+      actions: read
+    steps:
+      - uses: actions/checkout@v4
+      - name: Record completed job failure logs
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          python3 - <<'PY'
+          import json, os, subprocess
+          root = f"repos/{os.environ['GITHUB_REPOSITORY']}"
+          jobs = json.loads(subprocess.check_output(['gh', 'api', root + f"/actions/runs/{os.environ['GITHUB_RUN_ID']}/jobs"], text=True))['jobs']
+          subprocess.run(['git', 'config', 'user.name', 'github-actions[bot]'], check=True)
+          subprocess.run(['git', 'config', 'user.email', '41898282+github-actions[bot]@users.noreply.github.com'], check=True)
+          for job in jobs:
+              if job['conclusion'] != 'failure' or not job['name'].startswith('desktop'): continue
+              platform = 'windows' if 'windows' in job['name'] else 'linux'
+              receipt = {'commit': os.environ['GITHUB_SHA'], 'platform': platform, 'status': 'failure',
+                         'run_url': f"https://github.com/{os.environ['GITHUB_REPOSITORY']}/actions/runs/{os.environ['GITHUB_RUN_ID']}",
+                         'failed_steps': [s['name'] for s in job['steps'] if s['conclusion'] == 'failure'],
+                         'failure_log': subprocess.check_output(['gh', 'api', root + f"/actions/jobs/{job['id']}/logs"], text=True)[-30000:]}
+              with open('desktop-failure.json', 'w') as output: json.dump(receipt, output, indent=2)
+              note = f'refs/notes/qa-{platform}'
+              if subprocess.run(['git', 'ls-remote', '--exit-code', 'origin', note]).returncode == 0:
+                  subprocess.run(['git', 'fetch', 'origin', f'{note}:{note}'], check=True)
+              subprocess.run(['git', 'notes', f'--ref=qa-{platform}', 'add', '-f', '-F', 'desktop-failure.json', 'HEAD'], check=True)
+              subprocess.run(['git', 'push', 'origin', note], check=True)
+          PY
