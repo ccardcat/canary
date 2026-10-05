@@ -1,0 +1,9 @@
+{
+  "commit": "7a8a884d91954d8503bb8447c5a72641c53d8fa7",
+  "status": "failure",
+  "platform": "windows",
+  "run_url": "https://github.com/ccardcat/canary/actions/runs/37335881511",
+  "step_logs": {},
+  "failed_steps": [],
+  "failure_log": ""
+}
