@@ -36,7 +36,7 @@ Settings показывает путь, used/free space, Copy/Open/Choose folder
 
 ## Fullscreen
 
-F11 вызывает настоящий `setFullscreen`; переходы сериализуются и ждут подтверждения ОС. Выход восстанавливает размер/позицию либо прежний maximized. Escape сначала обслуживает открытый dialog/popover. Launcher fullscreen не меняет игровой fullscreen. Проверены браузерный native API contract и фактический Tauri fullscreen на Linux; titlebar исчезает без верхней полосы.
+F11 вызывает настоящий `setFullscreen`; переходы сериализуются и ждут подтверждения ОС. Выход восстанавливает размер/позицию либо прежний maximized. Escape сначала обслуживает открытый dialog/popover. Launcher fullscreen не меняет игровой fullscreen. Проверены браузерный native API contract и фактический Tauri fullscreen на Linux; titlebar исчезает без верхней полосы. Исправлен также top:36px у Settings backdrop в fullscreen: затемнение теперь начинается от верхнего края. Дополнительный UI-тест прошёл; в упакованном Linux release 0.1.2 фактически проверены Settings без полосы, первое Escape закрывает Settings, второе выходит из fullscreen и возвращает titlebar.
 
 ## Microsoft
 
@@ -70,13 +70,25 @@ Provider относится к item/project, updates остаются у исх�
 
 Фактически выполнены `npm run build`, `cargo check --locked --manifest-path src-tauri/Cargo.toml --all-targets --features backend-check`, полный `cargo test --locked --manifest-path src-tauri/Cargo.toml` (50 passed, 5 отдельно обозначенных network tests ignored), `BROWSER_EXECUTABLE_PATH=/usr/bin/chromium npm test` (29 passed), `npm run tauri dev` через helper с GTK/WebKit, реальная подготовка/запуск/Stop/migration Minecraft, отдельно network tests real_content_install и real_pack_update_preserves_additions. Проверка реального Ely.by rejected login завершилась ошибкой network, причина подтверждена curl CONNECT 403. Сетевая проверка real_public_artwork_and_agent тоже остановилась на недоступном Ely.by profile endpoint.
 
-Добавлен Desktop verification workflow: Windows/Linux check/test, release installers EXE/MSI/DEB, Windows native EXE startup/window smoke check, artifacts и git notes receipts. Первая Linux CI release-сборка успешна (93e7abe, run 37325198927). Windows cargo check прошёл; тесты выявили различие canonical Windows paths, исправленное нормализацией dunce. Финальный результат CI будет записан после выполнения. Локально выполнен `npm run tauri build -- --ci --bundles deb -- --locked`: получен release DEB около 22 MB. Финальные размеры и результат Windows CI будут записаны после выполнения. Windows-тест сравнивает путь нового экземпляра с каноническим выбранным каталогом: Windows canonicalization меняет представление временного пути, поэтому сравнение с ненормализованным temp_dir некорректно.
+Дополнительный Release status workflow (54edf59, изменение только CI) читает состояние release jobs и assets после завершения Desktop release или по запросу, сохраняет refs/notes/release-diagnostics и не собирает новые installers.
+
+Desktop verification workflow проверяет Windows/Linux check/test, собирает release installers EXE/MSI/DEB, запускает Windows EXE и проверяет существование его окна, сохраняет artifacts и git notes receipts. Для финального исходного кода **871dcc92b2801efc0f6e5833656c4b94b4bb215a (0.1.2)** обе платформы завершились успешно: [run 37357909151](https://github.com/ccardcat/canary/actions/runs/37357909151). Windows cargo test включает 48 тестов и 5 ignored; два дополнительных Unix-only process tests выполняются на Linux (50 passed). Первоначально Windows-тест выявил различие canonical paths: dunce нормализует реальные пути, тест сравнивает новый экземпляр с каноническим выбранным каталогом.
+
+Локально выполнен `npm run tauri build -- --ci --bundles deb -- --locked`. Финальный release DEB 0.1.2 для 871dcc9: `Canary_0.1.2_amd64.deb`, 22645890 bytes (21,60 MiB), SHA-256 `9863ffb2dd5542f10fce4bac4235c05edf5ff818d23c3d77941b8b28c549f4f0`. Упакованный release binary Linux (scaffold) реально открыл Home и Settings без Vite; подтверждены имя аккаунта в last-used режиме, hidden internal instance, настоящий путь/usage и исправленный fullscreen backdrop. Последний CSS fix прошёл дополнительный UI-тест.
+
+Тег v0.1.2 опубликован без изменения прежних тегов: пользовательский v0.1.1 предшествовал исправлению Cargo.lock. Исправлен GitHub 422 при публикации — Draft и Latest теперь изменяются двумя запросами. [Desktop release run 37357908849](https://github.com/ccardcat/canary/actions/runs/37357908849) запущен для Windows EXE/MSI и Linux DEB/AppImage. Последний доступный receipt refs/notes/releases для 871dcc9 содержит status=building; на 5 октября 2026, 19:11 UTC финальная публикация и её assets НЕ подтверждены. Прямой GitHub API в cloud runtime недоступен; refs/notes/release-diagnostics нового workflow пока отсутствует. Целевая страница — https://github.com/ccardcat/canary/releases/tag/v0.1.2, её существование как опубликованного релиза не объявляется проверенным.
+
+## Облачная среда
+
+По cloud-environment-onboarding:setup сохранён обновлённый черновик install_script/start_skill: libdbus-1-dev/libxcb1-dev, проверенные команды Linux release и текущий QA-отчёт. В network allowlist добавлены authserver.ely.by, skinsystem.ely.by и authlib-injector.yushi.moe; объявлен optional user-provided CANARY_CURSEFORGE_API_KEY для api.curseforge.com без значения. Это сохранение черновика, а не применение к текущему runtime: пользователь должен проверить/сохранить настройки среды и Publish, затем повторить Ely.by/CF проверки. Пакеты DBus/XCB и нативный рабочий процесс в текущей машине проверены.
 
 ## Remaining blockers
 
-Лицензированный Microsoft аккаунт и разрешение Minecraft services для public client; настоящий CurseForge API key; доступ session proxy к Ely.by; интерактивная Windows-проверка taskbar/Alt+Tab/DPI и Windows gameplay/Stop. Эти проверки не заменяются mocks и не объявляются выполненными.
+Лицензированный Microsoft аккаунт и разрешение Minecraft services для public client; OS Secret Service для реального сохранения удалённой сессии в headless Linux (сервис отсутствует в текущем cloud runtime, Windows disposable keyring test прошёл); настоящий CurseForge API key; доступ session proxy к Ely.by; интерактивная Windows-проверка taskbar/Alt+Tab/DPI и Windows gameplay/Stop. Эти проверки не заменяются mocks и не объявляются выполненными. Отдельно ожидается подтверждение публикации v0.1.2: успешный verification не равнозначен опубликованному GitHub Release.
 
 ## Изменённые и добавленные файлы
+
+Всего: 97 файлов.
 
 ### Изменённые
 
@@ -147,6 +159,7 @@ Provider относится к item/project, updates остаются у исх�
 
 ### Добавленные
 
+- `.github/workflows/release-status.yml`
 - `.github/workflows/verify.yml`
 - `docs/FINAL_INTEGRATION_QA.md`
 - `public/cursors/compact/alternate.cur`
