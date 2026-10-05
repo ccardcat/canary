@@ -6,7 +6,7 @@ on:
 permissions:
   contents: read
 concurrency:
-  group: desktop-verification-${{ github.ref }}
+  group: desktop-verification-${{ github.sha }}
   cancel-in-progress: false
 jobs:
   desktop:
@@ -30,13 +30,27 @@ jobs:
         shell: bash
         env:
           VERIFY_PLATFORM: ${{ matrix.platform }}
+          GH_TOKEN: ${{ github.token }}
         run: |
           python - <<'PY'
           import json, os, subprocess
-          with open('desktop-verification.json', 'w') as output:
-              json.dump({'commit': subprocess.check_output(['git', 'rev-parse', 'HEAD'], text=True).strip(),
-                         'status': 'running', 'platform': os.environ['VERIFY_PLATFORM'],
-                         'run_url': f"https://github.com/{os.environ['GITHUB_REPOSITORY']}/actions/runs/{os.environ['GITHUB_RUN_ID']}"}, output)
+          receipt = {'commit': subprocess.check_output(['git', 'rev-parse', 'HEAD'], text=True).strip(),
+                     'status': 'running', 'platform': os.environ['VERIFY_PLATFORM'],
+                     'run_url': f"https://github.com/{os.environ['GITHUB_REPOSITORY']}/actions/runs/{os.environ['GITHUB_RUN_ID']}"}
+          try:
+              root = f"repos/{os.environ['GITHUB_REPOSITORY']}"
+              runs = json.loads(subprocess.check_output(['gh', 'api', root + '/actions/workflows/verify.yml/runs?per_page=4'], text=True))['workflow_runs']
+              for run in runs:
+                  if run['id'] == int(os.environ['GITHUB_RUN_ID']): continue
+                  jobs = json.loads(subprocess.check_output(['gh', 'api', root + f"/actions/runs/{run['id']}/jobs"], text=True))['jobs']
+                  failed = next((j for j in jobs if j['conclusion'] == 'failure' and os.environ['VERIFY_PLATFORM'] in j['name']), None)
+                  if failed:
+                      receipt['previous_failure'] = {'run_url': run['html_url'], 'steps': [s['name'] for s in failed['steps'] if s['conclusion'] == 'failure'],
+                                                     'log': subprocess.check_output(['gh', 'api', root + f"/actions/jobs/{failed['id']}/logs"], text=True)[-24000:]}
+                      break
+          except (subprocess.CalledProcessError, KeyError) as error:
+              receipt['previous_log_unavailable'] = str(error)
+          with open('desktop-verification.json', 'w') as output: json.dump(receipt, output, indent=2)
           PY
           git config user.name 'github-actions[bot]'
           git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
@@ -57,14 +71,19 @@ jobs:
         run: |
           sudo apt-get update
           sudo apt-get install -y libwebkit2gtk-4.1-dev libayatana-appindicator3-dev librsvg2-dev libdbus-1-dev patchelf
-      - run: npm ci
-      - run: npm run build
-      - run: cargo check --locked --manifest-path src-tauri/Cargo.toml
-      - run: cargo test --locked --manifest-path src-tauri/Cargo.toml
+      - shell: bash
+        run: set -o pipefail; npm ci 2>&1 | tee npm-ci.log
+      - shell: bash
+        run: set -o pipefail; npm run build 2>&1 | tee frontend-build.log
+      - shell: bash
+        run: set -o pipefail; cargo check --locked --manifest-path src-tauri/Cargo.toml 2>&1 | tee cargo-check.log
+      - shell: bash
+        run: set -o pipefail; cargo test --locked --manifest-path src-tauri/Cargo.toml 2>&1 | tee cargo-test.log
       - name: Build desktop installers
         env:
           APPIMAGE_EXTRACT_AND_RUN: '1'
-        run: npm run tauri build -- --ci --bundles ${{ matrix.bundles }} -- --locked
+        shell: bash
+        run: set -o pipefail; npm run tauri build -- --ci --bundles ${{ matrix.bundles }} -- --locked 2>&1 | tee desktop-build.log
       - name: Windows executable smoke check
         if: runner.os == 'Windows'
         shell: pwsh
@@ -101,6 +120,8 @@ jobs:
                      'status': os.environ['VERIFY_STATUS'], 'platform': os.environ['VERIFY_PLATFORM'],
                      'run_url': f"https://github.com/{os.environ['GITHUB_REPOSITORY']}/actions/runs/{os.environ['GITHUB_RUN_ID']}"}
           if receipt['status'] != 'success':
+              from pathlib import Path
+              receipt['step_logs'] = {p: Path(p).read_text(errors='replace')[-12000:] for p in ['npm-ci.log', 'frontend-build.log', 'cargo-check.log', 'cargo-test.log', 'desktop-build.log'] if Path(p).exists()}
               try:
                   endpoint = f"repos/{os.environ['GITHUB_REPOSITORY']}/actions/runs/{os.environ['GITHUB_RUN_ID']}/jobs"
                   jobs = json.loads(subprocess.check_output(['gh', 'api', endpoint], text=True))['jobs']
