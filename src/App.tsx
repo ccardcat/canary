@@ -59,7 +59,7 @@ import {StorageSettings} from "./components/StorageSettings";
 import { useBackend,defaultAccount } from "./services/backend";
 import AccountAvatar from "./components/AccountAvatar";
 import { AccountsPanel, RuntimeSettingsPanel, RuntimeLibrary, RuntimeProgress, RuntimeActivity, RuntimeScreenshots, BackendErrors } from "./components/RuntimeUI";
-import { VisualPreferences, SidebarArtwork, VisualQuality, WindowPreferencesPanel, EffectsPreferences } from "./components/VisualAppearance";
+import { MaterialPreferencesPanel, VisualPreferences, SidebarArtwork, VisualQuality, WindowPreferencesPanel, EffectsPreferences } from "./components/VisualAppearance";
 import { en, ru, type Key, type T, categories } from "./locales";
 import {
   readStored,
@@ -1869,6 +1869,7 @@ function Appearance({
           );
         })}
       </div>
+      <MaterialPreferencesPanel russian={t("home")==="Главная"}/>
       <h4>{t("preset")}</h4>
       <div className="preset-grid">
         {presets.map((p) => (

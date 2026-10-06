@@ -9,14 +9,14 @@ export default function DesktopBehavior() {
   useEffect(() => {
     const hide = () => { clearTimeout(timer.current); setTooltip(null); };
     const show = (event: Event) => {
-      const element = (event.target as Element).closest<HTMLElement>("[data-tooltip]");
-      if (!element) return;
+      const element = (event.target as Element).closest<HTMLElement>("[data-tooltip],button[aria-label]");
+      if (!element || (!element.dataset.tooltip && element.textContent?.trim())) return;
       clearTimeout(timer.current);
       timer.current = setTimeout(() => {
         const rect = element.getBoundingClientRect();
         const sidebar = !!element.closest(".sidebar.compact");
         const right = document.documentElement.dataset.sidebarSide === "right";
-        setTooltip({ text: element.dataset.tooltip || "", x: Math.max(10, Math.min(innerWidth - 240, sidebar ? (right ? rect.left - 160 : rect.right + 10) : rect.left)), y: Math.min(innerHeight - 48, sidebar ? rect.top : rect.bottom + 8) });
+        setTooltip({ text: element.dataset.tooltip || element.getAttribute("aria-label") || "", x: Math.max(10, Math.min(innerWidth - 240, sidebar ? (right ? rect.left - 160 : rect.right + 10) : rect.left)), y: Math.min(innerHeight - 48, sidebar ? rect.top : rect.bottom + 8) });
       }, 180);
     };
     const context = (event: MouseEvent) => {

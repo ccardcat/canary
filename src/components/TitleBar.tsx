@@ -8,7 +8,7 @@ import {useVisualAppearance} from "./VisualAppearance";
 export default function TitleBar({light,russian}:{light:boolean;russian:boolean}){
  const {value}=useVisualAppearance();const [maximized,setMaximized]=useState(false);const [error,setError]=useState(false);
  useWindowFullscreen(()=>setError(true));const text=windowMessages[russian?"ru":"en"];
- useEffect(()=>{if(!isTauri())return;const win=getCurrentWindow();let dispose:(()=>void)|undefined;let live=true;const sync=()=>{void win.isMaximized().then(v=>{if(live)setMaximized(v);}).catch(()=>{});};sync();void win.onResized(sync).then(fn=>{if(live)dispose=fn;else fn();});return()=>{live=false;dispose?.();};},[]);
+ useEffect(()=>{if(!isTauri())return;const win=getCurrentWindow();let dispose:(()=>void)|undefined;let live=true;const sync=()=>{void win.isMaximized().then(v=>{if(live)setMaximized(v);document.documentElement.dataset.windowMaximized=String(v);}).catch(()=>{});};sync();void win.onResized(sync).then(fn=>{if(live)dispose=fn;else fn();});return()=>{live=false;dispose?.();};},[]);
  const action=(kind:"minimize"|"toggleMaximize"|"close"|"startDragging")=>{if(isTauri()&&document.documentElement.dataset.windowTransition!=="true")void getCurrentWindow()[kind]().catch(()=>setError(true));};
  return <header className="window-titlebar" data-controls={value.windowControls} data-controls-position={value.controlsPosition}>
   <div className="window-drag" onMouseDown={e=>{if(e.button===0&&e.detail===1)action("startDragging");}} onDoubleClick={()=>action("toggleMaximize")} aria-hidden="true"/>

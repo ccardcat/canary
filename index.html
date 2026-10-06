@@ -1,6 +1,12 @@
 <!doctype html>
 <html lang="en">
   <head>
+    <script>
+      try {
+        const mode = localStorage.getItem('canary-mode') || 'dark';
+        document.documentElement.dataset.mode = mode === 'system' ? (matchMedia('(prefers-color-scheme: light)').matches ? 'light' : 'dark') : ['light', 'dark', 'amoled'].includes(mode) ? mode : 'dark';
+      } catch { document.documentElement.dataset.mode = 'dark'; }
+    </script>
     <meta charset="UTF-8" />
     <link rel="icon" type="image/svg+xml" href="/branding/canary-bird-white.png" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
