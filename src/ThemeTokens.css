@@ -1,0 +1,154 @@
+/* One palette vocabulary for the existing theme and material pipeline.
+   Palette colors are opaque; transparency is applied once by MaterialSystem. */
+:root {
+  --bg: #080a0b;
+  --surface: #111416;
+  --surface-2: #171b1d;
+  --surface-3: #1d2224;
+  --text: #edf2ef;
+  --muted: #a5b0ac;
+  --faint: #929e98;
+  --text-disabled: #87938d;
+  --line-subtle: #ffffff20;
+  --line: #ffffff32;
+  --line-strong: #ffffff50;
+  --highlight: #ffffff12;
+  --accent: #e9efec;
+  --accent-fg: #111b16;
+  --success: #89d0a7;
+  --warning: #e5bf7c;
+  --danger: #ef9ea5;
+  --info: #94bce8;
+  --backdrop-overlay: rgb(0 0 0 / .5);
+  --shadow-soft: 0 5px 16px #00000028;
+  --shadow: 0 24px 60px #0008;
+  --blur: 24px;
+  --motion: all 0.2s cubic-bezier(0.2, 0.8, 0.2, 1);
+  --ease: cubic-bezier(0.2, 0.8, 0.2, 1);
+  color-scheme: dark;
+
+  --app-background: var(--bg);
+  --page-background: color-mix(in srgb, var(--surface) 30%, transparent);
+  --surface-primary: var(--surface);
+  --surface-secondary: var(--surface-2);
+  --surface-elevated: var(--surface);
+  --surface-input: color-mix(in srgb, var(--surface) 65%, var(--surface-3));
+  --surface-sidebar: color-mix(in srgb, var(--surface) 88%, var(--bg));
+  --surface-modal: var(--surface-elevated);
+  --surface-glass: var(--surface);
+  --surface-hover: color-mix(in srgb, var(--accent) 8%, var(--surface-2));
+  --surface-pressed: color-mix(in srgb, var(--accent) 15%, var(--surface-3));
+  --surface-selected: color-mix(in srgb, var(--accent) 12%, var(--surface-2));
+  --surface-disabled: color-mix(in srgb, var(--surface) 60%, var(--surface-2));
+  --text-primary: var(--text);
+  --text-secondary: var(--muted);
+  --text-tertiary: var(--faint);
+  --icon-primary: var(--text);
+  --icon-secondary: var(--muted);
+  --icon-disabled: var(--text-disabled);
+  --border-subtle: var(--line-subtle);
+  --border-default: var(--line);
+  --border-strong: var(--line-strong);
+  --border-selected: color-mix(in srgb, var(--accent) 60%, var(--line-strong));
+  --accent-hover: color-mix(in srgb, var(--accent) 88%, var(--text));
+  --accent-pressed: color-mix(in srgb, var(--accent) 75%, var(--text));
+  --accent-soft: color-mix(in srgb, var(--accent) 12%, var(--surface));
+  --focus-ring: color-mix(in srgb, var(--accent) 85%, var(--text));
+  --focus-halo: color-mix(in srgb, var(--accent) 14%, transparent);
+  --error: var(--danger);
+  --danger-surface: color-mix(in srgb, var(--danger) 9%, var(--surface));
+  --danger-border: color-mix(in srgb, var(--danger) 45%, var(--line));
+  --glass: color-mix(in srgb, var(--surface-glass) 90%, transparent);
+  --shadow-strong: var(--shadow);
+
+  /* Even the clearest material needs a stable text-bearing tint. Profiles
+     retain their blur, sheen, depth and a smaller visible opacity range. */
+  --scene-overlay-floor: 88%;
+  --surface-floor-cards: 90%;
+  --surface-floor-buttons: 92%;
+  --surface-floor-sidebar: 90%;
+  --surface-floor-popovers: 96%;
+  --surface-floor-dialogs: 94%;
+  --surface-floor-inputs: 94%;
+  --surface-floor-titlebar: 88%;
+  --surface-floor-floating: 92%;
+}
+:root[data-mode="light"] {
+  --bg: #f3f5f4;
+  --surface: #fff;
+  --surface-2: #eef1ef;
+  --surface-3: #e4e9e6;
+  --text: #202a26;
+  --muted: #4e5c55;
+  --faint: #5e6b64;
+  --text-disabled: #748078;
+  --line-subtle: #263c3020;
+  --line: #263c3035;
+  --line-strong: #263c3059;
+  --highlight: #ffffff70;
+  --accent: #263d32;
+  --accent-fg: #fff;
+  --success: #276c47;
+  --warning: #875a18;
+  --danger: #a32a39;
+  --info: #345f99;
+  --backdrop-overlay: rgb(27 36 31 / .28);
+  --shadow-soft: 0 4px 14px #34443c14;
+  --shadow: 0 18px 45px #34443c28;
+  --surface-floor-cards: 88%;
+  --surface-floor-sidebar: 88%;
+  color-scheme: light;
+}
+:root[data-mode="amoled"] {
+  --bg: #000;
+  --surface: #050505;
+  --surface-2: #0a0a0a;
+  --surface-3: #111;
+  --text: #fff;
+  --muted: #b0b8b3;
+  --faint: #959f99;
+  --highlight: #ffffff08;
+  --shadow: 0 20px 55px #000;
+}
+:root[data-mode="dark"][data-preset="softDark"] {
+  --bg: #15191a; --surface: #1d2223; --surface-2: #242a2b; --surface-3: #2d3535;
+  --muted: #b3beb9; --faint: #a1ada6;
+}
+:root[data-mode="dark"][data-preset="midnight"] {
+  --bg: #0c101b; --surface: #121827; --surface-2: #1a2233; --surface-3: #232d40;
+}
+:root[data-mode="dark"][data-preset="black"] {
+  --bg: #030505; --surface: #0c0f10; --surface-2: #141718; --surface-3: #1b2021;
+}
+:root[data-mode="light"][data-preset="softLight"] {
+  --bg: #edf2ee; --surface: #fafcf9; --surface-2: #edf2ec; --surface-3: #e2eae1;
+  --text: #243128; --muted: #4b5c50; --faint: #5b6b60;
+}
+:root[data-mode="light"][data-preset="frost"] {
+  --bg: #eaf0f7; --surface: #f8fbff; --surface-2: #e8eff7; --surface-3: #dfe8f3;
+  --text: #202e3d; --muted: #4b5c6d; --faint: #566575;
+}
+:root[data-mode="light"][data-preset="warm"] {
+  --bg: #f5f0e8; --surface: #fffaf2; --surface-2: #f2ece2; --surface-3: #e9e0d3;
+  --text: #332d25; --muted: #62574a; --faint: #706356;
+}
+:root[data-accent="white"] { --accent: #fff; }
+:root[data-accent="gray"] { --accent: #aeb9b5; }
+:root[data-accent="mint"] { --accent: #72d6ac; }
+:root[data-accent="emerald"] { --accent: #47c98b; }
+:root[data-accent="aqua"] { --accent: #61cfe0; }
+:root[data-accent="blue"] { --accent: #83a8ed; }
+:root[data-accent="purple"] { --accent: #b29aed; }
+:root[data-accent="rose"] { --accent: #ed9bad; }
+:root[data-accent="orange"] { --accent: #e8ae79; }
+/* Light accents keep their hue; ink/focus must contrast with pale surfaces.
+   The picker still shows the original pastel swatch as visual context. */
+:root[data-mode="light"][data-accent="white"] { --accent: #35433b; }
+:root[data-mode="light"][data-accent="gray"] { --accent: #4f5d58; }
+:root[data-mode="light"][data-accent="mint"] { --accent: #236a50; }
+:root[data-mode="light"][data-accent="emerald"] { --accent: #216b48; }
+:root[data-mode="light"][data-accent="aqua"] { --accent: #1e6675; }
+:root[data-mode="light"][data-accent="blue"] { --accent: #365f9f; }
+:root[data-mode="light"][data-accent="purple"] { --accent: #6a4a9a; }
+:root[data-mode="light"][data-accent="rose"] { --accent: #9b415d; }
+:root[data-mode="light"][data-accent="orange"] { --accent: #915727; }

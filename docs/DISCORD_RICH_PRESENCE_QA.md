@@ -58,18 +58,23 @@ debug-сборке. Public Key не добавлен в код или конфи
 
 ## Presence States
 
+Текущий copy polish убирает provider/category из details/state и лишние
+служебные подписи навигации. Progress, privacy, timestamps, assets и RPC
+архитектура сохранены; см. [theme/copy audit](THEME_CONTRAST_QA.md).
+Исторические native/protocol отчёты ниже относятся к состоянию до copy polish.
+
 | Состояние | RU details | Secondary state |
 | --- | --- | --- |
-| Home | На главной | Canary |
-| Discover | Ищет новые проекты | Provider · категория |
-| Project | Смотрит Better MC / Смотрит проект | Сборка/Мод/… · Provider |
-| Library | Управляет экземплярами | Library |
-| Settings | Настраивает Canary | Settings |
+| Home | На главной | — |
+| Discover | Просматривает проекты | — |
+| Project | Смотрит Better MC / Смотрит проект | — |
+| Library | Управляет экземплярами | — |
+| Settings | Настраивает Canary | — |
 | Downloading | Загружает Better MC | 67% · 43 / 97 файлов |
-| Installing | Устанавливает Better MC | Процент и файлы либо Minecraft/loader |
+| Installing | Устанавливает Better MC | Процент и файлы; без количества файлов — только процент |
 | Updating | Обновляет Better MC | Процент и файлы |
 | Repairing | Восстанавливает экземпляр/имя | Процент и файлы |
-| Launching | Запускает Minecraft | Имя · Minecraft version |
+| Launching | Запускает Minecraft | Имя, если разрешено |
 | Playing | Играет через Canary | Имя · Minecraft version |
 | Private Playing | Играет в Minecraft | Minecraft version |
 | Idle/Error | В Canary | Без технического текста ошибки |

@@ -168,23 +168,6 @@ fn provider(value: &str) -> &str {
         _ => "",
     }
 }
-fn category(value: &str, ru: bool) -> &str {
-    match (value, ru) {
-        ("modpack", true) => "Сборка",
-        ("modpack", false) => "Modpack",
-        ("mod", true) => "Мод",
-        ("mod", false) => "Mod",
-        ("resourcepack", true) => "Ресурс-пак",
-        ("resourcepack", false) => "Resource pack",
-        ("datapack", true) => "Датапак",
-        ("datapack", false) => "Datapack",
-        ("shader", true) => "Шейдер",
-        ("shader", false) => "Shader",
-        ("server", true) => "Сервер",
-        ("server", false) => "Server",
-        _ => "",
-    }
-}
 fn join(parts: impl IntoIterator<Item = String>) -> String {
     text(
         &parts
@@ -320,12 +303,7 @@ pub fn map(
             )
         };
         let state = if kind == Kind::Launching {
-            join([
-                name,
-                instance
-                    .map(|i| format!("Minecraft {}", text(&i.minecraft, 40)))
-                    .unwrap_or_default(),
-            ])
+            name
         } else {
             let percent = if task.percent.is_finite() {
                 task.percent.clamp(0., 100.).round() as u32
@@ -342,15 +320,7 @@ pub fn map(
                         tr("файлов", "files")
                     )
                 } else {
-                    instance
-                        .map(|i| {
-                            format!(
-                                "Minecraft {} · {}",
-                                text(&i.minecraft, 40),
-                                text(&i.loader, 24)
-                            )
-                        })
-                        .unwrap_or_default()
+                    String::new()
                 },
             ])
         };
@@ -363,12 +333,12 @@ pub fn map(
             ViewKind::Home => (
                 Kind::Home,
                 tr("На главной", "On the home page"),
-                "Canary".into(),
+                String::new(),
             ),
             ViewKind::Discover => (
                 Kind::Discover,
-                tr("Ищет новые проекты", "Discovering new projects"),
-                join([source.into(), category(&v.category, ru).into()]),
+                tr("Просматривает проекты", "Browsing projects"),
+                String::new(),
             ),
             ViewKind::Project => (
                 Kind::ViewingProject,
@@ -377,17 +347,17 @@ pub fn map(
                 } else {
                     tr("Смотрит проект", "Viewing a project")
                 },
-                join([category(&v.category, ru).into(), source.into()]),
+                String::new(),
             ),
             ViewKind::Library => (
                 Kind::Library,
                 tr("Управляет экземплярами", "Managing instances"),
-                "Library".into(),
+                String::new(),
             ),
             ViewKind::Settings => (
                 Kind::Settings,
                 tr("Настраивает Canary", "Configuring Canary"),
-                "Settings".into(),
+                String::new(),
             ),
             ViewKind::Error => (Kind::Error, tr("В Canary", "In Canary"), String::new()),
             ViewKind::Idle => (Kind::Idle, tr("В Canary", "In Canary"), String::new()),

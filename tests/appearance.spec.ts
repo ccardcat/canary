@@ -84,6 +84,7 @@ test("fonts, Minecraft modes, ambient and reduced motion", async ({ page }) => {
 test("theme-aware title bar, language and desktop geometry", async ({ page }) => {
   for (const mode of ["Light", "Dark", "AMOLED", "System"]) {
     await page.locator(".mode-grid").getByRole("button", { name: mode, exact: true }).click();
+    await expect(page.locator(".preset-grid button.selected")).toHaveCount(1);
     await expect(page.locator(".window-titlebar")).toBeVisible();
     const light = await page.locator("html").getAttribute("data-mode") === "light";
     await expect(page.locator(".window-titlebar img")).toHaveAttribute("src", `/branding/canary-bird-${light ? "black" : "white"}.png`);

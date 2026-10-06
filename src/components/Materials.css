@@ -3,7 +3,6 @@
    Modal dialogs. Buttons/inputs use foreground glass without nested blur. */
 :root { --space-1:4px; --space-2:8px; --space-3:12px; --space-4:16px; --space-5:20px; --space-6:24px;
   --font-ui:var(--ui-font,Nunito); --font-heading:var(--heading-font,var(--font-ui)); --font-mono:"Cascadia Mono",Consolas,monospace;
-  --focus-ring:color-mix(in srgb,var(--accent) 55%,transparent); --focus-halo:color-mix(in srgb,var(--accent) 12%,transparent);
 }
 :root :is(.project-card,.mini-card,.runtime-panel:not(:where(.accounts-panel,.runtime-create)),.runtime-account,.download-panel,.detail-meta,.detail-side,.version-list>button,.content-item,.content-notice,.content-history,.mrpack-preview,.activity-card,.material-preview-card,.polish-disclosure,.material-disclosure,.settings-info) {
   --m-fill:var(--mat-cards-fill);
@@ -16,7 +15,7 @@
   --m-sheen:var(--mat-cards-sheen);
   background:var(--m-sheen),linear-gradient(var(--m-tint),var(--m-tint)),var(--m-fill);
   -webkit-backdrop-filter:var(--m-filter); backdrop-filter:var(--m-filter);
-  border-color:var(--m-edge); border-top-color:var(--m-light);
+  border-color:var(--m-edge);
   box-shadow:var(--m-shadow); border-radius:var(--m-radius);
 }
 :root :is(button:not(:where(.card-visual,.card-title,.runtime-screenshot-button,.window-minimize,.window-maximize,.window-close,.toggle,.hero-arrow))) {
@@ -30,7 +29,7 @@
   --m-sheen:var(--mat-buttons-sheen);
   background:var(--m-sheen),linear-gradient(var(--m-tint),var(--m-tint)),var(--m-fill);
   -webkit-backdrop-filter:var(--m-filter); backdrop-filter:var(--m-filter);
-  border-color:var(--m-edge); border-top-color:var(--m-light);
+  border-color:var(--m-edge);
   box-shadow:var(--m-shadow); border-radius:var(--m-radius);
 }
 :root :is(.sidebar,.material-preview-sidebar) {
@@ -44,7 +43,7 @@
   --m-sheen:var(--mat-sidebar-sheen);
   background:var(--m-sheen),linear-gradient(var(--m-tint),var(--m-tint)),var(--m-fill);
   -webkit-backdrop-filter:var(--m-filter); backdrop-filter:var(--m-filter);
-  border-color:var(--m-edge); border-top-color:var(--m-light);
+  border-color:var(--m-edge);
   box-shadow:var(--m-shadow); border-radius:var(--m-radius);
 }
 :root :is(.popover,.glass-select-popup,.canary-tooltip,.text-context-menu) {
@@ -58,7 +57,7 @@
   --m-sheen:var(--mat-popovers-sheen);
   background:var(--m-sheen),linear-gradient(var(--m-tint),var(--m-tint)),var(--m-fill);
   -webkit-backdrop-filter:var(--m-filter); backdrop-filter:var(--m-filter);
-  border-color:var(--m-edge); border-top-color:var(--m-light);
+  border-color:var(--m-edge);
   box-shadow:var(--m-shadow); border-radius:var(--m-radius);
 }
 :root :is(.settings-modal,.runtime-dialog,.instance-surface) {
@@ -72,7 +71,7 @@
   --m-sheen:var(--mat-dialogs-sheen);
   background:var(--m-sheen),linear-gradient(var(--m-tint),var(--m-tint)),var(--m-fill);
   -webkit-backdrop-filter:var(--m-filter); backdrop-filter:var(--m-filter);
-  border-color:var(--m-edge); border-top-color:var(--m-light);
+  border-color:var(--m-edge);
   box-shadow:var(--m-shadow); border-radius:var(--m-radius);
 }
 :root :is(input:not(:where([type=checkbox],[type=range],.glass-select-backing)),textarea,select,.search-field,.glass-select-trigger) {
@@ -86,7 +85,7 @@
   --m-sheen:var(--mat-inputs-sheen);
   background:var(--m-sheen),linear-gradient(var(--m-tint),var(--m-tint)),var(--m-fill);
   -webkit-backdrop-filter:var(--m-filter); backdrop-filter:var(--m-filter);
-  border-color:var(--m-edge); border-top-color:var(--m-light);
+  border-color:var(--m-edge);
   box-shadow:var(--m-shadow); border-radius:var(--m-radius);
 }
 :root :is(.window-titlebar) {
@@ -100,7 +99,7 @@
   --m-sheen:var(--mat-titlebar-sheen);
   background:var(--m-sheen),linear-gradient(var(--m-tint),var(--m-tint)),var(--m-fill);
   -webkit-backdrop-filter:var(--m-filter); backdrop-filter:var(--m-filter);
-  border-color:var(--m-edge); border-top-color:var(--m-light);
+  border-color:var(--m-edge);
   box-shadow:var(--m-shadow); border-radius:var(--m-radius);
 }
 :root :is(.account-button,.type-tabs,.toast,.runtime-error,.hero-carousel-controls) {
@@ -114,7 +113,7 @@
   --m-sheen:var(--mat-floating-sheen);
   background:var(--m-sheen),linear-gradient(var(--m-tint),var(--m-tint)),var(--m-fill);
   -webkit-backdrop-filter:var(--m-filter); backdrop-filter:var(--m-filter);
-  border-color:var(--m-edge); border-top-color:var(--m-light);
+  border-color:var(--m-edge);
   box-shadow:var(--m-shadow); border-radius:var(--m-radius);
 }
 
@@ -137,15 +136,16 @@
 :root[data-window-fullscreen="true"][data-sidebar-mode="floating"] .sidebar { height:calc(100dvh - 24px); }
 :root[data-sidebar-mode="floating"] .content-shell { padding-inline:clamp(12px,2vw,36px); }
 :root .sidebar nav button,:root .settings-nav button,:root .glass-select-popup button,:root .text-context-menu button { background:transparent; box-shadow:none; border-color:transparent; backdrop-filter:none; }
-:root .nav-capsule,:root .segment-capsule { background:linear-gradient(150deg,var(--mat-buttons-light),transparent 65%),color-mix(in srgb,var(--accent) 9%,var(--mat-buttons-fill)); border:1px solid var(--mat-buttons-edge); box-shadow:inset 0 1px var(--mat-buttons-light),0 2px 6px #0002; backdrop-filter:none; }
+:root .nav-capsule,:root .segment-capsule { background:linear-gradient(150deg,var(--mat-buttons-light),transparent 65%),var(--surface-selected); border:1px solid var(--mat-buttons-edge); box-shadow:inset 0 1px var(--mat-buttons-light),0 2px 6px #0002; backdrop-filter:none; }
 :root button:not(:disabled) { transition:background-color 160ms,border-color 160ms,color 160ms,box-shadow 160ms,transform 160ms; }
-:root button:where(:hover:not(:disabled):not(.card-visual):not(.card-title):not(.window-close)) { background-color:color-mix(in srgb,var(--accent) 9%,transparent); border-color:color-mix(in srgb,var(--accent) 32%,var(--m-edge,var(--line))); }
-:root button:where(:active:not(:disabled):not(.card-visual):not(.toggle)) { transform:translateY(1px); box-shadow:inset 0 1px var(--m-light); }
-:root button:is(.selected,[aria-pressed="true"],[aria-selected="true"]) { background:var(--mat-buttons-sheen),color-mix(in srgb,var(--accent) 16%,var(--mat-buttons-fill)); border-color:color-mix(in srgb,var(--accent) 55%,var(--line)); color:var(--text); }
+:root button:where(:hover:not(:disabled):not(.card-visual):not(.card-title):not(.window-close)) { background-color:var(--surface-hover); border-color:var(--border-strong); }
+:root button:where(:active:not(:disabled):not(.card-visual):not(.toggle)) { background:var(--mat-buttons-sheen),var(--surface-pressed); border-color:var(--accent-pressed); transform:translateY(1px); box-shadow:inset 0 1px var(--m-light); }
+:root button:is(.selected,[aria-pressed="true"],[aria-selected="true"]):not(:disabled) { background:var(--mat-buttons-sheen),var(--surface-selected); border-color:var(--border-selected); color:var(--text); }
 :root :is(.primary-button,.play-action,.install-action) { background:var(--mat-buttons-sheen),color-mix(in srgb,var(--accent) 20%,var(--mat-buttons-fill)); border-color:color-mix(in srgb,var(--accent) 48%,var(--line)); color:var(--text); font-weight:700; box-shadow:var(--mat-buttons-shadow); }
-:root :is(.primary-button,.play-action,.install-action):hover:not(:disabled) { background-color:color-mix(in srgb,var(--accent) 24%,transparent); border-color:var(--accent); }
+:root :is(.primary-button,.play-action,.install-action):hover:not(:disabled) { background-color:var(--surface-hover); border-color:var(--accent-hover); }
 :root :is(button,input,textarea,select,a,summary):focus-visible { outline:1.5px solid var(--focus-ring); outline-offset:2px; }
-:root button:disabled { opacity:.62; cursor:not-allowed; transform:none; }
+:root :is(button,input,textarea,select):disabled,:root button:is(.selected,[aria-pressed="true"],[aria-selected="true"]):disabled { opacity:1; color:var(--text-disabled); background:var(--surface-disabled); border-color:var(--border-subtle); box-shadow:none; cursor:not-allowed; transform:none; }
+:root button:disabled svg { color:var(--icon-disabled); }
 :root button.destructive { color:var(--text); }
 :root button.destructive:hover:not(:disabled),:root button.destructive:focus-visible { background:color-mix(in srgb,var(--danger,#d86f78) 15%,var(--mat-buttons-fill)); border-color:color-mix(in srgb,var(--danger,#d86f78) 58%,var(--line)); color:var(--danger,#d86f78); }
 :root button.destructive:active:not(:disabled) { background:color-mix(in srgb,var(--danger,#d86f78) 24%,var(--mat-buttons-fill)); }
@@ -252,8 +252,8 @@
 /* Foreground action and tab variants share button tokens without an opaque bar. */
 :root :is(.surface-action,.surface-tab) { background:color-mix(in srgb,var(--mat-buttons-fill) 25%,transparent); border:1px solid transparent; box-shadow:none; backdrop-filter:none; color:var(--muted); display:inline-flex; align-items:center; justify-content:center; gap:8px; min-height:38px; padding:8px 12px; line-height:1.5; }
 :root .surface-action { background:transparent; color:var(--text); }
-:root :is(.surface-action,.surface-tab):hover:not(:disabled) { background:var(--mat-buttons-sheen),color-mix(in srgb,var(--accent) 8%,var(--mat-buttons-fill)); border-color:var(--mat-buttons-edge); color:var(--text); box-shadow:inset 0 1px var(--mat-buttons-light); }
-:root .surface-tab:is(.selected,[aria-selected="true"]) { background:var(--mat-buttons-sheen),color-mix(in srgb,var(--accent) 10%,var(--mat-buttons-fill)); border-color:var(--mat-buttons-edge); border-top-color:var(--mat-buttons-light); box-shadow:inset 0 1px var(--mat-buttons-light); color:var(--text); }
+:root :is(.surface-action,.surface-tab):hover:not(:disabled) { background:var(--mat-buttons-sheen),var(--surface-hover); border-color:var(--mat-buttons-edge); color:var(--text); box-shadow:inset 0 1px var(--mat-buttons-light); }
+:root .surface-tab:is(.selected,[aria-selected="true"]):not(:disabled) { background:var(--mat-buttons-sheen),var(--surface-selected); border-color:var(--border-selected); border-top-color:var(--border-selected); box-shadow:inset 0 1px var(--mat-buttons-light); color:var(--text); }
 :root :is(.type-tabs,.detail-tabs) { gap:6px; background:transparent; border:0; box-shadow:none; backdrop-filter:none; padding:0; }
 :root .type-tabs { grid-template-columns:repeat(6,minmax(max-content,1fr)); width:100%; overflow:auto; padding:3px; margin-inline:-3px; }
 :root .type-tabs .segment-capsule { display:none; }
@@ -272,11 +272,11 @@
 :root .search-field:focus-within { border-color:var(--focus-ring); box-shadow:inset 0 0 0 1px var(--focus-ring),0 0 0 3px var(--focus-halo); }
 :root .search-field input,:root .search-field input:focus-visible { background:transparent; border:0; border-radius:0; box-shadow:none; outline:0; backdrop-filter:none; padding:10px 0; min-height:40px; color:var(--text); font:inherit; }
 :root .search-field button { background:transparent; border:0; box-shadow:none; width:30px; min-height:30px; padding:6px; }
-:root input::placeholder { color:var(--muted); opacity:.85; }
+:root input::placeholder { color:var(--text-tertiary); opacity:1; }
 
 /* Navigation hover and keyboard focus follow the full hit area in both sizes. */
 :root .sidebar :is(nav,.sidebar-bottom) button { border:1px solid transparent; box-shadow:none; border-radius:var(--mat-buttons-radius); background:transparent; min-height:42px; }
-:root .sidebar :is(nav,.sidebar-bottom) button:hover { border-color:transparent; background:color-mix(in srgb,var(--mat-buttons-fill) 55%,transparent); color:var(--text); transform:none; }
+:root .sidebar :is(nav,.sidebar-bottom) button:hover { border-color:transparent; background:var(--surface-hover); color:var(--text); transform:none; }
 :root .sidebar :is(nav,.sidebar-bottom) button:active { transform:none; }
 :root .sidebar :is(nav,.sidebar-bottom) button:focus-visible { outline:0; box-shadow:inset 0 0 0 1.5px var(--focus-ring); }
 :root .sidebar .nav-capsule { border-color:var(--mat-buttons-edge); border-radius:inherit; box-shadow:inset 0 1px var(--mat-buttons-light); }
@@ -328,3 +328,33 @@
 :root[data-mode="light"][data-quality="low"] :is(.settings-modal,.runtime-dialog,.instance-surface,.popover,.glass-select-popup,.canary-tooltip,.text-context-menu) {
   background-color:color-mix(in srgb,var(--surface-2) 97%,transparent);
 }
+
+/* Text-bearing surfaces share palette semantics, including Settings navigation. */
+:root .canary-app { background:linear-gradient(120deg,var(--page-background),transparent); }
+:root .settings-nav { background:color-mix(in srgb,var(--surface-secondary) 75%,transparent); border-color:var(--border-default); }
+:root .settings-nav button:hover { background:var(--surface-hover); color:var(--text-primary); }
+:root .settings-nav button:active,:root .sidebar :is(nav,.sidebar-bottom) button:active { background:var(--surface-pressed); }
+:root .settings-nav button.active { color:var(--text-primary); font-weight:700; }
+:root .settings-nav .nav-capsule,:root .sidebar .nav-capsule { background:var(--surface-selected); border-color:var(--border-selected); }
+:root .settings-search input { color:var(--text-primary); box-shadow:inset 0 1px var(--mat-inputs-light); }
+:root .settings-search input:focus-visible { outline:0; border-color:var(--focus-ring); box-shadow:0 0 0 1px var(--focus-ring),0 0 0 3px var(--focus-halo); }
+:root :is(.mode-grid,.preset-grid,.accent-grid) button:not(:disabled) { color:var(--text-secondary); }
+:root :is(.mode-grid,.preset-grid,.accent-grid) button.selected:not(:disabled) { color:var(--text-primary); border-color:var(--border-selected); box-shadow:inset 0 1px var(--mat-buttons-light),0 0 0 1px var(--border-selected); font-weight:700; }
+:root .accent-grid i { border-color:var(--border-strong); box-shadow:inset 0 0 0 1px var(--border-subtle); }
+:root :is(.search-field,.glass-select-trigger)>svg { color:var(--icon-secondary); opacity:1; }
+:root .modal-backdrop,:root .runtime-dialog::backdrop { background:var(--backdrop-overlay); }
+:root .glass-select-popup button:hover:not(:disabled) { background:var(--surface-hover); }
+:root .glass-select-popup button:active:not(:disabled) { background:var(--surface-pressed); }
+:root .glass-select-popup button[aria-selected=true]:not(:disabled) { background:var(--surface-selected); color:var(--text-primary); border-color:var(--border-selected); }
+:root button.toggle:disabled i { background:var(--icon-disabled); }
+:root .settings-note { color:var(--text-secondary); }
+
+/* Selected controls still react to pointer pressure. */
+:root button:is(.selected,[aria-selected="true"],[aria-pressed="true"]):hover:not(:disabled) { border-color:var(--accent-hover); background:var(--mat-buttons-sheen),var(--surface-hover); }
+:root button:active:not(:disabled):not(.toggle):where(:not(.card-visual):not(.card-title):not(.window-minimize):not(.window-maximize):not(.window-close)) { background:var(--mat-buttons-sheen),var(--surface-pressed); border-color:var(--accent-pressed); }
+:root :is(.settings-nav,.sidebar nav) button:active .nav-capsule { background:var(--surface-pressed); }
+/* Carousel controls sit over artwork, with the same protected floating tint. */
+:root .hero-carousel-controls .hero-arrow { background:var(--mat-floating-fill); color:var(--icon-primary); border-color:var(--border-default); box-shadow:none; }
+:root .hero-carousel-controls button:not(.hero-arrow) { background:var(--icon-secondary); border:0; box-shadow:none; backdrop-filter:none; transform:none; }
+:root .hero-carousel-controls button:not(.hero-arrow)[aria-pressed="true"] { background:var(--accent); box-shadow:0 0 0 2px var(--accent-soft); transform:scale(1.25); }
+:root .hero-carousel-controls button:not(.hero-arrow):hover { background:var(--accent-hover); }

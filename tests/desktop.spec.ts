@@ -189,7 +189,7 @@ test("account repeated click, outside click and Escape; Settings trap and live l
   await expect.poll(() => page
     .locator(".settings-modal h2")
     .evaluate((el) => getComputedStyle(el).color)
-  ).toBe("rgb(29, 36, 35)");
+  ).toBe("rgb(32, 42, 38)");
   await page.getByRole("button", { name: "Mint", exact: true }).click();
   expect(
     await page

@@ -79,12 +79,13 @@ export function applyMaterialTokens(root:HTMLElement,value:TokenPreferences){
     const edge=p.edge*(.7+strength*.4)*value.materialBorder/100;
     const prefix=`--mat-${category}-`;
     const token=(key:string,v:string)=>root.style.setProperty(prefix+key,v);
-    token('opacity',`${opacity.toFixed(1)}%`);
-    token('fill',`color-mix(in srgb, var(--surface) ${opacity.toFixed(1)}%, transparent)`);
+    token('opacity',`max(${opacity.toFixed(1)}%, var(--surface-floor-${category}))`);
+    const base=category==='inputs'?'input':category==='sidebar'?'sidebar':category==='dialogs'?'modal':category==='popovers'?'elevated':'primary';
+    token('fill',`color-mix(in srgb, var(--surface-${base}) var(${prefix}opacity), transparent)`);
     token('filter',blur===0?'none':`blur(${blur.toFixed(1)}px) saturate(${(p.saturation*value.materialSaturation/100*(.7+strength*.6)).toFixed(2)}) brightness(${value.materialBrightness/100}) contrast(${value.materialContrast/100})`);
-    token('glow',`rgb(255 255 255 / ${(clamp(light,0,.65)*.18).toFixed(3)})`);
+    token('glow',`color-mix(in srgb, var(--highlight) ${(clamp(light,0,.65)*50).toFixed(1)}%, transparent)`);
     token('light',`rgb(255 255 255 / ${clamp(light,0,.65).toFixed(3)})`);
-    token('edge',`color-mix(in srgb, var(--text) ${(edge*100).toFixed(1)}%, transparent)`);
+    token('edge',`color-mix(in srgb, var(--border-default) 65%, color-mix(in srgb, var(--text) ${(edge*100).toFixed(1)}%, transparent))`);
     token('shadow',`inset 0 1px 0 var(${prefix}light), inset 1px 0 0 rgb(255 255 255 / ${(light*.3).toFixed(3)}), inset 0 -1px ${style==='liquid'?3:0}px rgb(0 0 0 / ${(edge*.55).toFixed(3)}), 0 0 0 1px rgb(0 0 0 / ${(edge*.35).toFixed(3)}), 0 ${Math.round(4*d)}px ${Math.round(10*d)}px rgb(0 0 0 / ${(shadow*.7).toFixed(3)}), 0 ${Math.round(15*d)}px ${Math.round(34*d)}px rgb(0 0 0 / ${shadow.toFixed(3)})`);
     token('radius',`${foreground?clamp(value.materialRadius*.55,8,16):category==='titlebar'?0:clamp(value.materialRadius*d,8,32)}px`);
     token('tint',value.materialAccent?'color-mix(in srgb, var(--accent) 6%, transparent)':'transparent');

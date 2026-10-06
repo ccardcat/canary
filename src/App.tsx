@@ -124,6 +124,8 @@ const accentColors: Record<Accent, string> = {
   rose: "#ed9bad",
   orange: "#e8ae79",
 };
+const lightPalettes = ["white", "softLight", "frost", "warm"] as const;
+const darkPalettes = ["graphite", "black", "softDark", "midnight"] as const;
 const modes: Mode[] = ["dark", "light", "amoled", "system"];
 function getInitialLanguage() {
   const saved = localStorage.getItem("canary-language");
@@ -192,6 +194,9 @@ function App() {
   );
   const resolvedMode =
     mode === "system" ? (systemLight ? "light" : "dark") : mode;
+  // Resolve the visible palette without discarding the saved other-mode choice.
+  const palettes: readonly string[] = resolvedMode === "light" ? lightPalettes : darkPalettes;
+  const resolvedPreset = palettes.includes(preset) ? preset : palettes[0];
   const sidebarOpen = !compact && (!narrow || expandNarrow);
   const accountRef = useRef<HTMLDivElement>(null);
   const filterRef = useRef<HTMLDivElement>(null);
@@ -211,7 +216,7 @@ function App() {
   useLayoutEffect(() => {
     document.documentElement.dataset.mode = resolvedMode;
     document.documentElement.dataset.accent = accent;
-    document.documentElement.dataset.preset = preset;
+    document.documentElement.dataset.preset = resolvedPreset;
     document.documentElement.dataset.motion = reduceMotion ? "reduced" : "full";
     document.documentElement.lang = lang;
     localStorage.setItem("canary-language", lang);
@@ -220,7 +225,7 @@ function App() {
     localStorage.setItem("canary-preset", preset);
     localStorage.setItem("canary-compact", String(compact));
     localStorage.setItem("canary-motion", reduceMotion ? "reduced" : "full");
-  }, [mode, resolvedMode, accent, preset, compact, reduceMotion, lang]);
+  }, [mode, resolvedMode, resolvedPreset, accent, preset, compact, reduceMotion, lang]);
   useEffect(() => {
     const controller = new AbortController();
     searchProjects(
@@ -604,7 +609,7 @@ function App() {
               setCompact={setCompact}
               reduceMotion={reduceMotion}
               setReduceMotion={setReduceMotion}
-              preset={preset}
+              preset={resolvedPreset}
               setPreset={setPreset}
             />
           )}
@@ -1894,8 +1899,8 @@ function Appearance({
   const modeIcon = { dark: Moon, light: Sun, amoled: Moon, system: Monitor };
   const presets: Key[] =
     (mode === "light" || (mode === "system" && matchMedia("(prefers-color-scheme: light)").matches))
-      ? ["white", "softLight", "frost", "warm"]
-      : ["graphite", "black", "softDark", "midnight"];
+      ? [...lightPalettes]
+      : [...darkPalettes];
   return (
     <div className="appearance-settings">
       <div className="setting-intro">

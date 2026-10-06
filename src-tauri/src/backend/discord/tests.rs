@@ -58,7 +58,7 @@ fn home_navigation_project_and_locale() {
     i.view.locale = Locale::Ru;
     assert_eq!(mapped(&i, &[], &[]).payload["details"], "На главной");
     for (kind, expected) in [
-        (ViewKind::Discover, "Ищет новые проекты"),
+        (ViewKind::Discover, "Просматривает проекты"),
         (ViewKind::Library, "Управляет экземплярами"),
         (ViewKind::Settings, "Настраивает Canary"),
     ] {
@@ -70,7 +70,7 @@ fn home_navigation_project_and_locale() {
     i.view.provider = "modrinth".into();
     i.view.category = "modpack".into();
     assert_eq!(mapped(&i, &[], &[]).payload["details"], "Смотрит Better MC");
-    assert_eq!(mapped(&i, &[], &[]).payload["state"], "Сборка · Modrinth");
+    assert!(mapped(&i, &[], &[]).payload.get("state").is_none());
     i.preferences.project_names = false;
     assert_eq!(mapped(&i, &[], &[]).payload["details"], "Смотрит проект");
     i.preferences.current_page = false;
@@ -106,6 +106,54 @@ fn playing_has_priority_stable_session_timer_and_privacy() {
     second.instance_id = "second".into();
     assert_eq!(mapped(&i, &[a, second], &[]).identity, "second");
     assert_eq!(mapped(&i, &[], &[]).kind, Kind::Settings);
+}
+
+#[test]
+fn clean_copy_in_both_locales_preserves_visual_context_and_launch_privacy() {
+    let mut config = Configuration::default();
+    config.confirmed_assets = vec![
+        "canary_logo".into(),
+        "modrinth".into(),
+        "curseforge".into(),
+    ];
+    for (locale, discover, launch) in [
+        (Locale::Ru, "Просматривает проекты", "Запускает Minecraft"),
+        (Locale::En, "Browsing projects", "Launching Minecraft"),
+    ] {
+        let mut i = input();
+        i.view.locale = locale;
+        for source in ["modrinth", "curseforge"] {
+            i.view.provider = source.into();
+            i.view.category = "modpack".into();
+            i.view.project_name = "Better MC".into();
+            for kind in [
+                ViewKind::Home,
+                ViewKind::Discover,
+                ViewKind::Project,
+                ViewKind::Library,
+                ViewKind::Settings,
+            ] {
+                i.view.kind = kind;
+                let p = map(&i, &[], &[], &[], &config).unwrap().payload;
+                assert!(p.get("state").is_none());
+                assert!(!p["details"].as_str().unwrap().contains("Modrinth"));
+                assert!(!p["details"].as_str().unwrap().contains("CurseForge"));
+                if kind == ViewKind::Discover {
+                    assert_eq!(p["details"], discover);
+                }
+                assert_eq!(p["assets"]["large_image"], "canary_logo");
+                assert_eq!(p["assets"]["small_image"], source);
+                assert_eq!(p["buttons"].as_array().unwrap().len(), 1);
+            }
+        }
+        let mut t = task();
+        t.kind = TaskKind::Launch;
+        let p = mapped(&i, &[], &[t.clone()]).payload;
+        assert_eq!(p["details"], launch);
+        assert_eq!(p["state"], "Better MC");
+        i.preferences.instance_names = false;
+        assert!(mapped(&i, &[], &[t]).payload.get("state").is_none());
+    }
 }
 #[test]
 fn install_progress_privacy_and_terminal_cleanup() {
@@ -339,7 +387,7 @@ async fn real_socket_restart_off_clear_game_exit_and_reenable() {
     manager.changed();
     assert_eq!(
         next(&mut received).await["details"],
-        "Discovering new projects"
+        "Browsing projects"
     );
     while closures.try_recv().is_ok() {}
     manager.shutdown();
