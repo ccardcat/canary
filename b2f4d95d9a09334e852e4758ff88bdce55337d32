@@ -1,7 +1,41 @@
 {
   "tag": "v0.1.5",
   "commit": "b2f4d95d9a09334e852e4758ff88bdce55337d32",
-  "status": "building",
-  "windows_only": false,
-  "run_url": "https://github.com/ccardcat/canary/actions/runs/37528929656"
+  "status": "published",
+  "build": "success",
+  "publish": "success",
+  "run_url": "https://github.com/ccardcat/canary/actions/runs/37528929656",
+  "release_url": "https://github.com/ccardcat/canary/releases/tag/v0.1.5",
+  "assets": [
+    {
+      "name": "Canary_0.1.5_amd64.AppImage",
+      "size": 102930936,
+      "url": "https://github.com/ccardcat/canary/releases/download/v0.1.5/Canary_0.1.5_amd64.AppImage",
+      "digest": "sha256:652241ecd73c9e62488a0225a0f2d5833da036b8af0c212aeba7cae63bc75988"
+    },
+    {
+      "name": "Canary_0.1.5_amd64.deb",
+      "size": 22850886,
+      "url": "https://github.com/ccardcat/canary/releases/download/v0.1.5/Canary_0.1.5_amd64.deb",
+      "digest": "sha256:ebcf9dfaf475a3968657e32528e827a4fe265582f7e853cfb49d6fc7c015ef83"
+    },
+    {
+      "name": "Canary_0.1.5_x64-setup.exe",
+      "size": 20717397,
+      "url": "https://github.com/ccardcat/canary/releases/download/v0.1.5/Canary_0.1.5_x64-setup.exe",
+      "digest": "sha256:7ab0ea25c7dc84271155e475fc8f40ff5db76d917f15570e4833671c35fb01be"
+    },
+    {
+      "name": "Canary_0.1.5_x64_en-US.msi",
+      "size": 22134784,
+      "url": "https://github.com/ccardcat/canary/releases/download/v0.1.5/Canary_0.1.5_x64_en-US.msi",
+      "digest": "sha256:d570e3216512627483f64ca6d1213182d61060fee594d8f1dc257caa65ee5c95"
+    },
+    {
+      "name": "SHA256SUMS",
+      "size": 369,
+      "url": "https://github.com/ccardcat/canary/releases/download/v0.1.5/SHA256SUMS",
+      "digest": "sha256:d9c7ae50400d48b1f5da797e9925db0e50fb76e79e8d036ecbd0945d7fae5457"
+    }
+  ]
 }
