@@ -20,14 +20,83 @@ export default function MaterialSettings({russian,value,update}:{russian:boolean
   <div className="material-preview" aria-label={label('Live material preview','Живой предпросмотр материалов')}>
     <aside className="material-preview-sidebar"><Star size={18}/><span>Canary</span></aside><article className="material-preview-card"><b>{label('Your next world','Ваш следующий мир')}</b><p>Minecraft · Fabric</p><div className="runtime-inline"><button className="primary-button" type="button"><Play size={14}/>{label('Play','Играть')}</button><button className="quiet-button" type="button">{label('Details','Подробнее')}</button><button className="material-icon" type="button" aria-label={label('Rename preview','Переименовать в предпросмотре')} data-tooltip={label('Rename','Переименовать')}><Pencil size={16}/></button><button className="material-icon destructive" type="button" aria-label={label('Delete preview','Удалить в предпросмотре')} data-tooltip={label('Delete','Удалить')}><Trash2 size={16}/></button></div></article>
   </div>
-  <div className="material-controls">
-    <label>{label('Sidebar layout','Расположение боковой панели')}<GlassSelect aria-label={label('Sidebar layout','Расположение боковой панели')} value={value.sidebarMode} onChange={e=>change({sidebarMode:e.target.value as Values['sidebarMode']})}><option value="attached">{label('Attached','Прикреплённая')}</option><option value="floating">{label('Floating','Плавающая')}</option></GlassSelect></label>
-    <label>{label('Instance card layout','Карточки экземпляров')}<GlassSelect aria-label={label('Instance card layout','Карточки экземпляров')} value={value.instanceLayout} onChange={e=>update({instanceLayout:e.target.value as Values['instanceLayout']})}><option value="comfortable">{label('Comfortable','Обычные')}</option><option value="compact">{label('Compact','Компактные')}</option></GlassSelect></label>
-    <label>{label('Card artwork','Изображение карточки')}<GlassSelect aria-label={label('Card artwork','Изображение карточки')} value={value.instanceArtwork} onChange={e=>update({instanceArtwork:e.target.value as Values['instanceArtwork']})}><option value="full">{label('Full','Полное')}</option><option value="ambient">{label('Ambient','Фоновое')}</option><option value="off">{label('Off','Выключено')}</option></GlassSelect></label>
-    <label>{label('Button density','Плотность кнопок')}<GlassSelect aria-label={label('Button density','Плотность кнопок')} value={value.buttonDensity} onChange={e=>update({buttonDensity:e.target.value as Values['buttonDensity']})}><option value="comfortable">{label('Comfortable','Обычная')}</option><option value="compact">{label('Compact','Компактная')}</option></GlassSelect></label>
-  </div>
   <details className="material-disclosure material-advanced"><summary>{label('Advanced materials','Дополнительные настройки материалов')}</summary><div className="material-controls">{materialCategories.map(selectCategory)}{range(label('Surface opacity','Непрозрачность поверхностей'),'surfaceOpacity',55,100)}{range(label('Saturation','Насыщенность'),'materialSaturation',50,160)}{range(label('Brightness','Яркость'),'materialBrightness',80,120)}{range(label('Contrast','Контраст'),'materialContrast',80,120)}{range(label('Edge highlight','Светлый кант'),'materialHighlight',0,160)}{range(label('Border strength','Выраженность края'),'materialBorder',30,160)}{range(label('Shadow depth','Глубина теней'),'materialShadow',0,160)}{range(label('Corner radius','Скругление'),'materialRadius',8,28)}{range(label('Sidebar intensity','Интенсивность боковой панели'),'sidebarMaterialIntensity',0,150)}{range(label('Titlebar intensity','Интенсивность заголовка'),'titlebarMaterialIntensity',0,150)}</div><label className="material-check"><input type="checkbox" checked={value.materialAccent} onChange={e=>change({materialAccent:e.target.checked})}/>{label('Subtle accent tint','Лёгкий оттенок акцента')}</label></details>
   <label className="material-check"><input type="checkbox" checked={value.reduceTransparency} onChange={e=>change({reduceTransparency:e.target.checked})}/>{label('Reduce transparency','Уменьшить прозрачность')}</label>
   <button className="quiet-button" onClick={()=>update({...materialDefaults,materialCategories:{...materialDefaults.materialCategories},surfaceOpacity:82,surfaceBlur:16})}><RotateCcw size={14}/>{label('Reset materials','Сбросить материалы')}</button>
  </section>;
+}
+
+export function MaterialLayoutSettings({
+  russian,
+  value,
+  update,
+}: {
+  russian: boolean;
+  value: Values;
+  update: (patch: Partial<Values>) => void;
+}) {
+  const label = (en: string, ru: string) => (russian ? ru : en);
+  const change = (patch: Partial<Values>) =>
+    update({ ...patch, materialPreset: "custom" });
+  return (
+    <div className="material-controls">
+      <label>
+        {label("Sidebar layout", "Расположение боковой панели")}
+        <GlassSelect
+          aria-label={label("Sidebar layout", "Расположение боковой панели")}
+          value={value.sidebarMode}
+          onChange={(e) =>
+            change({ sidebarMode: e.target.value as Values["sidebarMode"] })
+          }
+        >
+          <option value="attached">{label("Attached", "Прикреплённая")}</option>
+          <option value="floating">{label("Floating", "Плавающая")}</option>
+        </GlassSelect>
+      </label>
+      <label>
+        {label("Instance card layout", "Карточки экземпляров")}
+        <GlassSelect
+          aria-label={label("Instance card layout", "Карточки экземпляров")}
+          value={value.instanceLayout}
+          onChange={(e) =>
+            update({
+              instanceLayout: e.target.value as Values["instanceLayout"],
+            })
+          }
+        >
+          <option value="comfortable">{label("Comfortable", "Обычные")}</option>
+          <option value="compact">{label("Compact", "Компактные")}</option>
+        </GlassSelect>
+      </label>
+      <label>
+        {label("Card artwork", "Изображение карточки")}
+        <GlassSelect
+          aria-label={label("Card artwork", "Изображение карточки")}
+          value={value.instanceArtwork}
+          onChange={(e) =>
+            update({
+              instanceArtwork: e.target.value as Values["instanceArtwork"],
+            })
+          }
+        >
+          <option value="full">{label("Full", "Полное")}</option>
+          <option value="ambient">{label("Ambient", "Фоновое")}</option>
+          <option value="off">{label("Off", "Выключено")}</option>
+        </GlassSelect>
+      </label>
+      <label>
+        {label("Button density", "Плотность кнопок")}
+        <GlassSelect
+          aria-label={label("Button density", "Плотность кнопок")}
+          value={value.buttonDensity}
+          onChange={(e) =>
+            update({ buttonDensity: e.target.value as Values["buttonDensity"] })
+          }
+        >
+          <option value="comfortable">{label("Comfortable", "Обычная")}</option>
+          <option value="compact">{label("Compact", "Компактная")}</option>
+        </GlassSelect>
+      </label>
+    </div>
+  );
 }

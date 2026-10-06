@@ -1,7 +1,10 @@
 
 /* Shared surface tokens: Raised cards, Floating controls, Overlay menus and
    Modal dialogs. Buttons/inputs use foreground glass without nested blur. */
-:root { --space-1:4px; --space-2:8px; --space-3:12px; --space-4:16px; --space-5:20px; --space-6:24px; }
+:root { --space-1:4px; --space-2:8px; --space-3:12px; --space-4:16px; --space-5:20px; --space-6:24px;
+  --font-ui:var(--ui-font,Nunito); --font-heading:var(--heading-font,var(--font-ui)); --font-mono:"Cascadia Mono",Consolas,monospace;
+  --focus-ring:color-mix(in srgb,var(--accent) 55%,transparent); --focus-halo:color-mix(in srgb,var(--accent) 12%,transparent);
+}
 :root :is(.project-card,.mini-card,.runtime-panel:not(:where(.accounts-panel,.runtime-create)),.runtime-account,.download-panel,.detail-meta,.detail-side,.version-list>button,.content-item,.content-notice,.content-history,.mrpack-preview,.activity-card,.material-preview-card,.polish-disclosure,.material-disclosure,.settings-info) {
   --m-fill:var(--mat-cards-fill);
   --m-filter:var(--mat-cards-filter);
@@ -136,12 +139,12 @@
 :root .sidebar nav button,:root .settings-nav button,:root .glass-select-popup button,:root .text-context-menu button { background:transparent; box-shadow:none; border-color:transparent; backdrop-filter:none; }
 :root .nav-capsule,:root .segment-capsule { background:linear-gradient(150deg,var(--mat-buttons-light),transparent 65%),color-mix(in srgb,var(--accent) 9%,var(--mat-buttons-fill)); border:1px solid var(--mat-buttons-edge); box-shadow:inset 0 1px var(--mat-buttons-light),0 2px 6px #0002; backdrop-filter:none; }
 :root button:not(:disabled) { transition:background-color 160ms,border-color 160ms,color 160ms,box-shadow 160ms,transform 160ms; }
-:root button:hover:not(:disabled):not(.card-visual):not(.card-title):not(.window-close) { background-color:color-mix(in srgb,var(--accent) 9%,transparent); border-color:color-mix(in srgb,var(--accent) 32%,var(--m-edge,var(--line))); }
-:root button:active:not(:disabled):not(.card-visual):not(.toggle) { transform:translateY(1px); box-shadow:inset 0 1px var(--m-light); }
+:root button:where(:hover:not(:disabled):not(.card-visual):not(.card-title):not(.window-close)) { background-color:color-mix(in srgb,var(--accent) 9%,transparent); border-color:color-mix(in srgb,var(--accent) 32%,var(--m-edge,var(--line))); }
+:root button:where(:active:not(:disabled):not(.card-visual):not(.toggle)) { transform:translateY(1px); box-shadow:inset 0 1px var(--m-light); }
 :root button:is(.selected,[aria-pressed="true"],[aria-selected="true"]) { background:var(--mat-buttons-sheen),color-mix(in srgb,var(--accent) 16%,var(--mat-buttons-fill)); border-color:color-mix(in srgb,var(--accent) 55%,var(--line)); color:var(--text); }
 :root :is(.primary-button,.play-action,.install-action) { background:var(--mat-buttons-sheen),color-mix(in srgb,var(--accent) 20%,var(--mat-buttons-fill)); border-color:color-mix(in srgb,var(--accent) 48%,var(--line)); color:var(--text); font-weight:700; box-shadow:var(--mat-buttons-shadow); }
 :root :is(.primary-button,.play-action,.install-action):hover:not(:disabled) { background-color:color-mix(in srgb,var(--accent) 24%,transparent); border-color:var(--accent); }
-:root :is(button,input,textarea,select):focus-visible { outline:2px solid var(--accent); outline-offset:3px; }
+:root :is(button,input,textarea,select,a,summary):focus-visible { outline:1.5px solid var(--focus-ring); outline-offset:2px; }
 :root button:disabled { opacity:.62; cursor:not-allowed; transform:none; }
 :root button.destructive { color:var(--text); }
 :root button.destructive:hover:not(:disabled),:root button.destructive:focus-visible { background:color-mix(in srgb,var(--danger,#d86f78) 15%,var(--mat-buttons-fill)); border-color:color-mix(in srgb,var(--danger,#d86f78) 58%,var(--line)); color:var(--danger,#d86f78); }
@@ -176,7 +179,7 @@
 .instance-small-icon .remote-image { width:100%; height:100%; }
 .instance-actions { display:flex; gap:8px; flex-wrap:wrap; align-items:center; margin-top:auto; padding-top:12px; }
 .instance-actions .play-action { margin-right:auto; min-height:36px; display:inline-flex; gap:6px; justify-content:center; align-items:center; min-width:90px; }
-.instance-actions .repair-needed { border-color:var(--warning); }
+:root .instance-actions .repair-needed { border-color:color-mix(in srgb,var(--accent) 45%,var(--line)); color:var(--text); font-weight:700; }
 .instance-links { display:flex; gap:8px; margin-top:12px; flex-wrap:wrap; }
 :root .instance-card .card-body { display:flex; flex-direction:column; padding:16px; position:relative; }
 :root .instance-card .card-visual { pointer-events:none; }
@@ -245,3 +248,64 @@
 :root[data-instance-layout="compact"] .instance-card .chips { height:auto; margin:0; gap:4px; }
 :root[data-instance-layout="compact"] .instance-actions { margin-top:12px; padding-top:0; }
 :root[data-instance-layout="compact"] .instance-links { margin-top:8px; }
+
+/* Foreground action and tab variants share button tokens without an opaque bar. */
+:root :is(.surface-action,.surface-tab) { background:color-mix(in srgb,var(--mat-buttons-fill) 25%,transparent); border:1px solid transparent; box-shadow:none; backdrop-filter:none; color:var(--muted); display:inline-flex; align-items:center; justify-content:center; gap:8px; min-height:38px; padding:8px 12px; line-height:1.5; }
+:root .surface-action { background:transparent; color:var(--text); }
+:root :is(.surface-action,.surface-tab):hover:not(:disabled) { background:var(--mat-buttons-sheen),color-mix(in srgb,var(--accent) 8%,var(--mat-buttons-fill)); border-color:var(--mat-buttons-edge); color:var(--text); box-shadow:inset 0 1px var(--mat-buttons-light); }
+:root .surface-tab:is(.selected,[aria-selected="true"]) { background:var(--mat-buttons-sheen),color-mix(in srgb,var(--accent) 10%,var(--mat-buttons-fill)); border-color:var(--mat-buttons-edge); border-top-color:var(--mat-buttons-light); box-shadow:inset 0 1px var(--mat-buttons-light); color:var(--text); }
+:root :is(.type-tabs,.detail-tabs) { gap:6px; background:transparent; border:0; box-shadow:none; backdrop-filter:none; padding:0; }
+:root .type-tabs { grid-template-columns:repeat(6,minmax(max-content,1fr)); width:100%; overflow:auto; padding:3px; margin-inline:-3px; }
+:root .type-tabs .segment-capsule { display:none; }
+:root .detail-tabs { display:flex; flex-wrap:wrap; margin:20px 0; }
+:root .detail-tabs button { min-height:40px; padding:8px 14px; border-radius:var(--mat-buttons-radius); }
+:root .back-button { margin-bottom:16px; padding-inline:10px; }
+:root .provider-badge,:root .sort-wrap { background:transparent; border:0; box-shadow:none; padding:0; border-radius:var(--mat-inputs-radius); }
+:root .provider-badge .glass-select-trigger { min-height:42px; }
+:root .discover-toolbar :is(.control-button,.glass-select-trigger) { min-height:42px; height:auto; line-height:1.5; }
+:root .control-button { gap:8px; padding:10px 12px; }
+:root .glass-select-trigger:hover:not(:disabled),:root .glass-select-trigger[aria-expanded="true"] { border-color:var(--focus-ring); background:var(--mat-inputs-sheen),var(--mat-inputs-fill); }
+
+/* Search owns one input surface. Its editable child has no second fill/ring. */
+:root .search-field { min-height:42px; height:auto; padding:0 12px; gap:10px; }
+:root .search-field:hover { border-color:var(--mat-inputs-edge); }
+:root .search-field:focus-within { border-color:var(--focus-ring); box-shadow:inset 0 0 0 1px var(--focus-ring),0 0 0 3px var(--focus-halo); }
+:root .search-field input,:root .search-field input:focus-visible { background:transparent; border:0; border-radius:0; box-shadow:none; outline:0; backdrop-filter:none; padding:10px 0; min-height:40px; color:var(--text); font:inherit; }
+:root .search-field button { background:transparent; border:0; box-shadow:none; width:30px; min-height:30px; padding:6px; }
+:root input::placeholder { color:var(--muted); opacity:.85; }
+
+/* Navigation hover and keyboard focus follow the full hit area in both sizes. */
+:root .sidebar :is(nav,.sidebar-bottom) button { border:1px solid transparent; box-shadow:none; border-radius:var(--mat-buttons-radius); background:transparent; min-height:42px; }
+:root .sidebar :is(nav,.sidebar-bottom) button:hover { border-color:transparent; background:color-mix(in srgb,var(--mat-buttons-fill) 55%,transparent); color:var(--text); transform:none; }
+:root .sidebar :is(nav,.sidebar-bottom) button:active { transform:none; }
+:root .sidebar :is(nav,.sidebar-bottom) button:focus-visible { outline:0; box-shadow:inset 0 0 0 1.5px var(--focus-ring); }
+:root .sidebar .nav-capsule { border-color:var(--mat-buttons-edge); border-radius:inherit; box-shadow:inset 0 1px var(--mat-buttons-light); }
+:root .sidebar.compact :is(nav,.sidebar-bottom) button { justify-content:center; padding-inline:0; }
+:root .sidebar :is(nav,.sidebar-bottom) button svg { border:0; outline:0; }
+
+/* One font pipeline for UI; monospace is reserved for code and diagnostics. */
+:root { font-family:var(--font-ui),Nunito,"Segoe UI",sans-serif; }
+:root :is(button,input,select,textarea,label,summary) { font-family:inherit; line-height:1.5; }
+:root :is(h1,h2,h3,h4) { font-family:var(--font-heading),Nunito,"Segoe UI",sans-serif; line-height:1.35; }
+:root .selectable { font-family:inherit; }
+:root :is(pre,code,.runtime-logs,.content-path,.runtime-file,.toast-details) { font-family:var(--font-mono); }
+:root .glass-select-trigger>span { white-space:normal; overflow-wrap:anywhere; line-height:1.5; min-width:0; }
+:root .canary-tooltip { overflow-wrap:anywhere; line-height:1.6; }
+:root .settings-content label:not(:has(input[type="checkbox"])) { display:grid; gap:8px; min-width:0; line-height:1.6; }
+:root .settings-content label:has(input[type="checkbox"]) { display:flex; align-items:center; gap:10px; }
+:root .effects-preferences>label { margin:16px 0; }
+:root .settings-content :is(h3,h4) { margin:24px 0 12px; }
+:root .settings-content :is(.visual-background-group,.visual-typography-group,.effects-preferences,.visibility-settings) { margin-top:28px; padding-top:8px; border-top:1px solid var(--line); }
+:root .settings-content .toggle-setting { gap:16px; padding-block:16px; }
+:root .settings-content .toggle-setting>div { min-width:0; overflow-wrap:anywhere; }
+:root .toggle { flex-shrink:0; }
+:root .polish-range-grid .visual-range>span { flex-wrap:wrap; }
+:root .account-button { max-width:260px; min-width:0; }
+:root .account-label { min-width:0; }
+:root .account-label b { overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+:root .detail-meta { background:transparent; border:0; box-shadow:none; backdrop-filter:none; }
+:root .detail-side { background:var(--mat-cards-sheen),linear-gradient(var(--mat-cards-tint),var(--mat-cards-tint)),var(--mat-cards-fill); }
+:root .home-row { grid-template-columns:minmax(0,1fr); }
+:root .continuation-card .continue-open { align-items:flex-start; justify-content:center; padding:0; background:transparent; border:0; box-shadow:none; }
+:root .continue-open :is(b,small) { white-space:normal; overflow-wrap:anywhere; height:auto; }
+@media(forced-colors:active) { :root :is(button,input,textarea,select,a,summary):focus-visible { outline:2px solid Highlight; } :root .sidebar :is(nav,.sidebar-bottom) button:focus-visible { outline:2px solid Highlight; } }

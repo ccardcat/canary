@@ -5,7 +5,7 @@ import "./VisualAppearance.css";
 import "./CursorPack.css";
 import "./LiquidGlass.css";
 import {materialDefaults,normalizeMaterials,applyMaterialTokens,type MaterialPreferences} from "./MaterialSystem";
-import MaterialSettings from "./MaterialSettings";
+import MaterialSettings, {MaterialLayoutSettings} from "./MaterialSettings";
 import ArtworkFade from "./ArtworkFade";
 import DesktopBehavior from "./DesktopBehavior";
 import { PolishControls, QualityControls, polishDefaults, type PolishPreferences } from "./PolishControls";
@@ -17,8 +17,8 @@ import {isTauri,convertFileSrc} from "@tauri-apps/api/core";
 import {useBackend} from "../services/backend";
 import {windowDefaults,useNativeMaterial,WindowMaterialSettings,WindowControlsSettings,type WindowPreferences} from "./WindowMaterial";
 const fonts = ["Nunito", "Manrope", "Plus Jakarta Sans", "Rubik", "Monocraft"];
-export type Preferences = PolishPreferences & WindowPreferences & MaterialPreferences & { app: string; sidebar: string; linked: boolean; intensity: number; blur: number; sidebarBlur: number; font: string; fontScale: 90 | 100 | 110 | 120; minecraft: "headings" | "full"; ambient: "off" | "automatic" | "sakura" | "snow" | "autumn" };
-const defaults: Preferences = { ...polishDefaults,...windowDefaults,...materialDefaults, app: "normal", sidebar: "default", linked: false, intensity: 45, blur: 5, sidebarBlur: 12, font: "Nunito", fontScale:100, minecraft: "headings", ambient: "off" };
+export type Preferences = PolishPreferences & WindowPreferences & MaterialPreferences & { app: string; sidebar: string; linked: boolean; intensity: number; blur: number; sidebarBlur: number; font: string; fontScale: 90 | 100 | 110 | 120; minecraft: "headings" | "full"; showCommunity:boolean; ambient: "off" | "automatic" | "sakura" | "snow" | "autumn" };
+const defaults: Preferences = { ...polishDefaults,...windowDefaults,...materialDefaults, app: "normal", sidebar: "default", linked: false, intensity: 45, blur: 5, sidebarBlur: 12, font: "Nunito", fontScale:100, minecraft: "headings", showCommunity:true, ambient: "off" };
 export function normalizePreferences(input:unknown):Preferences {
  const saved=input&&typeof input==="object"?input as Record<string,unknown>:{};
  const result={...defaults,...normalizeMaterials(saved),globalTreatment:{...defaults.globalTreatment},sidebarTreatment:{...defaults.sidebarTreatment}};
@@ -116,7 +116,7 @@ export function VisualAppearanceProvider({ children }: { children: ReactNode }) 
   <DesktopBehavior />
   </Context.Provider>;
 }
-export function VisualPreferences({ russian,group="all" }: { russian: boolean;group?:string }) {
+export function VisualPreferences({ russian,group="all",effectsControls }: { russian: boolean;group?:string;effectsControls?:ReactNode }) {
   const {value,update,registry,reload,native}=useContext(Context);const {run}=useBackend();const [importTarget,setImportTarget]=useState("both");const [importing,setImporting]=useState(false);
   const text = appearanceMessages[russian ? "ru" : "en"];
   const choose=(kind:"app"|"sidebar",id:string)=>{const selected=registry.find(p=>p.id===id);update(value.linked&&selected?.app&&selected.sidebar?{app:id,sidebar:id}:{[kind]:id});};
@@ -124,17 +124,18 @@ export function VisualPreferences({ russian,group="all" }: { russian: boolean;gr
 
   return <section className="visual-preferences" data-visual-group={group}>
 
-    <div className="visual-appearance-group">{native&&<WindowMaterialSettings russian={russian} value={value} update={update} {...native}/>}
-    <PolishControls russian={russian} value={value} update={update}/></div>
-    <div className="visual-background-group"><h4>{text["Application background"]}</h4>{preview("app")}
+    {group==="all"&&<div className="visual-appearance-group"><MaterialLayoutSettings russian={russian} value={value} update={update}/><PolishControls russian={russian} value={value} update={update} group="layout"/>{native&&<details className="material-disclosure"><summary>{russian?"Материал окна Windows":"Windows window material"}</summary><WindowMaterialSettings russian={russian} value={value} update={update} {...native}/></details>}</div>}
+    {(group==="all"||group==="background")&&<div className="visual-background-group"><h3>{russian?"Фон":"Background"}</h3><h4>{text["Application background"]}</h4>{preview("app")}
     <h4>{text["Sidebar background"]}</h4>{preview("sidebar")}
     <div className="toggle-setting"><div><b>{text["Link application and sidebar backgrounds"]}</b></div><button className={value.linked ? "toggle on" : "toggle"} role="switch" aria-checked={value.linked} aria-label={text["Link backgrounds"]} onClick={() => update({ linked: !value.linked, ...(value.linked ? {} : { sidebar:registry.find(p=>p.id===value.app)?.sidebar?value.app:value.sidebar }) })}><i /></button></div>
 
     {isTauri()&&<div className="runtime-panel"><h4>{russian?"Свои изображения":"Custom images"}</h4><label>{russian?"Применить к":"Use for"}<GlassSelect value={importTarget} onChange={e=>setImportTarget(e.target.value)}><option value="both">{russian?"Фон и боковая панель":"Background and sidebar"}</option><option value="app">{russian?"Фон":"Background"}</option><option value="sidebar">{russian?"Боковая панель":"Sidebar"}</option></GlassSelect></label><button className="quiet-button" disabled={importing} onClick={()=>{setImporting(true);void run("import_wallpaper",{target:importTarget}).then(reload).catch(()=>{}).finally(()=>setImporting(false));}}>{importing?(russian?"Импорт…":"Importing…"):(russian?"Импортировать изображение":"Import image")}</button>{registry.filter(p=>p.custom).map(p=><div className="runtime-inline" key={p.id}><span>{p.name}</span><button className="quiet-button" disabled={importing} onClick={()=>{setImporting(true);void run("remove_wallpaper",{id:p.id}).then(()=>{update({...value.app===p.id?{app:"normal"}:{},...value.sidebar===p.id?{sidebar:"default"}:{}});return reload();}).catch(()=>{}).finally(()=>setImporting(false));}}>{russian?"Удалить":"Remove"}</button></div>)}</div>}
-    </div><div className="visual-typography-group"><h4>{text["Interface font"]}</h4><div className="font-options">{fonts.map(font => <button key={font} style={{ fontFamily: `"${font}", Nunito, sans-serif` }} className={value.font === font ? "selected" : ""} aria-pressed={value.font === font} onClick={() => update({ font })}>{font}</button>)}</div>
+    <PolishControls russian={russian} value={value} update={update} group="background"/></div>}
+    {group==="all"&&<EffectsPreferences russian={russian}>{effectsControls}</EffectsPreferences>}
+    {(group==="all"||group==="typography")&&<div className="visual-typography-group"><h3>{russian?"Типографика":"Typography"}</h3><h4>{text["Interface font"]}</h4><div className="font-options">{fonts.map(font => <button key={font} style={{ fontFamily: `"${font}", Nunito, sans-serif` }} className={value.font === font ? "selected" : ""} aria-pressed={value.font === font} onClick={() => update({ font })}>{font}</button>)}</div>
     <h4>{text["Interface size"]}</h4><div className="font-options">{([90,100,110,120] as const).map(fontScale=><button key={fontScale} aria-pressed={value.fontScale===fontScale} className={value.fontScale===fontScale?"selected":""} onClick={()=>update({fontScale})}>{fontScale}%</button>)}</div>
     {value.font === "Monocraft" && <><h4>{text["Minecraft style"]}</h4><div className="font-options">{(["headings", "full"] as const).map(minecraft => <button key={minecraft} aria-pressed={value.minecraft === minecraft} className={value.minecraft === minecraft ? "selected" : ""} onClick={() => update({ minecraft })}>{minecraft === "headings" ? text["Headings"] : text["Full interface"]}</button>)}</div></>}
-    </div><EffectsPreferences russian={russian}/>
+    </div>}
   </section>;
 }
 
@@ -144,14 +145,14 @@ export function SidebarArtwork() {
   return <ArtworkFade source={registry.find(p => p.id === value.sidebar)?.sidebar || "/backgrounds/sidebar-bg.webp"} className="sidebar-art" />;
 }
 export function WindowPreferencesPanel({russian}:{russian:boolean}){const {value,update}=useContext(Context);return <WindowControlsSettings russian={russian} value={value} update={update}/>;}
-export function EffectsPreferences({russian}:{russian:boolean}){
+export function EffectsPreferences({russian,children}:{russian:boolean;children?:ReactNode}){
  const {value,update}=useContext(Context);const text=appearanceMessages[russian?"ru":"en"];
  const preset=(p:string)=>{const settings={off:{ambient:"off" as const},low:{density:6,particleOpacity:25,particleSize:85,particleSpeed:75},medium:{density:12,particleOpacity:35,particleSize:110,particleSpeed:100},high:{density:24,particleOpacity:45,particleSize:125,particleSpeed:115},custom:{}};update({...settings[p as keyof typeof settings],effectPreset:p,...p!=="off"&&value.ambient==="off"?{ambient:"snow" as const}:{}});};
  const range=(name:string,n:number,min:number,max:number,change:(v:number)=>void)=><label className="visual-range"><span>{name}<output>{n}</output></span><input type="range" aria-label={name} min={min} max={max} value={n} onChange={e=>change(Number(e.target.value))}/></label>;
- return <section className="effects-preferences"><h4>{text["Ambient effects"]}</h4><div className="font-options">{(["off","automatic","sakura","snow","autumn"] as const).map(ambient=><button key={ambient} aria-pressed={value.ambient===ambient} className={value.ambient===ambient?"selected":""} onClick={()=>update({ambient,...value.particleOpacity<25?{particleOpacity:35}:{}})}>{ambient==="autumn"?(russian?"Осенние листья":"Autumn Leaves"):({off:text["Off"],automatic:text["Automatic"],sakura:text["Sakura"],snow:text["Snow"]})[ambient]}</button>)}</div>
- <label>{russian?"Пресет частиц":"Effect preset"}<GlassSelect aria-label={russian?"Пресет частиц":"Effect preset"} value={value.effectPreset} onChange={e=>preset(e.target.value)}>{["off","low","medium","high","custom"].map(p=><option key={p} value={p}>{p[0].toUpperCase()+p.slice(1)}</option>)}</GlassSelect></label>
+ return <section className="effects-preferences"><h3>{russian?"Эффекты":"Effects"}</h3><h4>{text["Ambient effects"]}</h4><div className="font-options">{(["off","automatic","sakura","snow","autumn"] as const).map(ambient=><button key={ambient} aria-pressed={value.ambient===ambient} className={value.ambient===ambient?"selected":""} onClick={()=>update({ambient,...value.particleOpacity<25?{particleOpacity:35}:{}})}>{ambient==="autumn"?(russian?"Осенние листья":"Autumn Leaves"):({off:text["Off"],automatic:text["Automatic"],sakura:text["Sakura"],snow:text["Snow"]})[ambient]}</button>)}</div>
+ <label>{russian?"Пресет частиц":"Effect preset"}<GlassSelect aria-label={russian?"Пресет частиц":"Effect preset"} value={value.effectPreset} onChange={e=>preset(e.target.value)}>{["off","low","medium","high","custom"].map(p=><option key={p} value={p}>{russian?({off:"Выключено",low:"Низкий",medium:"Средний",high:"Высокий",custom:"Свой"})[p as "off"]:p[0].toUpperCase()+p.slice(1)}</option>)}</GlassSelect></label>
  <div className="polish-range-grid">{range(russian?"Количество частиц":"Particle count",value.density,4,24,density=>update({density,effectPreset:"custom"}))}{range(russian?"Размер частиц":"Particle size",value.particleSize,60,160,particleSize=>update({particleSize,effectPreset:"custom"}))}{range(russian?"Скорость частиц":"Particle speed",value.particleSpeed,50,150,particleSpeed=>update({particleSpeed,effectPreset:"custom"}))}{range(russian?"Непрозрачность частиц":"Particle opacity",value.particleOpacity,5,50,particleOpacity=>update({particleOpacity,effectPreset:"custom"}))}{range(russian?"Ветер":"Particle wind",value.particleWind,0,180,particleWind=>update({particleWind,effectPreset:"custom"}))}</div>
- </section>;
+ <PolishControls russian={russian} value={value} update={update} group="effects"/>{children}</section>;
 }
 export function VisualQuality({ russian }: { russian: boolean }) {
   const { value, update } = useContext(Context);
@@ -159,3 +160,34 @@ export function VisualQuality({ russian }: { russian: boolean }) {
 }
 
 export function MaterialPreferencesPanel({russian}:{russian:boolean}) { const {value,update}=useVisualAppearance();return <MaterialSettings russian={russian} value={value} update={update}/>; }
+
+export function InterfaceVisibilityPanel({ russian }: { russian: boolean }) {
+  const { value, update } = useVisualAppearance();
+  const label = russian
+    ? "Показывать популярное в сообществе"
+    : "Show popular community projects";
+  return (
+    <section className="visibility-settings">
+      <h4>{russian ? "Видимость интерфейса" : "Interface visibility"}</h4>
+      <div className="toggle-setting">
+        <div>
+          <b>{label}</b>
+          <span>
+            {russian
+              ? "Показывает подборку популярных проектов на главной странице."
+              : "Shows popular community projects on Home."}
+          </span>
+        </div>
+        <button
+          className={value.showCommunity ? "toggle on" : "toggle"}
+          role="switch"
+          aria-label={label}
+          aria-checked={value.showCommunity}
+          onClick={() => update({ showCommunity: !value.showCommunity })}
+        >
+          <i />
+        </button>
+      </div>
+    </section>
+  );
+}

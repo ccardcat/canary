@@ -249,7 +249,7 @@ test("rapid F11 is locked and a maximized window restores without replacing geom
 });
 
 test("native material uses a transparent root and restores Mica after fullscreen fallback",async({page})=>{
- await page.getByRole("button",{name:"Settings",exact:true}).first().click();await page.getByRole("combobox",{name:"Window Material",exact:true}).click();await page.getByRole("option",{name:"Mica",exact:true}).click();
+ await page.getByRole("button",{name:"Settings",exact:true}).first().click();await page.getByText("Windows window material",{exact:true}).click();await page.getByRole("combobox",{name:"Window Material",exact:true}).click();await page.getByRole("option",{name:"Mica",exact:true}).click();
  await expect(page.locator("html")).toHaveAttribute("data-window-material","mica");await expect(page.locator("html")).toHaveCSS("background-color","rgba(0, 0, 0, 0)");await expect(page.locator(".visual-backdrop")).toBeHidden();
  await page.keyboard.press("F11");await expect(page.locator("html")).toHaveAttribute("data-window-material","acrylic");await page.keyboard.press("F11");await expect(page.locator("html")).toHaveAttribute("data-window-material","mica");
  await page.reload();await expect(page.locator("html")).toHaveAttribute("data-window-material","mica");await expect(page.locator("html")).toHaveAttribute("data-window-fullscreen","false");

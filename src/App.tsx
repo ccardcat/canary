@@ -50,16 +50,20 @@ import {
   Palette,
   Info,
   Heart,
+  Play,
+  Square,
 } from "lucide-react";
 import "./App.css";
 
 import TitleBar from "./components/TitleBar";
+import HomeGreeting from "./components/HomeGreeting";
+import {heroCopy} from "./components/homeCopy";
 import {HeroCarousel,HeroSettings} from "./components/HeroCarousel";
 import {StorageSettings} from "./components/StorageSettings";
 import { useBackend,defaultAccount } from "./services/backend";
 import AccountAvatar from "./components/AccountAvatar";
 import { AccountsPanel, RuntimeSettingsPanel, RuntimeLibrary, RuntimeProgress, RuntimeActivity, RuntimeScreenshots, BackendErrors } from "./components/RuntimeUI";
-import { MaterialPreferencesPanel, VisualPreferences, SidebarArtwork, VisualQuality, WindowPreferencesPanel, EffectsPreferences } from "./components/VisualAppearance";
+import { useVisualAppearance, MaterialPreferencesPanel, InterfaceVisibilityPanel, VisualPreferences, SidebarArtwork, VisualQuality, WindowPreferencesPanel, EffectsPreferences } from "./components/VisualAppearance";
 import { en, ru, type Key, type T, categories } from "./locales";
 import {
   readStored,
@@ -141,7 +145,7 @@ function App() {
   const [lib, setLib] = useState<Project[]>(() =>
     readStored("canary-library", []),
   );
-  const homeLibrary:Project[]=isTauri()?(backend.snapshot?.instances||[]).filter(i=>!i.internal).map(i=>({native_instance_id:i.id,project_id:i.project_id||i.id,provider:i.provider==="curseforge"?"curseforge":"modrinth",title:i.name,description:`Minecraft ${i.minecraft} · ${i.loader}`,icon_url:i.icon&&!/^https?:|^asset:/i.test(i.icon)?convertFileSrc(i.icon):i.icon,downloads:0,versions:[i.minecraft],categories:[i.loader],project_type:"modpack",version_name:i.version_name,instance_path:i.directory})):lib;
+  const homeLibrary:Project[]=isTauri()?(backend.snapshot?.instances||[]).filter(i=>!i.internal).sort((a,b)=>(b.last_played??b.installed)-(a.last_played??a.installed)).map(i=>({native_instance_id:i.id,project_id:i.project_id||i.id,provider:i.provider==="curseforge"?"curseforge":"modrinth",title:i.name,description:`Minecraft ${i.minecraft} · ${i.loader}`,icon_url:i.icon&&!/^https?:|^asset:/i.test(i.icon)?convertFileSrc(i.icon):i.icon,downloads:0,versions:[i.minecraft],categories:[i.loader],project_type:"modpack",version_name:i.version_name,instance_path:i.directory})):lib;
   const [progress, setProgress] = useState<Progress | null>(null);
   const [busy, setBusy] = useState(false);
   const progressRef = useRef<Progress | null>(null);
@@ -490,13 +494,7 @@ function App() {
                 CANARY <span>/</span>{" "}
                 {detail ? t("view") : t(page.toLowerCase() as Key)}
               </div>
-              <h1>
-                {detail
-                  ? detail.title
-                  : page === "Home"
-                    ? t("welcome")
-                    : t(page.toLowerCase() as Key)}
-              </h1>
+              {page === "Home" && !detail ? <HomeGreeting russian={lang === "ru"} username={activeAccount && ("display_name" in activeAccount && typeof activeAccount.display_name === "string" ? activeAccount.display_name.trim() || activeAccount.username : activeAccount.username)}/> : <h1>{detail ? detail.title : t(page.toLowerCase() as Key)}</h1>}
               {page === "Home" && !detail && (
                 <p className="topbar-sub">{t("sub")}</p>
               )}
@@ -730,7 +728,7 @@ function HomePage({
   busy,
 }: {
   t: T;
-  russian:boolean;
+  russian: boolean;
   lib: Project[];
   projects: Project[];
   communityError: boolean;
@@ -740,106 +738,205 @@ function HomePage({
   installed: (id: string) => boolean;
   busy: boolean;
 }) {
+  const { value } = useVisualAppearance();
   return (
     <section className="home-page">
       <HeroCarousel russian={russian}>
-        <div className="hero-content">
-          <div className="overline">CANARY / {t("home").toUpperCase()}</div>
-          <h2>{t("discoverTitle")}</h2>
-          <p>{t("discoverSub")}</p>
-          <button className="primary-button" onClick={onDiscover}>
-            <Compass size={17} />
-            {t("browse")}
-          </button>
-          <div className="hero-caption">
-            <span className="status-dot" />
-            {t("heroCaption")}
-          </div>
-        </div>
+        {(index) => {
+          const [title, subtitle] =
+            heroCopy[russian ? "ru" : "en"][index % heroCopy.en.length];
+          return (
+            <div className="hero-content">
+              <h2>{title}</h2>
+              <p>{subtitle}</p>
+              <button className="primary-button" onClick={onDiscover}>
+                <Compass size={17} />
+                {t("browse")}
+              </button>
+            </div>
+          );
+        }}
       </HeroCarousel>
-      <div className="home-section-head">
-        <div>
+      <section className="home-section" aria-label={t("continue")}>
+        <div className="home-section-head">
           <h3>{t("continue")}</h3>
-          <p>{lib.length ? t("noPlay") : t("emptyContinue")}</p>
         </div>
-      </div>
-      {lib.length ? (
-        <div className="home-row">
-          {lib.slice(0, 3).map((p) => (
-            <MiniCard key={p.native_instance_id || `${p.provider || "modrinth"}:${p.project_id}`} p={p} t={t} onOpen={onOpen} />
-          ))}
-        </div>
-      ) : (
-        <div className="home-empty">
-          <div className="empty-emblem">
-            <LibraryIcon size={22} />
+        {lib.length ? (
+          <div className="home-row">
+            {lib.slice(0, 3).map((p) => (
+              <ContinueCard
+                key={
+                  p.native_instance_id ||
+                  `${p.provider || "modrinth"}:${p.project_id}`
+                }
+                p={p}
+                t={t}
+                russian={russian}
+                onOpen={onOpen}
+              />
+            ))}
           </div>
-          <div>
-            <b>{t("emptyContinue")}</b>
-            <p>{t("emptyLibrarySub")}</p>
+        ) : (
+          <div className="home-empty">
+            <div className="empty-emblem">
+              <LibraryIcon size={22} />
+            </div>
+            <div>
+              <b>
+                {russian ? "Пока нечего продолжать" : "Nothing to continue yet"}
+              </b>
+              <p>{t("emptyLibrarySub")}</p>
+            </div>
+            <button className="quiet-button" onClick={onDiscover}>
+              {t("browse")}
+              <ChevronRight size={15} />
+            </button>
           </div>
-          <button className="quiet-button" onClick={onDiscover}>
-            {t("discover")}
-            <ChevronRight size={15} />
-          </button>
-        </div>
-      )}
-      <div className="home-section-head">
-        <div>
-          <h3>{t("trending")}</h3>
-          <p>{t("communitySub")}</p>
-        </div>
-        <button className="quiet-button" onClick={onDiscover}>
-          {t("showAll")}
-          <ChevronRight size={15} />
-        </button>
-      </div>
-      {projects.length ? (
-        <div className="home-community">
-          {projects.map((p) => (
-            <ProjectCard
-              key={p.native_instance_id || `${p.provider || "modrinth"}:${p.project_id}`}
-              p={p}
-              t={t}
-              type="modpack"
-              installed={installed(p.project_id)}
-              busy={busy}
-              onOpen={() => onOpen(p)}
-              onInstall={() => onInstall(p)}
-            />
-          ))}
-        </div>
-      ) : (
-        <div className="home-empty" role="status">
-          <Compass size={20} />
-          <span>{t(communityError ? "networkError" : "loadingSub")}</span>
-        </div>
+        )}
+      </section>
+      {value.showCommunity && (
+        <section
+          className="home-section community-section"
+          aria-label={t("trending")}
+        >
+          <div className="home-section-head">
+            <div>
+              <h3>{t("trending")}</h3>
+              <p>
+                {russian
+                  ? "Сборки, к которым возвращаются игроки."
+                  : "Modpacks players keep coming back to."}
+              </p>
+            </div>
+            <button className="quiet-button" onClick={onDiscover}>
+              {t("showAll")}
+              <ChevronRight size={15} />
+            </button>
+          </div>
+          {projects.length ? (
+            <div className="home-community">
+              {projects.map((p) => (
+                <ProjectCard
+                  key={
+                    p.native_instance_id ||
+                    `${p.provider || "modrinth"}:${p.project_id}`
+                  }
+                  p={p}
+                  t={t}
+                  type="modpack"
+                  installed={installed(p.project_id)}
+                  busy={busy}
+                  onOpen={() => onOpen(p)}
+                  onInstall={() => onInstall(p)}
+                />
+              ))}
+            </div>
+          ) : (
+            <div className="home-empty" role="status">
+              <Compass size={20} />
+              <span>{t(communityError ? "networkError" : "loadingSub")}</span>
+            </div>
+          )}
+        </section>
       )}
     </section>
   );
 }
-function MiniCard({
+function ContinueCard({
   p,
   t,
+  russian,
   onOpen,
 }: {
   p: Project;
   t: T;
+  russian: boolean;
   onOpen: (p: Project) => void;
 }) {
+  const { snapshot, run, progress } = useBackend();
+  const instance = snapshot?.instances.find(
+    (i) => i.id === p.native_instance_id,
+  );
+  const running = instance?.status === "running",
+    stopping = instance?.status === "stopping",
+    unavailable = instance?.status === "unavailable";
+  const pending =
+    instance && progress?.id === instance.id && progress.status === "running";
+  const status = running
+    ? russian
+      ? "Игра запущена"
+      : "Running"
+    : stopping
+      ? russian
+        ? "Завершение…"
+        : "Stopping…"
+      : unavailable
+        ? russian
+          ? "Диск недоступен"
+          : "Drive unavailable"
+        : instance?.error
+          ? russian
+            ? "Требуется восстановление"
+            : "Repair needed"
+          : russian
+            ? "Готов"
+            : "Ready";
   return (
-    <button className="mini-card" onClick={() => onOpen(p)}>
+    <article className="mini-card continuation-card">
       <RemoteImage src={p.icon_url} className="mini-art" />
-      <div>
+      <button
+        className="continue-open surface-action"
+        onClick={() => onOpen(p)}
+      >
         <b>{p.title}</b>
         <small>
-          {t("installed")} · {p.version_name}
+          {instance
+            ? `Minecraft ${instance.minecraft} · ${instance.loader}`
+            : p.description || p.version_name}
         </small>
-      </div>
-      <ChevronRight size={15} />
-    </button>
+      </button>
+      {instance && (
+        <>
+          <span
+            className={`continue-status ${running ? "running-status" : ""}`}
+          >
+            {status}
+          </span>
+          <button
+            className="primary-button continue-play"
+            disabled={!!pending || stopping || unavailable}
+            onClick={() =>
+              void run(
+                running ? "stop_instance" : "launch_instance",
+                running
+                  ? { id: instance.id, force: false }
+                  : { id: instance.id },
+              ).catch(() => {})
+            }
+          >
+            {running ? <Square size={15} /> : <Play size={15} />}{" "}
+            {running
+              ? russian
+                ? "Остановить"
+                : "Stop"
+              : russian
+                ? "Играть"
+                : "Play"}
+          </button>
+        </>
+      )}
+      <button
+        className="material-icon surface-action"
+        aria-label={`${t("details")} — ${p.title}`}
+        data-tooltip={t("details")}
+        onClick={() => onOpen(p)}
+      >
+        <ChevronRight size={17} />
+      </button>
+    </article>
   );
 }
+
 function DiscoverPage({
   provider,setProvider,
   t,
@@ -907,8 +1004,7 @@ function DiscoverPage({
       <div className="discover-intro">
         <p>{t("discoverSub")}</p>
         <div className="provider-badge">
-          <span className="provider-dot" />
-          <GlassSelect aria-label="Provider" value={provider} onChange={e=>setProvider(e.target.value as Provider)}><option value="modrinth">Modrinth</option><option value="curseforge">CurseForge</option></GlassSelect>
+          <GlassSelect aria-label={t("home")==="Главная"?"Источник проектов":"Provider"} value={provider} onChange={e=>setProvider(e.target.value as Provider)}><option value="modrinth">Modrinth</option><option value="curseforge">CurseForge</option></GlassSelect>
         </div>
       </div>
       <div className="type-tabs" role="tablist" aria-label={t("contentTypes")}>
@@ -916,7 +1012,7 @@ function DiscoverPage({
           <button
             role="tab"
             aria-selected={type === id}
-            className={type === id ? "selected" : ""}
+            className={type === id ? "surface-tab selected" : "surface-tab"}
             onClick={() => setType(id)}
             key={id}
           >
@@ -1291,7 +1387,7 @@ function DetailPage({
     gallery.find((g) => g.featured)?.url || gallery[0]?.url || detail.icon_url;
   return (
     <section className="detail-page">
-      <button className="back-button" onClick={onBack}>
+      <button className="back-button surface-action" onClick={onBack}>
         <ChevronLeft size={17} />
         {t("back")}
       </button>
@@ -1381,7 +1477,7 @@ function DetailPage({
           <button
             role="tab"
             aria-selected={tab === key}
-            className={tab === key ? "selected" : ""}
+            className={tab === key ? "surface-tab selected" : "surface-tab"}
             onClick={() => setTab(key)}
             key={key}
           >
@@ -1434,16 +1530,11 @@ function DetailPage({
           )}
         </motion.div>
         <aside className="detail-side">
-          <b>{t("lastUpdated")}</b>
-          <span>{new Date(detail.updated).toLocaleDateString()}</span>
-          <b>{t("gameVersion")}</b>
-          <span>{detail.game_versions?.slice(-6).join(" · ") || t("any")}</span>
-          <b>{t("category")}</b>
-          <span>
-            {detail.categories
-              ?.map((c) => (categories[c] ? t(categories[c]) : c))
-              .join(" · ") || t("any")}
-          </span>
+          <dl className="detail-info-grid">
+            <div><dt>{t("lastUpdated")}</dt><dd>{new Date(detail.updated).toLocaleDateString()}</dd></div>
+            <div><dt>{t("gameVersion")}</dt><dd>{detail.game_versions?.slice(-6).join(" · ") || t("any")}</dd></div>
+            <div className="detail-categories"><dt>{t("category")}</dt><dd>{detail.categories?.map(c=><span key={c}>{categories[c]?t(categories[c]):c}</span>) || t("any")}</dd></div>
+          </dl>
           {detail.source_url && (
             <button
               className="text-link"
@@ -1664,7 +1755,7 @@ function SettingsModal({
         ...(panel.current?.querySelectorAll<HTMLElement>(
           "button:not(:disabled),select:not([aria-hidden='true']),input,a[href],[tabindex='0']",
         ) || []),
-      ];
+      ].filter(element=>element.getClientRects().length>0&&element.tabIndex>=0);
       const first = elements[0],
         last = elements[elements.length - 1];
       if (event.shiftKey && document.activeElement === first) {
@@ -1683,7 +1774,7 @@ function SettingsModal({
   }, []);
   const russian=lang==="ru";
   const sections: [string,string,typeof Palette,string][] = [
-    ["appearance",t("appearance"),Palette,"appearance material vibrancy glass opacity blur tint acrylic mica transparency оформление материал стекло прозрачность размытие"],
+    ["appearance",t("appearance"),Palette,"appearance material vibrancy glass opacity blur tint acrylic mica transparency оформление материал стекло прозрачность размытие community popular visibility популярно популярное сообщество сообществе"],
     ["window",russian?"Окно":"Window",Monitor,"window titlebar branding controls F11 fullscreen maximize окно заголовок кнопки fullscreen"],
     ["background",russian?"Фон":"Background",Image,"background wallpaper hero rotation import фон обои главная карусель"],
     ["effects",russian?"Эффекты":"Effects",Sun,"effects particles snow sakura autumn wind motion эффекты снег сакура листья ветер"],
@@ -1757,7 +1848,7 @@ function SettingsModal({
                 animate={{ opacity: 1, y: 0 }}
                 exit={{ opacity: 0, y: -4 }}
               >
-                {search.trim()?<div className="settings-results">{results.length?results.map(([id,label,Icon,words])=><button key={id} onClick={()=>{setTab(id);setSearch("");}}><Icon size={17}/> {label}<small>{words.split(" ").slice(0,7).join(" · ")}</small></button>):<p>{russian?"Настройки не найдены":"No settings found"}</p>}</div>:tab === "window" ? <WindowPreferencesPanel russian={russian}/> :tab === "background" ? <><VisualPreferences russian={russian} group="background"/><HeroSettings russian={russian}/></> :tab === "effects" ? <EffectsPreferences russian={russian}/> :tab === "typography" ? <VisualPreferences russian={russian} group="typography"/> :tab === "storage" ? <StorageSettings russian={russian}/> :tab === "minecraft"?<RuntimeSettingsPanel russian={russian} section="minecraft"/> :tab === "downloads"?<RuntimeSettingsPanel russian={russian} section="downloads"/> :tab === "appearance" ? (
+                {search.trim()?<div className="settings-results">{results.length?results.map(([id,label,Icon,words])=><button key={id} onClick={()=>{setTab(id);setSearch("");}}><Icon size={17}/> {label}<small>{words.split(" ").slice(0,7).join(" · ")}</small></button>):<p>{russian?"Настройки не найдены":"No settings found"}</p>}</div>:tab === "window" ? <WindowPreferencesPanel russian={russian}/> :tab === "background" ? <><VisualPreferences russian={russian} group="background"/><HeroSettings russian={russian}/></> :tab === "effects" ? <EffectsPreferences russian={russian}><MotionPreference t={t} reduceMotion={reduceMotion} setReduceMotion={setReduceMotion}/></EffectsPreferences> :tab === "typography" ? <VisualPreferences russian={russian} group="typography"/> :tab === "storage" ? <StorageSettings russian={russian}/> :tab === "minecraft"?<RuntimeSettingsPanel russian={russian} section="minecraft"/> :tab === "downloads"?<RuntimeSettingsPanel russian={russian} section="downloads"/> :tab === "appearance" ? (
                   <Appearance
                     t={t}
                     mode={mode}
@@ -1869,7 +1960,6 @@ function Appearance({
           );
         })}
       </div>
-      <MaterialPreferencesPanel russian={t("home")==="Главная"}/>
       <h4>{t("preset")}</h4>
       <div className="preset-grid">
         {presets.map((p) => (
@@ -1897,6 +1987,8 @@ function Appearance({
           </button>
         ))}
       </div>
+      <MaterialPreferencesPanel russian={t("home")==="Главная"}/>
+      <h4>{t("home")==="Главная"?"Расположение интерфейса":"Interface layout"}</h4>
       <div className="toggle-setting">
         <div>
           <b>{t("compact")}</b>
@@ -1912,26 +2004,40 @@ function Appearance({
           <i />
         </button>
       </div>
-      <div className="toggle-setting">
-        <div>
-          <b>{t("reduceMotion")}</b>
-          <span>{t("reduceMotionSub")}</span>
-        </div>
-        <button
-          className={reduceMotion ? "toggle on" : "toggle"}
-          role="switch"
-          aria-label={t("reduceMotion")}
-          aria-checked={reduceMotion}
-          onClick={() => setReduceMotion(!reduceMotion)}
-        >
-          <i />
-        </button>
-      </div>
-      <VisualPreferences russian={t("home") == "Главная"} />
+      <VisualPreferences russian={t("home") == "Главная"} effectsControls={<MotionPreference t={t} reduceMotion={reduceMotion} setReduceMotion={setReduceMotion}/>}/>
+      <InterfaceVisibilityPanel russian={t("home")==="Главная"}/>
       <p className="settings-note">{t("storedLocally")}</p>
     </div>
   );
 }
+function MotionPreference({
+  t,
+  reduceMotion,
+  setReduceMotion,
+}: {
+  t: T;
+  reduceMotion: boolean;
+  setReduceMotion: (value: boolean) => void;
+}) {
+  return (
+    <div className="toggle-setting">
+      <div>
+        <b>{t("reduceMotion")}</b>
+        <span>{t("reduceMotionSub")}</span>
+      </div>
+      <button
+        className={reduceMotion ? "toggle on" : "toggle"}
+        role="switch"
+        aria-label={t("reduceMotion")}
+        aria-checked={reduceMotion}
+        onClick={() => setReduceMotion(!reduceMotion)}
+      >
+        <i />
+      </button>
+    </div>
+  );
+}
+
 function LanguageSettings({
   t,
   lang,
