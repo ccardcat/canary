@@ -1,0 +1,292 @@
+{
+  "tag": "v0.1.4",
+  "commit": "e8a352e9336b1dc32ef4deab8b1bdd155312fde9",
+  "run_url": "https://github.com/ccardcat/canary/actions/runs/37524989050",
+  "status": "completed",
+  "conclusion": "failure",
+  "jobs": [
+    {
+      "name": "record-start",
+      "status": "completed",
+      "conclusion": "success",
+      "steps": [
+        {
+          "name": "Set up job",
+          "status": "completed",
+          "conclusion": "success"
+        },
+        {
+          "name": "Run actions/checkout@v4",
+          "status": "completed",
+          "conclusion": "success"
+        },
+        {
+          "name": "Record started build",
+          "status": "completed",
+          "conclusion": "success"
+        },
+        {
+          "name": "Post Run actions/checkout@v4",
+          "status": "completed",
+          "conclusion": "success"
+        },
+        {
+          "name": "Complete job",
+          "status": "completed",
+          "conclusion": "success"
+        }
+      ]
+    },
+    {
+      "name": "build (windows-latest, nsis,msi, windows-x64)",
+      "status": "completed",
+      "conclusion": "failure",
+      "steps": [
+        {
+          "name": "Set up job",
+          "status": "completed",
+          "conclusion": "success"
+        },
+        {
+          "name": "Run actions/checkout@v4",
+          "status": "completed",
+          "conclusion": "success"
+        },
+        {
+          "name": "Run actions/setup-node@v4",
+          "status": "completed",
+          "conclusion": "success"
+        },
+        {
+          "name": "Run dtolnay/rust-toolchain@stable",
+          "status": "completed",
+          "conclusion": "success"
+        },
+        {
+          "name": "Run Swatinem/rust-cache@v2",
+          "status": "completed",
+          "conclusion": "success"
+        },
+        {
+          "name": "Install Linux prerequisites",
+          "status": "completed",
+          "conclusion": "skipped"
+        },
+        {
+          "name": "Run npm ci",
+          "status": "completed",
+          "conclusion": "success"
+        },
+        {
+          "name": "Check release version",
+          "status": "completed",
+          "conclusion": "success"
+        },
+        {
+          "name": "Rust regression tests",
+          "status": "completed",
+          "conclusion": "success"
+        },
+        {
+          "name": "Build installers",
+          "status": "completed",
+          "conclusion": "success"
+        },
+        {
+          "name": "Build Windows inspector executable for native QA",
+          "status": "completed",
+          "conclusion": "success"
+        },
+        {
+          "name": "Prepare Windows WebView2 runtime",
+          "status": "completed",
+          "conclusion": "success"
+        },
+        {
+          "name": "Windows native window and material QA",
+          "status": "completed",
+          "conclusion": "failure"
+        },
+        {
+          "name": "Upload Windows visual QA",
+          "status": "completed",
+          "conclusion": "success"
+        },
+        {
+          "name": "Upload installers",
+          "status": "completed",
+          "conclusion": "success"
+        },
+        {
+          "name": "Post Run Swatinem/rust-cache@v2",
+          "status": "completed",
+          "conclusion": "success"
+        },
+        {
+          "name": "Post Run actions/setup-node@v4",
+          "status": "completed",
+          "conclusion": "skipped"
+        },
+        {
+          "name": "Post Run actions/checkout@v4",
+          "status": "completed",
+          "conclusion": "success"
+        },
+        {
+          "name": "Complete job",
+          "status": "completed",
+          "conclusion": "success"
+        }
+      ]
+    },
+    {
+      "name": "build (ubuntu-22.04, deb,appimage, linux-x64)",
+      "status": "completed",
+      "conclusion": "success",
+      "steps": [
+        {
+          "name": "Set up job",
+          "status": "completed",
+          "conclusion": "success"
+        },
+        {
+          "name": "Run actions/checkout@v4",
+          "status": "completed",
+          "conclusion": "success"
+        },
+        {
+          "name": "Run actions/setup-node@v4",
+          "status": "completed",
+          "conclusion": "success"
+        },
+        {
+          "name": "Run dtolnay/rust-toolchain@stable",
+          "status": "completed",
+          "conclusion": "success"
+        },
+        {
+          "name": "Run Swatinem/rust-cache@v2",
+          "status": "completed",
+          "conclusion": "success"
+        },
+        {
+          "name": "Install Linux prerequisites",
+          "status": "completed",
+          "conclusion": "success"
+        },
+        {
+          "name": "Run npm ci",
+          "status": "completed",
+          "conclusion": "success"
+        },
+        {
+          "name": "Check release version",
+          "status": "completed",
+          "conclusion": "success"
+        },
+        {
+          "name": "Rust regression tests",
+          "status": "completed",
+          "conclusion": "success"
+        },
+        {
+          "name": "Build installers",
+          "status": "completed",
+          "conclusion": "success"
+        },
+        {
+          "name": "Build Windows inspector executable for native QA",
+          "status": "completed",
+          "conclusion": "skipped"
+        },
+        {
+          "name": "Prepare Windows WebView2 runtime",
+          "status": "completed",
+          "conclusion": "skipped"
+        },
+        {
+          "name": "Windows native window and material QA",
+          "status": "completed",
+          "conclusion": "skipped"
+        },
+        {
+          "name": "Upload Windows visual QA",
+          "status": "completed",
+          "conclusion": "skipped"
+        },
+        {
+          "name": "Upload installers",
+          "status": "completed",
+          "conclusion": "success"
+        },
+        {
+          "name": "Post Run Swatinem/rust-cache@v2",
+          "status": "completed",
+          "conclusion": "success"
+        },
+        {
+          "name": "Post Run actions/setup-node@v4",
+          "status": "completed",
+          "conclusion": "success"
+        },
+        {
+          "name": "Post Run actions/checkout@v4",
+          "status": "completed",
+          "conclusion": "success"
+        },
+        {
+          "name": "Complete job",
+          "status": "completed",
+          "conclusion": "success"
+        }
+      ]
+    },
+    {
+      "name": "publish",
+      "status": "completed",
+      "conclusion": "failure",
+      "steps": [
+        {
+          "name": "Set up job",
+          "status": "completed",
+          "conclusion": "success"
+        },
+        {
+          "name": "Run actions/checkout@v4",
+          "status": "completed",
+          "conclusion": "success"
+        },
+        {
+          "name": "Download installers",
+          "status": "completed",
+          "conclusion": "skipped"
+        },
+        {
+          "name": "Publish complete release",
+          "status": "completed",
+          "conclusion": "skipped"
+        },
+        {
+          "name": "Record publication result",
+          "status": "completed",
+          "conclusion": "failure"
+        },
+        {
+          "name": "Post Run actions/checkout@v4",
+          "status": "completed",
+          "conclusion": "success"
+        },
+        {
+          "name": "Complete job",
+          "status": "completed",
+          "conclusion": "success"
+        }
+      ]
+    }
+  ],
+  "logs_unavailable": [
+    "build (windows-latest, nsis,msi, windows-x64)",
+    "publish"
+  ],
+  "release_unavailable": true
+}
