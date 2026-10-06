@@ -1,0 +1,105 @@
+{
+  "platform": "linux",
+  "transport": "local Unix socket protocol test server, not a signed-in Discord desktop",
+  "cases": [
+    {
+      "name": "native Settings and local IPC connection",
+      "activity": {
+        "buttons": [
+          {
+            "label": "Canary website",
+            "url": "https://plash3r.github.io/canarylauncher-site/"
+          }
+        ],
+        "details": "Configuring Canary",
+        "state": "Settings"
+      }
+    },
+    {
+      "name": "native toggle Off",
+      "cleared": true,
+      "persisted": true
+    },
+    {
+      "name": "native toggle On reconnect",
+      "activity": {
+        "buttons": [
+          {
+            "label": "Canary website",
+            "url": "https://plash3r.github.io/canarylauncher-site/"
+          }
+        ],
+        "details": "Configuring Canary",
+        "state": "Settings"
+      }
+    },
+    {
+      "name": "real Minecraft process",
+      "activity": {
+        "buttons": [
+          {
+            "label": "Canary website",
+            "url": "https://plash3r.github.io/canarylauncher-site/"
+          }
+        ],
+        "details": "Playing through Canary",
+        "state": "Minecraft 1.21.1 QA \u00b7 Minecraft 1.21.1",
+        "timestamps": {
+          "start": 1791316036
+        }
+      },
+      "instanceId": "7fa236a4-9762-427c-be7b-e5b39f85a164"
+    },
+    {
+      "name": "navigation does not reset game timer",
+      "activity": {
+        "buttons": [
+          {
+            "label": "Canary website",
+            "url": "https://plash3r.github.io/canarylauncher-site/"
+          }
+        ],
+        "details": "Playing through Canary",
+        "state": "Minecraft 1.21.1 QA \u00b7 Minecraft 1.21.1",
+        "timestamps": {
+          "start": 1791316036
+        }
+      }
+    },
+    {
+      "name": "native game privacy and stable timestamp",
+      "activity": {
+        "buttons": [
+          {
+            "label": "Canary website",
+            "url": "https://plash3r.github.io/canarylauncher-site/"
+          }
+        ],
+        "details": "Playing Minecraft",
+        "state": "Minecraft 1.21.1",
+        "timestamps": {
+          "start": 1791316036
+        }
+      }
+    },
+    {
+      "name": "real game stop returns Home",
+      "activity": {
+        "buttons": [
+          {
+            "label": "Canary website",
+            "url": "https://plash3r.github.io/canarylauncher-site/"
+          }
+        ],
+        "details": "On the home page",
+        "state": "Canary"
+      }
+    },
+    {
+      "name": "native Discord settings rendered",
+      "switches": 5,
+      "opacity": 1
+    }
+  ],
+  "status": "success"
+}

@@ -4,6 +4,8 @@ Version **0.1.4** adds native Windows Acrylic/Mica/Mica Alt with supported fallb
 
 ## Downloads
 
+Discord Rich Presence is integrated with real Minecraft sessions, task progress and launcher navigation. Settings → Discord offers persistent privacy toggles and immediate Off/clear. The site button opens https://plash3r.github.io/canarylauncher-site/. Discord is optional; the launcher reconnects automatically when it becomes available. Unconfirmed Portal asset keys and download URLs are omitted. See [Discord configuration and QA](https://github.com/ccardcat/canary/blob/v0.1.4/docs/DISCORD_RICH_PRESENCE_QA.md) for setup and the remaining native Discord visual checks.
+
 - **Windows:** use the `.exe` installer, or `.msi` for managed installation. Installers include WebView2 bootstrap support. They are not code signed.
 - **Linux:** use `.deb` on Debian/Ubuntu, or make `.AppImage` executable and run it. AppImage may require FUSE or `--appimage-extract-and-run`.
 - **SHA256SUMS:** checksums of every installer.

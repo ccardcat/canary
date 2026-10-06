@@ -3,6 +3,7 @@ mod window_material;
 use window_material::{apply_window_material,window_material_capabilities};
 pub mod backend;
 use backend::commands::*;
+use backend::discord::discord_presence_context;
 use std::sync::Arc;
 use tauri::{AppHandle, Emitter, State};
 #[tauri::command]
@@ -24,11 +25,12 @@ async fn install_modpack(app:AppHandle,backend:State<'_,Arc<backend::Backend>>,p
 }
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
+    backend::startup_phase("Canary runtime starting");
     tauri::Builder::default()
         .manage(Arc::new(backend::Backend::new().expect("Cannot initialize Canary data storage")))
         .plugin(tauri_plugin_opener::init())
         .plugin(tauri_plugin_dialog::init())
-        .setup(|app|{use tauri::Manager;let backend=app.state::<Arc<backend::Backend>>();if let Ok(instances)=backend.instances(){for instance in instances{if instance.status!="unavailable"{let _=app.asset_protocol_scope().allow_directory(std::path::Path::new(&instance.directory).join("screenshots"),true);}}}Ok(())})
+        .setup(|app|{backend::startup_phase("Tauri setup entered");use tauri::Manager;let backend=app.state::<Arc<backend::Backend>>();backend::discord::Manager::start(backend.inner(),app.handle().clone());if let Ok(instances)=backend.instances(){for instance in instances{if instance.status!="unavailable"{let _=app.asset_protocol_scope().allow_directory(std::path::Path::new(&instance.directory).join("screenshots"),true);}}}backend::startup_phase("Tauri setup complete");Ok(())})
         .on_window_event(|window,event| {
             if let tauri::WindowEvent::CloseRequested{api,..}=event {
                 use tauri::Manager;
@@ -40,7 +42,8 @@ pub fn run() {
                 }
             }
         })
-        .invoke_handler(tauri::generate_handler![apply_window_material,window_material_capabilities,install_modpack,backend_snapshot,list_wallpapers,import_wallpaper,remove_wallpaper,clear_download_cache,storage_usage,choose_storage_folder,change_storage,open_storage_folder,save_backend_settings,reset_backend_settings,cleanup_logs,import_preferences,export_preferences,detect_java,test_java,create_local_account,switch_account,remove_account,rename_local_account,authenticate_provider,minecraft_versions,loader_versions,prepare_instance,create_instance,choose_mrpack_file,import_mrpack,launch_instance,stop_instance,cancel_operation,update_instance,delete_instance,open_instance_folder,game_logs,scan_screenshots,open_screenshot,catalog_search,catalog_versions,curseforge_search,curseforge_project,curseforge_files,install_curseforge_pack,check_modpack_updates,authenticate_elyby,begin_microsoft_login,restore_accounts,content_inventory,content_worlds,content_search,content_project,content_versions,content_preview,install_content,content_action,content_rollback,content_updates,choose_content_files,inspect_content_files,import_content_files,bulk_install_content,pack_update_preview,apply_pack_update])
-        .run(tauri::generate_context!())
-        .expect("error while running tauri application");
+        .invoke_handler(tauri::generate_handler![discord_presence_context,apply_window_material,window_material_capabilities,install_modpack,backend_snapshot,list_wallpapers,import_wallpaper,remove_wallpaper,clear_download_cache,storage_usage,choose_storage_folder,change_storage,open_storage_folder,save_backend_settings,reset_backend_settings,cleanup_logs,import_preferences,export_preferences,detect_java,test_java,create_local_account,switch_account,remove_account,rename_local_account,authenticate_provider,minecraft_versions,loader_versions,prepare_instance,create_instance,choose_mrpack_file,import_mrpack,launch_instance,stop_instance,cancel_operation,update_instance,delete_instance,open_instance_folder,game_logs,scan_screenshots,open_screenshot,catalog_search,catalog_versions,curseforge_search,curseforge_project,curseforge_files,install_curseforge_pack,check_modpack_updates,authenticate_elyby,begin_microsoft_login,restore_accounts,content_inventory,content_worlds,content_search,content_project,content_versions,content_preview,install_content,content_action,content_rollback,content_updates,choose_content_files,inspect_content_files,import_content_files,bulk_install_content,pack_update_preview,apply_pack_update])
+        .build(tauri::generate_context!())
+        .expect("error while building tauri application")
+        .run(|app,event|{if matches!(event,tauri::RunEvent::Exit){use tauri::Manager;app.state::<Arc<backend::Backend>>().discord.shutdown();}});
 }

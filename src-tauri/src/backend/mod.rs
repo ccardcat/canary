@@ -1,4 +1,5 @@
 pub mod activity;
+pub mod discord;
 pub mod transaction;
 pub mod elyby;
 pub mod microsoft;
@@ -26,8 +27,18 @@ pub mod system;
 
 use std::{collections::HashMap, sync::{Arc, Mutex, atomic::AtomicBool}};
 use model::{BackendError, Result};
+/// Opt-in startup stages for desktop CI. Never record accounts or settings.
+pub fn startup_phase(stage:&str) {
+    if let Some(path)=std::env::var_os("CANARY_STARTUP_LOG") {
+        use std::io::Write;
+        if let Ok(mut file)=std::fs::OpenOptions::new().create(true).append(true).open(path) {
+            let _=writeln!(file,"{} {stage}",model::now());
+        }
+    }
+}
 pub struct Backend {
     pub root: std::path::PathBuf,
+    pub discord: Arc<discord::Manager>,
     pub tasks:activity::Registry,
     pub staged:Mutex<HashMap<String,std::path::PathBuf>>,
     pub maintenance:AtomicBool,
@@ -48,12 +59,15 @@ impl Backend {
         Self::with_root(root)
     }
     pub fn with_root(root:std::path::PathBuf)->Result<Self>{
+        startup_phase("storage initialization");
         for folder in ["instances", "cache", "logs", "java", "temp"] { std::fs::create_dir_all(root.join(folder))?; }
         let store = storage::load(&root)?;
+        startup_phase("storage loaded");
         transaction::recover(&root.join("instances"))?;
         if let Some(path)=&store.settings.instances_path{transaction::recover(std::path::Path::new(path))?;}
         for path in &store.instance_roots {transaction::recover(std::path::Path::new(path))?;}
-        Ok(Self { root,tasks:Mutex::new(HashMap::new()),staged:Mutex::new(HashMap::new()),wallpaper_lock:Mutex::new(()),maintenance:AtomicBool::new(false),auth:tokio::sync::Mutex::new(()), store: Mutex::new(store), jobs: Mutex::new(HashMap::new()), provider_requests:Mutex::new(HashMap::new()), processes: Mutex::new(HashMap::new()),
+        startup_phase("HTTP client initialization");
+        Ok(Self { root,discord:Arc::new(discord::Manager::default()),tasks:Mutex::new(HashMap::new()),staged:Mutex::new(HashMap::new()),wallpaper_lock:Mutex::new(()),maintenance:AtomicBool::new(false),auth:tokio::sync::Mutex::new(()), store: Mutex::new(store), jobs: Mutex::new(HashMap::new()), provider_requests:Mutex::new(HashMap::new()), processes: Mutex::new(HashMap::new()),
             private_api_client:reqwest::Client::builder().user_agent("Canary/0.1.0").redirect(reqwest::redirect::Policy::none()).timeout(std::time::Duration::from_secs(30)).build()?,
             client: reqwest::Client::builder().user_agent("Canary/0.1.0 (https://github.com/ccardcat/canary)")
                 .connect_timeout(std::time::Duration::from_secs(20)).timeout(std::time::Duration::from_secs(300)).build()? })

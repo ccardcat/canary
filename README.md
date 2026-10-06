@@ -2,6 +2,8 @@
 
 A Tauri 2 Windows/Linux desktop Minecraft launcher with Modrinth and CurseForge discovery, isolated instances, Java management and real Local-profile game launching. React, TypeScript, Rust and Vite; local typography and Canary artwork.
 
+Discord Rich Presence uses the local desktop client, real Minecraft process sessions and the existing task registry. **Settings → Discord** controls sharing, names, downloads and page visibility. No Discord sign-in/token is required. See [Discord setup, assets and QA](docs/DISCORD_RICH_PRESENCE_QA.md) for Developer Portal configuration and verified/remaining checks.
+
 ## Development
 
 Use the existing checkout. Install Node.js 24, Rust (validated with 1.99.0) and the [Tauri platform prerequisites](https://v2.tauri.app/start/prerequisites/). Linux needs GTK 3 and WebKitGTK 4.1 development libraries.

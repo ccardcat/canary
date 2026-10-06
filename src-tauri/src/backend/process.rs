@@ -2,7 +2,7 @@ use super::{Backend,accounts,download::Job,java,minecraft,model::*,storage};
 use std::{collections::HashMap,sync::Arc,process::Stdio};
 use tauri::{AppHandle,Emitter};
 use tokio::{io::{AsyncBufReadExt,BufReader},process::Child,sync::Mutex};
-pub struct Running {pub pid:u32,pub account:String,pub child:Arc<Mutex<Child>>,pub stopping:Arc<std::sync::atomic::AtomicBool>}
+pub struct Running {pub session:Option<super::discord::Session>,pub pid:u32,pub account:String,pub child:Arc<Mutex<Child>>,pub stopping:Arc<std::sync::atomic::AtomicBool>}
 pub async fn launch(backend:Arc<Backend>,mut instance:Instance,job:Arc<Job>,app:Option<AppHandle>)->Result<u32>{
     let account=accounts::selected(&backend,&instance)?;
     let identity=if account.provider=="elyby" { super::elyby::identity(&backend,&account).await? } else if account.provider=="microsoft" { super::microsoft::identity(&backend,&account).await? } else { accounts::launch_identity(&account)? };
@@ -49,7 +49,8 @@ pub async fn launch(backend:Arc<Backend>,mut instance:Instance,job:Arc<Job>,app:
     let mut child=command.spawn().map_err(|e|BackendError::new("launch",e.to_string()))?;let pid=child.id().ok_or_else(||BackendError::new("launch","No process ID"))?;
     let stdout_pipe=child.stdout.take();let errors=child.stderr.take();let child=Arc::new(Mutex::new(child));
     let stopping=Arc::new(std::sync::atomic::AtomicBool::new(false));
-    backend.processes.lock().unwrap().insert(instance.id.clone(),Running{pid,account:account.id.clone(),child:child.clone(),stopping:stopping.clone()});
+    backend.processes.lock().unwrap().insert(instance.id.clone(),Running{session:Some(super::discord::Session{instance_id:instance.id.clone(),name:instance.name.clone(),minecraft:instance.minecraft.clone(),loader:instance.loader.clone(),loader_version:instance.loader_version.clone(),started_at:now()}),pid,account:account.id.clone(),child:child.clone(),stopping:stopping.clone()});
+    backend.discord.changed();
     instance.status="running".into();instance.last_played=Some(now());instance.error=None;
     {let mut store=backend.store.lock().unwrap();if let Some(a)=store.accounts.iter_mut().find(|a|a.id==account.id){a.last_used=Some(now());}}
     if let Err(error)=backend.save_instance(&instance).and_then(|_|backend.persist()) {
@@ -75,7 +76,7 @@ pub async fn launch(backend:Arc<Backend>,mut instance:Instance,job:Arc<Job>,app:
         if let Ok(status)=&exit{if !status.success()&&!stopping.load(std::sync::atomic::Ordering::Relaxed){instance.error=Some(BackendErrorData{code:"process_exit".into(),message:format!("Minecraft exited with code {:?}",status.code())});}}
         let _=monitor.save_instance(&instance);
         {let mut store=monitor.store.lock().unwrap();store.activity.push(Activity{id:uuid::Uuid::new_v4().to_string(),timestamp:now(),instance:Some(instance.id.clone()),kind:instance.status.clone(),message:format!("{}: {}",instance.name,instance.status)});if store.activity.len()>500{store.activity.remove(0);}}
-        let _=monitor.persist();monitor.processes.lock().unwrap().remove(&instance.id);
+        let _=monitor.persist();monitor.processes.lock().unwrap().remove(&instance.id);monitor.discord.changed();
         if instance.status=="crashed" {if let Ok(task)=Job::tracked(monitor.clone(),&instance.id,"launch",&instance.name,Some(&instance.id),app.clone(),Arc::new(std::sync::atomic::AtomicBool::new(false)),None){task.finish(&Err::<(),_>(BackendError::new("process_exit","Minecraft exited with an error. Open the instance game logs for details.")));}}
         if let Some(app)=app {let _=app.emit("process-exited",serde_json::json!({"id":instance.id,"status":instance.status,"playtime":instance.playtime,"exit_code":exit.ok().and_then(|s|s.code())}));}
     });
@@ -112,7 +113,7 @@ pub async fn stop(backend:&Backend,id:&str,force:bool)->Result<()> {
     Err(BackendError::new("stop_pending","Minecraft has not closed yet. Save the world and close the game normally. Force stop can lose unsaved progress."))
 }
 
-#[cfg(all(test,unix))]mod tests{use super::*;#[tokio::test]async fn already_exited_child_and_repeated_stop_are_safe(){let root=std::env::temp_dir().join(format!("canary-stop-{}",uuid::Uuid::new_v4()));let _cleanup=storage::Staging(root.clone());let b=Backend::with_root(root).unwrap();let process=tokio::process::Command::new("/bin/true").spawn().unwrap();let pid=process.id().unwrap();let child=Arc::new(Mutex::new(process));child.lock().await.wait().await.unwrap();b.processes.lock().unwrap().insert("test".into(),Running{pid,account:String::new(),child:child.clone(),stopping:Arc::new(std::sync::atomic::AtomicBool::new(false))});stop(&b,"test",false).await.unwrap();assert!(child.lock().await.try_wait().unwrap().is_some());stop(&b,"test",false).await.unwrap();b.processes.lock().unwrap().remove("test");stop(&b,"test",true).await.unwrap();}}
+#[cfg(all(test,unix))]mod tests{use super::*;#[tokio::test]async fn already_exited_child_and_repeated_stop_are_safe(){let root=std::env::temp_dir().join(format!("canary-stop-{}",uuid::Uuid::new_v4()));let _cleanup=storage::Staging(root.clone());let b=Backend::with_root(root).unwrap();let process=tokio::process::Command::new("/bin/true").spawn().unwrap();let pid=process.id().unwrap();let child=Arc::new(Mutex::new(process));child.lock().await.wait().await.unwrap();b.processes.lock().unwrap().insert("test".into(),Running{session:None,pid,account:String::new(),child:child.clone(),stopping:Arc::new(std::sync::atomic::AtomicBool::new(false))});stop(&b,"test",false).await.unwrap();assert!(child.lock().await.try_wait().unwrap().is_some());stop(&b,"test",false).await.unwrap();b.processes.lock().unwrap().remove("test");stop(&b,"test",true).await.unwrap();}}
 
 #[cfg(all(test,unix))]
 mod pending_stop_test {
@@ -128,7 +129,7 @@ mod pending_stop_test {
         tokio::time::timeout(std::time::Duration::from_secs(3),output.read_line(&mut ready)).await.unwrap().unwrap();
         assert_eq!(ready.trim(),"ready");
         let pid=process.id().unwrap();let child=Arc::new(Mutex::new(process));
-        b.processes.lock().unwrap().insert("test".into(),Running{pid,account:String::new(),child:child.clone(),stopping:Arc::new(std::sync::atomic::AtomicBool::new(false))});
+        b.processes.lock().unwrap().insert("test".into(),Running{session:None,pid,account:String::new(),child:child.clone(),stopping:Arc::new(std::sync::atomic::AtomicBool::new(false))});
         let result=stop(&b,"test",false).await.unwrap_err();
         assert_eq!(result.code,"stop_pending");assert!(child.lock().await.try_wait().unwrap().is_none());
         stop(&b,"test",true).await.unwrap();assert!(child.lock().await.try_wait().unwrap().is_some());

@@ -1,13 +1,15 @@
 import {spawn,execFileSync} from 'node:child_process';
 import {mkdir,writeFile,readFile} from 'node:fs/promises';
 import {resolve} from 'node:path';
+import {openSync,closeSync} from 'node:fs';
 import assert from 'node:assert/strict';
 
 // Connect to the real WebView2 of the packaged executable. No mocked IPC.
 if(process.platform!=='win32')throw Error('This check requires a Windows desktop runner');
 const folder=resolve('qa/windows-window-smoke');await mkdir(folder,{recursive:true});
 const report={platform:process.platform,cases:[],captures:[],thumbnails:[]};const port=9384;
-const app=spawn(resolve(process.argv[2]||'src-tauri/target/release/scaffold.exe'),[],{env:{...process.env,WEBVIEW2_USER_DATA_FOLDER:resolve(folder,'webview-data'),WEBVIEW2_ADDITIONAL_BROWSER_ARGUMENTS:`--remote-debugging-port=${port} --remote-debugging-address=127.0.0.1`},stdio:'ignore'});
+const stdout=openSync(resolve(folder,'app-stdout.log'),'w'),stderr=openSync(resolve(folder,'app-stderr.log'),'w');
+const app=spawn(resolve(process.argv[2]||'src-tauri/target/release/scaffold.exe'),[],{env:{...process.env,CANARY_STARTUP_LOG:resolve(folder,'app-startup.log'),WEBVIEW2_USER_DATA_FOLDER:resolve(folder,'webview-data'),WEBVIEW2_ADDITIONAL_BROWSER_ARGUMENTS:`--remote-debugging-port=${port} --remote-debugging-address=127.0.0.1`},stdio:['ignore',stdout,stderr]});
 let launchError;app.once('error',error=>{launchError=error;});
 const delay=ms=>new Promise(r=>setTimeout(r,ms));let socket;
 async function until(test,label,timeout=15000){const start=Date.now();while(Date.now()-start<timeout){if(launchError)throw launchError;if(app.exitCode!==null)throw Error(`Canary exited (${app.exitCode}) during ${label}`);try{if(await test())return;}catch(error){if(Date.now()-start>timeout-500)throw error;}await delay(100);}throw Error(`Timed out: ${label}`);}
@@ -31,7 +33,7 @@ try{
   try{
    const size=await win('inner_size'),position=await win('outer_position');
    const command=`$ErrorActionPreference='Stop';Add-Type -AssemblyName System.Drawing;Add-Type -TypeDefinition 'using System;using System.Runtime.InteropServices;public class CanaryQaWindow{[DllImport("user32.dll")]public static extern bool SetForegroundWindow(IntPtr h);[DllImport("user32.dll")]public static extern IntPtr GetForegroundWindow();}';$canaryHandle=(Get-Process -Id ${app.pid}).MainWindowHandle;[CanaryQaWindow]::SetForegroundWindow($canaryHandle)|Out-Null;Start-Sleep -Milliseconds 150;if([CanaryQaWindow]::GetForegroundWindow() -ne $canaryHandle){throw 'Native desktop focus unavailable'};$bitmap=[Drawing.Bitmap]::new(${size.width},${size.height},[Drawing.Imaging.PixelFormat]::Format24bppRgb);$graphics=[Drawing.Graphics]::FromImage($bitmap);$graphics.CopyFromScreen(${position.x},${position.y},0,0,$bitmap.Size);$colors=[Collections.Generic.HashSet[int]]::new();for($gx=0;$gx -lt 10;$gx++){for($gy=0;$gy -lt 10;$gy++){[void]$colors.Add($bitmap.GetPixel([int](($gx+.5)*$bitmap.Width/10),[int](($gy+.5)*$bitmap.Height/10)).ToArgb())}};if($colors.Count -lt 2){throw 'Desktop capture has no painted content'};$bitmap.Save(${q(file)},[Drawing.Imaging.ImageFormat]::Png);$preview=[Drawing.Bitmap]::new(400,[int](400*$bitmap.Height/$bitmap.Width));$pg=[Drawing.Graphics]::FromImage($preview);$pg.InterpolationMode=[Drawing.Drawing2D.InterpolationMode]::HighQualityBicubic;$pg.DrawImage($bitmap,0,0,$preview.Width,$preview.Height);$preview.Save(${q(thumbnail)},[Drawing.Imaging.ImageFormat]::Png);$pg.Dispose();$preview.Dispose();$graphics.Dispose();$bitmap.Dispose();`;
-   execFileSync('powershell.exe',['-NoProfile','-WindowStyle','Hidden','-Command',command],{windowsHide:true,timeout:15000,stdio:'pipe'});report.captures.push({name,method:'native-desktop'});
+   execFileSync('pwsh.exe',['-NoProfile','-WindowStyle','Hidden','-Command',command],{windowsHide:true,timeout:15000,stdio:'pipe'});report.captures.push({name,method:'native-desktop'});
    if(['dark-acrylic','light-acrylic','dark-mica-fullscreen'].includes(name))report.thumbnails.push({name,method:'native-desktop',png:(await readFile(thumbnail)).toString('base64')});
   }catch(error){
    const {data}=await call('Page.captureScreenshot',{format:'png',captureBeyondViewport:false});await writeFile(file,Buffer.from(data,'base64'));report.captures.push({name,method:'webview-only',desktopUnavailable:String(error).split('\n')[0]});
@@ -78,17 +80,19 @@ try{
  for(const quality of ['high','low']){
   await evaluate(`(()=>{const old=JSON.parse(localStorage.getItem('canary-visual')||'{}');localStorage.setItem('canary-visual',JSON.stringify({...old,quality:${JSON.stringify(quality)},backgroundSource:'desktop',material:${JSON.stringify(report.capabilities.supported.includes('acrylic')?'acrylic':'solid')},ambient:'autumn',effectPreset:'high',density:24,heroRotation:true,heroSpeed:9,glassIntensity:55,surfaceOpacity:82,surfaceBlur:24}));localStorage.setItem('canary-mode','dark');})()`);await call('Page.reload');
   await until(()=>evaluate(`!!document.querySelector('.home-hero')&&document.documentElement.dataset.quality===${JSON.stringify(quality)}&&document.documentElement.dataset.windowTransition==='false'`),'performance UI');
-  await win('set_focus');await key('F11',122);await until(()=>win('is_fullscreen'),'performance fullscreen');await finished();await delay(500);
+  await call('Page.bringToFront');await key('F11',122);await until(()=>win('is_fullscreen'),'performance fullscreen');await finished();await delay(500);
   const timing=await evaluate(`new Promise(resolve=>{const samples=[];const start=performance.now();let last=start,complete=false;function finish(){if(complete)return;complete=true;const sorted=[...samples].sort((a,b)=>a-b);resolve({quality:${JSON.stringify(quality)},durationMs:performance.now()-start,frames:samples.length,medianMs:sorted[Math.floor(sorted.length*.5)]??null,p95Ms:sorted[Math.floor(sorted.length*.95)]??null,over50ms:samples.filter(n=>n>50).length,particles:document.querySelectorAll('.ambient-particles i').length,sidebarBlur:getComputedStyle(document.querySelector('.sidebar')).backdropFilter,material:document.documentElement.dataset.windowMaterial,fullscreen:document.documentElement.dataset.windowFullscreen});}function frame(now){if(complete)return;samples.push(now-last);last=now;if(now-start>=4000)finish();else requestAnimationFrame(frame);}setTimeout(finish,6000);requestAnimationFrame(frame);})`);
   assert.ok(timing.frames>0,'Real WebView2 must paint frames');if(quality==='low'){assert.ok(timing.particles<=6);assert.equal(timing.sidebarBlur,'none');}report.performance.push(timing);await screenshot(`performance-${quality}-fullscreen`);
   await key('Escape',27);await until(async()=>!await win('is_fullscreen'),'performance restore');await finished();
  }
  report.status='success';console.log('WINDOWS_NATIVE_FULLSCREEN_GEOMETRY_MATERIAL_THEMES_DROPDOWNS_VERIFIED');
 }catch(error){
- report.status='failure';report.error=String(error);if(error.cause)report.cause=String(error.cause);
+ report.status='failure';report.error=String(error);
+ for(const file of ['app-startup.log','app-stderr.log']){try{report[file]=String(await readFile(resolve(folder,file),'utf8')).slice(-4000);}catch{}}
+ if(error.cause)report.cause=String(error.cause);
  try{
-  const output=execFileSync('powershell.exe',['-NoProfile','-WindowStyle','Hidden','-Command',`$ErrorActionPreference='Stop';$p=Get-Process -Id ${app.pid};$children=@(Get-Process msedgewebview2 -ErrorAction SilentlyContinue | Select-Object Id,ProcessName);@{pid=$p.Id;title=$p.MainWindowTitle;responding=$p.Responding;handle=$p.MainWindowHandle.ToInt64();webviews=$children}|ConvertTo-Json -Depth 4 -Compress`],{windowsHide:true,timeout:10000,encoding:'utf8'});report.startup=JSON.parse(output);
+  const output=execFileSync('pwsh.exe',['-NoProfile','-WindowStyle','Hidden','-Command',`$ErrorActionPreference='Stop';$p=Get-Process -Id ${app.pid};$children=@(Get-Process msedgewebview2 -ErrorAction SilentlyContinue | Select-Object Id,ProcessName);@{pid=$p.Id;title=$p.MainWindowTitle;responding=$p.Responding;handle=$p.MainWindowHandle.ToInt64();session=$p.SessionId;webviews=$children}|ConvertTo-Json -Depth 4 -Compress`],{windowsHide:true,timeout:30000,encoding:'utf8'});report.startup=JSON.parse(output);
  }catch(diagnosticError){report.startupDiagnosticError=String(diagnosticError).split('\n')[0];}
  throw error;
 }
-finally{await writeFile(resolve(folder,'result.json'),JSON.stringify(report,null,2));socket?.close();app.kill();}
+finally{await writeFile(resolve(folder,'result.json'),JSON.stringify(report,null,2));socket?.close();app.kill();closeSync(stdout);closeSync(stderr);}

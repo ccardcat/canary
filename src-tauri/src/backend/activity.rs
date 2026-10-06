@@ -27,7 +27,7 @@ impl Job {
         uuid::Uuid::parse_str(&id).map_err(|_|BackendError::new("task","Invalid task ID"))?;
         let task=Task{revision:1,id:id.clone(),operation_id:operation.into(),kind:TaskKind::parse(kind)?,title:title.into(),instance_id:instance.map(str::to_owned),status:TaskStatus::Running,stage:"preparing".into(),started_at:now(),updated_at:now(),cancellable:true,cancel_requested:false,completed:0,total:0,downloaded:0,bytes_total:0,percent:0.,speed:0,current_file:String::new(),error:None};
         {let mut records=b.tasks.lock().unwrap();if records.contains_key(&id){return Err(BackendError::new("task","Task ID already used"));}if records.len()>200 {let mut recent=records.values().filter(|r|terminal(&r.task.status)).map(|r|(r.task.updated_at,r.task.id.clone())).collect::<Vec<_>>();recent.sort();for (_,id) in recent.into_iter().take(100){records.remove(&id);}}records.insert(id.clone(),Record{task:task.clone(),cancel:cancel.clone()});}
-        let mut job=Job::new(&id,app.clone(),cancel);job.activity=Some(b);if let Some(app)=app{let _=app.emit("activity-task",task);}Ok(Arc::new(job))
+        let mut job=Job::new(&id,app.clone(),cancel);job.activity=Some(b);if let Some(b)=&job.activity{b.discord.changed();}if let Some(app)=app{let _=app.emit("activity-task",task);}Ok(Arc::new(job))
     }
     pub fn title(&self,title:&str) {
         let Some(b)=&self.activity else{return};let task={let mut records=b.tasks.lock().unwrap();let Some(record)=records.get_mut(&self.id)else{return};if terminal(&record.task.status){return;}record.task.title=title.chars().take(256).collect();record.task.revision+=1;record.task.clone()};if let Some(app)=&self.app{let _=app.emit("activity-task",task);}
@@ -45,13 +45,14 @@ impl Job {
     }
     pub fn finish<T>(&self,result:&Result<T>) {
         let Some(b)=&self.activity else{return};let task={let mut records=b.tasks.lock().unwrap();let Some(record)=records.get_mut(&self.id)else{return};if terminal(&record.task.status){return;}let t=&mut record.task;t.revision+=1;t.status=match result{Ok(_)=>TaskStatus::Completed,Err(e) if e.code=="cancelled"=>TaskStatus::Cancelled,Err(_)=>TaskStatus::Failed};t.error=result.as_ref().err().cloned();t.cancellable=false;t.updated_at=now();t.current_file.clear();t.speed=0;if result.is_ok(){t.percent=100.;}t.clone()};
+        b.discord.changed();
         eprintln!("[task][{}][{}] {}",task.id,task.stage,format!("{:?}",task.status));
         if let Some(app)=&self.app{let _=app.emit("activity-task",task);let _=app.emit("instances-changed",());}
     }
 }
 pub fn cancel(b:&Backend,id:&str,app:Option<&AppHandle>)->Result<bool> {
     let task={let mut records=b.tasks.lock().unwrap();let Some(record)=records.get_mut(id)else{return Ok(false)};if terminal(&record.task.status){return Ok(true);}if !record.task.cancellable{return Err(BackendError::new("finalizing","The operation is finishing safely"));}record.task.revision+=1;record.cancel.store(true,Ordering::Release);record.task.cancel_requested=true;record.task.status=TaskStatus::Cancelling;record.task.clone()};
-    if let Some(app)=app{let _=app.emit("activity-task",task);}Ok(true)
+    b.discord.changed();if let Some(app)=app{let _=app.emit("activity-task",task);}Ok(true)
 }
 #[cfg(test)]mod tests {
     use super::*;

@@ -58,6 +58,7 @@ import "./Scrollbars.css";
 import TitleBar from "./components/TitleBar";
 import HomeGreeting from "./components/HomeGreeting";
 import {heroCopy} from "./components/homeCopy";
+import {DiscordSettings,useDiscordPresence,type DiscordStatus} from "./components/DiscordPresence";
 import {HeroCarousel,HeroSettings} from "./components/HeroCarousel";
 import {StorageSettings} from "./components/StorageSettings";
 import { useBackend,defaultAccount } from "./services/backend";
@@ -164,6 +165,7 @@ function App() {
   const [settingsOpen, setSettingsOpen] = useState(false);
   const [settingsTab, setSettingsTab] = useState("appearance");
   const [accountOpen, setAccountOpen] = useState(false);
+  const discordStatus=useDiscordPresence({kind:settingsOpen?"settings":detail?"project":page==="Home"?"home":page==="Discover"?"discover":page==="Library"?"library":"idle",locale:lang,projectName:detail?.title??"",provider:detail?.provider??discovery.provider,category:detail?.project_type??discovery.type});
   const [mode, setMode] = useState<Mode>(
     () => (localStorage.getItem("canary-mode") as Mode) || "dark",
   );
@@ -590,6 +592,7 @@ function App() {
               t={t}
               tab={settingsTab}
               setTab={setSettingsTab}
+              discordStatus={discordStatus}
               onClose={() => setSettingsOpen(false)}
               lang={lang}
               setLang={setLang}
@@ -1664,6 +1667,7 @@ function EmptyPage({
   );
 }
 function SettingsModal({
+  discordStatus,
   t,
   tab,
   setTab,
@@ -1681,6 +1685,7 @@ function SettingsModal({
   preset,
   setPreset,
 }: {
+  discordStatus:DiscordStatus;
   t: T;
   tab: string;
   setTab: (x: string) => void;
@@ -1735,6 +1740,7 @@ function SettingsModal({
     ["typography",russian?"Типографика":"Typography",SlidersHorizontal,"font typography size Monocraft шрифт масштаб размер"],
     ["storage",russian?"Хранилище":"Storage",LibraryIcon,"storage directory migration cache папка диск хранилище перенос кэш"],
     ["minecraft","Minecraft",Boxes,"minecraft java memory ram arguments resolution игра память аргументы разрешение"],
+    ["discord","Discord",Activity,"discord rich presence privacy status activity приватность статус активность"],
     ["downloads",t("downloads"),Download,"downloads concurrency загрузки параллельные"],
     ["accountSettings",t("accountSettings"),UserRound,"accounts Microsoft Ely.by local профиль аккаунт вход"],
     ["advanced",t("advanced"),SettingsIcon,"advanced quality performance logs backups restore retention дополнительные качество логи резервные"],
@@ -1802,7 +1808,7 @@ function SettingsModal({
                 animate={{ opacity: 1, y: 0 }}
                 exit={{ opacity: 0, y: -4 }}
               >
-                {search.trim()?<div className="settings-results">{results.length?results.map(([id,label,Icon,words])=><button key={id} onClick={()=>{setTab(id);setSearch("");}}><Icon size={17}/> {label}<small>{words.split(" ").slice(0,7).join(" · ")}</small></button>):<p>{russian?"Настройки не найдены":"No settings found"}</p>}</div>:tab === "window" ? <WindowPreferencesPanel russian={russian}/> :tab === "background" ? <><VisualPreferences russian={russian} group="background"/><HeroSettings russian={russian}/></> :tab === "effects" ? <EffectsPreferences russian={russian}><MotionPreference t={t} reduceMotion={reduceMotion} setReduceMotion={setReduceMotion}/></EffectsPreferences> :tab === "typography" ? <VisualPreferences russian={russian} group="typography"/> :tab === "storage" ? <StorageSettings russian={russian}/> :tab === "minecraft"?<RuntimeSettingsPanel russian={russian} section="minecraft"/> :tab === "downloads"?<RuntimeSettingsPanel russian={russian} section="downloads"/> :tab === "appearance" ? (
+                {search.trim()?<div className="settings-results">{results.length?results.map(([id,label,Icon,words])=><button key={id} onClick={()=>{setTab(id);setSearch("");}}><Icon size={17}/> {label}<small>{words.split(" ").slice(0,7).join(" · ")}</small></button>):<p>{russian?"Настройки не найдены":"No settings found"}</p>}</div>:tab === "discord" ? <DiscordSettings russian={russian} status={discordStatus}/> :tab === "window" ? <WindowPreferencesPanel russian={russian}/> :tab === "background" ? <><VisualPreferences russian={russian} group="background"/><HeroSettings russian={russian}/></> :tab === "effects" ? <EffectsPreferences russian={russian}><MotionPreference t={t} reduceMotion={reduceMotion} setReduceMotion={setReduceMotion}/></EffectsPreferences> :tab === "typography" ? <VisualPreferences russian={russian} group="typography"/> :tab === "storage" ? <StorageSettings russian={russian}/> :tab === "minecraft"?<RuntimeSettingsPanel russian={russian} section="minecraft"/> :tab === "downloads"?<RuntimeSettingsPanel russian={russian} section="downloads"/> :tab === "appearance" ? (
                   <Appearance
                     t={t}
                     mode={mode}

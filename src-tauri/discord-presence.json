@@ -1,0 +1,16 @@
+{
+  "applicationId": "1557109738037055498",
+  "website": "https://plash3r.github.io/canarylauncher-site/",
+  "download": null,
+  "largeImage": "canary_logo",
+  "smallImages": {
+    "vanilla": "minecraft",
+    "fabric": "fabric",
+    "forge": "forge",
+    "neoforge": "neoforge",
+    "quilt": "quilt",
+    "modrinth": "modrinth",
+    "curseforge": "curseforge"
+  },
+  "confirmedAssets": []
+}
