@@ -183,7 +183,24 @@ Native evidence: [`docs/qa/discord/native-report.json`](qa/discord/native-report
 `npm run build` и `cargo check --locked --manifest-path src-tauri/Cargo.toml`
 прошли. `npm run tauri dev -- --no-watch` выполнен с cloud runtime helper и
 поддерживаемым override `beforeDevCommand` для уже запущенного Vite.
-Linux DEB собран; SHA256:
+Релизный кандидат **0.1.5**, source `b2f4d95d9a09334e852e4758ff88bdce55337d32`, локально
+собран в DEB и AppImage. SHA256 cloud artifacts:
+
+| Artifact | SHA256 |
+| --- | --- |
+| Canary_0.1.5_amd64.deb | `9a6278b88ba9737728ebb0efdeda6bed384171b93f24263ce69e6cde4c37ee2b` |
+| Canary_0.1.5_amd64.AppImage | `741c9582c90ff94ca26aa430ab61038c4662c0c958e90687c73245b9facd7616` |
+
+Оба **упакованных 0.1.5** запущены в GTK/WebKit, с отдельными QA profiles:
+Home, `tauri://localhost`, Low (`sidebar/settings backdrop-filter:none`),
+пять Discord switches, сохраняемый Off и отсутствие alert прошли
+([DEB report](qa/discord/packaged-015-report.json),
+[AppImage report](qa/discord/appimage-015-report.json)). AppImage запущен
+без PRoot; после перезапуска восстановлены Off и Low, статус Disabled, alert — 0.
+Это cloud Debian/sysroot artifacts; они отличаются от официальной
+Ubuntu-22.04 сборки в Releases. Совместимость со всеми distributions не заявляется.
+
+История проверки предыдущего **0.1.4** кандидата: Linux DEB собран; SHA256:
 `6687241acfef7eec711cf7b3daf171831a2d3b45ef658c11f2edcae1173465c3`.
 Упакованный DEB извлечён и запущен с отдельным чистым QA profile:
 `tauri://localhost`, Home отрисован, нет alert, пять Discord switches и
@@ -212,7 +229,7 @@ WebView2 processes работают ([startup report](qa/discord/windows-startup
 для автоматизации UI. Это не проверка установки обычного MSI/EXE. Сборка с
 инспектором не попадает в release assets. Build artifacts сохраняются даже
 при провале native QA, но failed QA продолжает блокировать публикацию релиза.
-Результат нового native test ещё требует подтверждения. Дополнительно устранена
+Результат native test 0.1.5 подтверждён ниже. Дополнительно устранена
 гонка в `choose()` оконного smoke-теста: он ждёт renderer control после animated
 Settings tab transition. В настоящем GTK/WebKit подтверждено, что немедленно
 после перехода control отсутствует; ожидание, Traffic Lights, Left controls,
@@ -235,22 +252,67 @@ backdrop declarations: при production CSS minification прежний пор�
 теперь идёт после vendor fallback. В **production Vite assets**, headless Chromium,
 для Light/Dark/AMOLED sidebar/settings/nav-capsule проверены `backdrop-filter:none`
 ([production report](qa/discord/production-low-report.json)). Existing low-quality
-appearance regression и 10 material/appearance tests также прошли. Windows native pass для исправленного 0.1.5
-ещё ожидается. В publication download добавлен installer-only artifact pattern;
+appearance regression и 10 material/appearance tests также прошли. В publication download добавлен installer-only artifact pattern;
 QA executable с инспектором исключён из release asset inputs.
+
+**Windows 0.1.5 native pass** подтверждён GitHub Actions
+[37528927493](https://github.com/ccardcat/canary/actions/runs/37528927493):
+**34 cases**, **37 native-desktop captures**, все пять материалов и три темы,
+fullscreen/restore, dropdowns, titlebar и preference controls. High и Low:
+258 frames за ~4 секунды, median 15.6 ms, p95 15.7 ms, 0 frames >50 ms;
+Low sidebar blur — `none`. Particles — 0 из-за reduced-motion на runner.
+Это same-source release executable с QA inspector feature; установка production
+MSI/EXE и FPS на пользовательском GPU этим не подтверждаются.
+Linux verification в том же run также **success**.
+[Полный Windows report](qa/discord/windows-015-report.json),
+[Light Acrylic](qa/discord/light-acrylic-windows-015.png),
+[Dark Acrylic](qa/discord/dark-acrylic-windows-015.png),
+[Dark Mica fullscreen](qa/discord/dark-mica-fullscreen-windows-015.png).
+
+**0.1.5 опубликован**:
+[GitHub Release](https://github.com/ccardcat/canary/releases/tag/v0.1.5).
+Release workflow [37528929656](https://github.com/ccardcat/canary/actions/runs/37528929656)
+завершён успешно: оба build jobs, record-start и publish — success.
+Проверен receipt и независимый diagnostics: release не draft и не prerelease,
+ровно четыре production installers и SHA256SUMS, все файлы непустые,
+инспектор EXE отсутствует. Tagged source — `b2f4d95d9a09334e852e4758ff88bdce55337d32`.
+[Publication evidence](qa/discord/release-015-report.json).
+
+| Official release installer | SHA256 |
+| --- | --- |
+| Canary_0.1.5_x64-setup.exe | `7ab0ea25c7dc84271155e475fc8f40ff5db76d917f15570e4833671c35fb01be` |
+| Canary_0.1.5_x64_en-US.msi | `d570e3216512627483f64ca6d1213182d61060fee594d8f1dc257caa65ee5c95` |
+| Canary_0.1.5_amd64.deb | `ebcf9dfaf475a3968657e32528e827a4fe265582f7e853cfb49d6fc7c015ef83` |
+| Canary_0.1.5_amd64.AppImage | `652241ecd73c9e62488a0225a0f2d5833da036b8af0c212aeba7cae63bc75988` |
+
+`main` дополнительно включает theme/copy polish
+`6f372362f1366e86ea9ce4d8c82ae3d0fd05f2b7`, синхронизированный fast-forward.
+Для этого source повторно прошли `npm run build`, `cargo check --locked`,
+**73 Rust tests / 0 failed / 6 ignored** и **11 Discord/theme Playwright tests**.
+Настоящий `npm run tauri dev -- --no-watch` пересобран и запущен в GTK/WebKit;
+Home визуально проверен ([current main screenshot](qa/discord/current-main-native.png)).
+Эти изменения находятся после release tag; результаты Windows и packaged
+0.1.5 выше относятся к tagged source, а не к theme/copy polish.
+Для нового `main` Actions [37531432654](https://github.com/ccardcat/canary/actions/runs/37531432654)
+проверяет обе desktop platforms отдельно: Linux — success; Windows ещё выполняется
+на момент записи отчёта.
 
 ## Git Report
 
 Branch: `main`. Starting commit:
 `9a061a94170151295332de1d267b7eebbc2e2ff5`. Перед commit проверены diff и отсутствие
-generated/secret files; перед push актуализируется main. Итоговый hash и push
-status приводятся в сообщении о выполнении. Существующие release tags не двигаются.
+generated/secret files; перед push main актуализирован, incoming `6f37236` сохранён.
+Implementation commits `bc67511`, `e8a352e`, `9b01e3d`, `b2f4d95` отправлены в main.
+Итоговый documentation commit hash и push status приводятся в сообщении о выполнении.
+Существующие release tags не двигаются; tag `v0.1.5` остаётся на `b2f4d95`.
 
 ## Remaining Issues
 
-Нужен полный native Windows pass для 0.1.5 и реальный Discord desktop для визуального подтверждения,
+Нужен реальный Discord desktop для визуального подтверждения,
 подтверждение/загрузка assets в Developer Portal и проверка публичного сайта.
 Отсутствующие Discord credentials не являются требованием к запуску или сборке.
 HTTP site verification в облаке ограничен network policy. Download button
-пока скрыта. Windows CDP smoke/release publication должны иметь подтверждённый
-результат, прежде чем считать релиз опубликованным.
+пока скрыта. Windows native QA и публикация tagged 0.1.5 подтверждены выше.
+Windows/Linux CI для последующего theme/copy polish — отдельный run, его результат
+не подменяется результатами релиза. Установка production MSI/EXE, пользовательские
+DPI/GPU и лицензионный online Minecraft gameplay не заявляются проверенными здесь.

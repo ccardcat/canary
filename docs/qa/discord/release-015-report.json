@@ -1,0 +1,367 @@
+{
+  "publication": {
+    "tag": "v0.1.5",
+    "commit": "b2f4d95d9a09334e852e4758ff88bdce55337d32",
+    "status": "published",
+    "build": "success",
+    "publish": "success",
+    "run_url": "https://github.com/ccardcat/canary/actions/runs/37528929656",
+    "release_url": "https://github.com/ccardcat/canary/releases/tag/v0.1.5",
+    "assets": [
+      {
+        "name": "Canary_0.1.5_amd64.AppImage",
+        "size": 102930936,
+        "url": "https://github.com/ccardcat/canary/releases/download/v0.1.5/Canary_0.1.5_amd64.AppImage",
+        "digest": "sha256:652241ecd73c9e62488a0225a0f2d5833da036b8af0c212aeba7cae63bc75988"
+      },
+      {
+        "name": "Canary_0.1.5_amd64.deb",
+        "size": 22850886,
+        "url": "https://github.com/ccardcat/canary/releases/download/v0.1.5/Canary_0.1.5_amd64.deb",
+        "digest": "sha256:ebcf9dfaf475a3968657e32528e827a4fe265582f7e853cfb49d6fc7c015ef83"
+      },
+      {
+        "name": "Canary_0.1.5_x64-setup.exe",
+        "size": 20717397,
+        "url": "https://github.com/ccardcat/canary/releases/download/v0.1.5/Canary_0.1.5_x64-setup.exe",
+        "digest": "sha256:7ab0ea25c7dc84271155e475fc8f40ff5db76d917f15570e4833671c35fb01be"
+      },
+      {
+        "name": "Canary_0.1.5_x64_en-US.msi",
+        "size": 22134784,
+        "url": "https://github.com/ccardcat/canary/releases/download/v0.1.5/Canary_0.1.5_x64_en-US.msi",
+        "digest": "sha256:d570e3216512627483f64ca6d1213182d61060fee594d8f1dc257caa65ee5c95"
+      },
+      {
+        "name": "SHA256SUMS",
+        "size": 369,
+        "url": "https://github.com/ccardcat/canary/releases/download/v0.1.5/SHA256SUMS",
+        "digest": "sha256:d9c7ae50400d48b1f5da797e9925db0e50fb76e79e8d036ecbd0945d7fae5457"
+      }
+    ]
+  },
+  "diagnostics": {
+    "tag": "v0.1.5",
+    "commit": "b2f4d95d9a09334e852e4758ff88bdce55337d32",
+    "run_url": "https://github.com/ccardcat/canary/actions/runs/37528929656",
+    "status": "completed",
+    "conclusion": "success",
+    "jobs": [
+      {
+        "name": "build (ubuntu-22.04, deb,appimage, linux-x64)",
+        "status": "completed",
+        "conclusion": "success",
+        "steps": [
+          {
+            "name": "Set up job",
+            "status": "completed",
+            "conclusion": "success"
+          },
+          {
+            "name": "Run actions/checkout@v4",
+            "status": "completed",
+            "conclusion": "success"
+          },
+          {
+            "name": "Run actions/setup-node@v4",
+            "status": "completed",
+            "conclusion": "success"
+          },
+          {
+            "name": "Run dtolnay/rust-toolchain@stable",
+            "status": "completed",
+            "conclusion": "success"
+          },
+          {
+            "name": "Run Swatinem/rust-cache@v2",
+            "status": "completed",
+            "conclusion": "success"
+          },
+          {
+            "name": "Install Linux prerequisites",
+            "status": "completed",
+            "conclusion": "success"
+          },
+          {
+            "name": "Run npm ci",
+            "status": "completed",
+            "conclusion": "success"
+          },
+          {
+            "name": "Check release version",
+            "status": "completed",
+            "conclusion": "success"
+          },
+          {
+            "name": "Rust regression tests",
+            "status": "completed",
+            "conclusion": "success"
+          },
+          {
+            "name": "Build installers",
+            "status": "completed",
+            "conclusion": "success"
+          },
+          {
+            "name": "Build Windows inspector executable for native QA",
+            "status": "completed",
+            "conclusion": "skipped"
+          },
+          {
+            "name": "Prepare Windows WebView2 runtime",
+            "status": "completed",
+            "conclusion": "skipped"
+          },
+          {
+            "name": "Windows native window and material QA",
+            "status": "completed",
+            "conclusion": "skipped"
+          },
+          {
+            "name": "Upload Windows visual QA",
+            "status": "completed",
+            "conclusion": "skipped"
+          },
+          {
+            "name": "Upload installers",
+            "status": "completed",
+            "conclusion": "success"
+          },
+          {
+            "name": "Post Run Swatinem/rust-cache@v2",
+            "status": "completed",
+            "conclusion": "success"
+          },
+          {
+            "name": "Post Run actions/setup-node@v4",
+            "status": "completed",
+            "conclusion": "success"
+          },
+          {
+            "name": "Post Run actions/checkout@v4",
+            "status": "completed",
+            "conclusion": "success"
+          },
+          {
+            "name": "Complete job",
+            "status": "completed",
+            "conclusion": "success"
+          }
+        ]
+      },
+      {
+        "name": "build (windows-latest, nsis,msi, windows-x64)",
+        "status": "completed",
+        "conclusion": "success",
+        "steps": [
+          {
+            "name": "Set up job",
+            "status": "completed",
+            "conclusion": "success"
+          },
+          {
+            "name": "Run actions/checkout@v4",
+            "status": "completed",
+            "conclusion": "success"
+          },
+          {
+            "name": "Run actions/setup-node@v4",
+            "status": "completed",
+            "conclusion": "success"
+          },
+          {
+            "name": "Run dtolnay/rust-toolchain@stable",
+            "status": "completed",
+            "conclusion": "success"
+          },
+          {
+            "name": "Run Swatinem/rust-cache@v2",
+            "status": "completed",
+            "conclusion": "success"
+          },
+          {
+            "name": "Install Linux prerequisites",
+            "status": "completed",
+            "conclusion": "skipped"
+          },
+          {
+            "name": "Run npm ci",
+            "status": "completed",
+            "conclusion": "success"
+          },
+          {
+            "name": "Check release version",
+            "status": "completed",
+            "conclusion": "success"
+          },
+          {
+            "name": "Rust regression tests",
+            "status": "completed",
+            "conclusion": "success"
+          },
+          {
+            "name": "Build installers",
+            "status": "completed",
+            "conclusion": "success"
+          },
+          {
+            "name": "Build Windows inspector executable for native QA",
+            "status": "completed",
+            "conclusion": "success"
+          },
+          {
+            "name": "Prepare Windows WebView2 runtime",
+            "status": "completed",
+            "conclusion": "success"
+          },
+          {
+            "name": "Windows native window and material QA",
+            "status": "completed",
+            "conclusion": "success"
+          },
+          {
+            "name": "Upload Windows visual QA",
+            "status": "completed",
+            "conclusion": "success"
+          },
+          {
+            "name": "Upload installers",
+            "status": "completed",
+            "conclusion": "success"
+          },
+          {
+            "name": "Post Run Swatinem/rust-cache@v2",
+            "status": "completed",
+            "conclusion": "success"
+          },
+          {
+            "name": "Post Run actions/setup-node@v4",
+            "status": "completed",
+            "conclusion": "success"
+          },
+          {
+            "name": "Post Run actions/checkout@v4",
+            "status": "completed",
+            "conclusion": "success"
+          },
+          {
+            "name": "Complete job",
+            "status": "completed",
+            "conclusion": "success"
+          }
+        ]
+      },
+      {
+        "name": "record-start",
+        "status": "completed",
+        "conclusion": "success",
+        "steps": [
+          {
+            "name": "Set up job",
+            "status": "completed",
+            "conclusion": "success"
+          },
+          {
+            "name": "Run actions/checkout@v4",
+            "status": "completed",
+            "conclusion": "success"
+          },
+          {
+            "name": "Record started build",
+            "status": "completed",
+            "conclusion": "success"
+          },
+          {
+            "name": "Post Run actions/checkout@v4",
+            "status": "completed",
+            "conclusion": "success"
+          },
+          {
+            "name": "Complete job",
+            "status": "completed",
+            "conclusion": "success"
+          }
+        ]
+      },
+      {
+        "name": "publish",
+        "status": "completed",
+        "conclusion": "success",
+        "steps": [
+          {
+            "name": "Set up job",
+            "status": "completed",
+            "conclusion": "success"
+          },
+          {
+            "name": "Run actions/checkout@v4",
+            "status": "completed",
+            "conclusion": "success"
+          },
+          {
+            "name": "Download installers",
+            "status": "completed",
+            "conclusion": "success"
+          },
+          {
+            "name": "Publish complete release",
+            "status": "completed",
+            "conclusion": "success"
+          },
+          {
+            "name": "Record publication result",
+            "status": "completed",
+            "conclusion": "success"
+          },
+          {
+            "name": "Post Run actions/checkout@v4",
+            "status": "completed",
+            "conclusion": "success"
+          },
+          {
+            "name": "Complete job",
+            "status": "completed",
+            "conclusion": "success"
+          }
+        ]
+      }
+    ],
+    "release": {
+      "url": "https://github.com/ccardcat/canary/releases/tag/v0.1.5",
+      "draft": false,
+      "prerelease": false,
+      "assets": [
+        {
+          "name": "Canary_0.1.5_amd64.AppImage",
+          "size": 102930936,
+          "url": "https://github.com/ccardcat/canary/releases/download/v0.1.5/Canary_0.1.5_amd64.AppImage",
+          "digest": "sha256:652241ecd73c9e62488a0225a0f2d5833da036b8af0c212aeba7cae63bc75988"
+        },
+        {
+          "name": "Canary_0.1.5_amd64.deb",
+          "size": 22850886,
+          "url": "https://github.com/ccardcat/canary/releases/download/v0.1.5/Canary_0.1.5_amd64.deb",
+          "digest": "sha256:ebcf9dfaf475a3968657e32528e827a4fe265582f7e853cfb49d6fc7c015ef83"
+        },
+        {
+          "name": "Canary_0.1.5_x64-setup.exe",
+          "size": 20717397,
+          "url": "https://github.com/ccardcat/canary/releases/download/v0.1.5/Canary_0.1.5_x64-setup.exe",
+          "digest": "sha256:7ab0ea25c7dc84271155e475fc8f40ff5db76d917f15570e4833671c35fb01be"
+        },
+        {
+          "name": "Canary_0.1.5_x64_en-US.msi",
+          "size": 22134784,
+          "url": "https://github.com/ccardcat/canary/releases/download/v0.1.5/Canary_0.1.5_x64_en-US.msi",
+          "digest": "sha256:d570e3216512627483f64ca6d1213182d61060fee594d8f1dc257caa65ee5c95"
+        },
+        {
+          "name": "SHA256SUMS",
+          "size": 369,
+          "url": "https://github.com/ccardcat/canary/releases/download/v0.1.5/SHA256SUMS",
+          "digest": "sha256:d9c7ae50400d48b1f5da797e9925db0e50fb76e79e8d036ecbd0945d7fae5457"
+        }
+      ]
+    }
+  }
+}

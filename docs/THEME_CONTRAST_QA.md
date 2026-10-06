@@ -135,3 +135,17 @@ Tauri could not run `cargo metadata` and no native local window started.
 Fresh Windows/Linux Actions are used for Rust checks. A real Windows DPI,
 native-material/background and Discord-client visual pass is separate from
 the Chromium/IPC fixture evidence above.
+
+Follow-up cloud verification of `6f372362f1366e86ea9ce4d8c82ae3d0fd05f2b7`
+sourced the existing `/workspace/.toolchains/canary-env.sh`: `cargo check --locked`
+passed; Rust tests passed **73 / 0 failed / 6 existing network tests ignored**.
+The Discord and theme suites passed **11/11**, and `npm run build` passed again.
+`npm run tauri dev -- --no-watch` was rebuilt and launched in real GTK/WebKit,
+using the cloud runtime helper. Home was visually inspected
+([native screenshot](qa/discord/current-main-native.png)). This resolves the
+local Cargo/PATH and Linux startup limitation for that source. The separate
+Windows/Linux Actions run is
+[37531432654](https://github.com/ccardcat/canary/actions/runs/37531432654).
+Published `v0.1.5` points to the preceding `b2f4d95` source; its release evidence
+does not validate this later theme/copy polish. Real Discord visuals and user
+Windows DPI/GPU checks remain separate.
