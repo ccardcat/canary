@@ -105,7 +105,7 @@ test("sidebar controls remain reachable at minimum height, scale equivalents and
               .locator(".sidebar")
               .evaluate((el) => el.classList.contains("compact"))) !== compact
           )
-            await page.locator(".sidebar-bottom button:not(.activity-dock)").first().click();
+            await page.locator(".sidebar-bottom button").first().click();
           await expect(page.locator(".sidebar")).toHaveClass(
             compact ? /compact/ : /^sidebar$/,
           );
@@ -124,7 +124,7 @@ test("sidebar controls remain reachable at minimum height, scale equivalents and
             const visible = await button.evaluate((el) => {
               const rect = el.getBoundingClientRect();
               const parent = (
-                innerHeight <= 390
+                innerHeight <= 340
                   ? el.closest(".sidebar-content")
                   : el.closest("nav")
               )!.getBoundingClientRect();
@@ -144,7 +144,7 @@ test("sidebar controls remain reachable at minimum height, scale equivalents and
               `${viewport.width}×${viewport.height}, ${side}, ${mode}, compact=${compact}: ${JSON.stringify(visible)}`,
             ).toBe(true);
           }
-          for (let index = 0; index < 3; index++) {
+          for (let index = 0; index < 2; index++) {
             await page.locator(".sidebar-bottom button").nth(index).focus();
             await contained(
               page,
@@ -162,11 +162,11 @@ test("sidebar controls remain reachable at minimum height, scale equivalents and
           );
           await expect(page.locator(".sidebar-content")).toHaveCSS(
             "overflow-y",
-            viewport.height <= 390 ? "auto" : "visible",
+            viewport.height <= 340 ? "auto" : "visible",
           );
           await expect(page.locator(".sidebar nav")).toHaveCSS(
             "overflow-y",
-            viewport.height <= 390 ? "visible" : "auto",
+            viewport.height <= 340 ? "visible" : "auto",
           );
         }
       }
@@ -233,8 +233,6 @@ test("wheel, scrollbar drag and Tab reveal navigation while utilities stay pinne
   ).not.toBe("none");
   await page.keyboard.press("Tab");
   await expect(page.locator(".sidebar-bottom button").first()).toBeFocused();
-  await page.keyboard.press("Tab");
-  await expect(page.locator(".sidebar-bottom button").nth(1)).toBeFocused();
   await page.keyboard.press("Tab");
   await expect(
     page.getByRole("button", { name: "Language", exact: true }).first(),

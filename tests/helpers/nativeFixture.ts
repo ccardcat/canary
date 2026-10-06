@@ -33,6 +33,8 @@ mockIPC((command,args)=>{
  if(command==='launch_instance'){state.instances.find(i=>i.id===args.id).status='running';return 1;}
  if(command==='stop_instance'){state.instances.find(i=>i.id===args.id).status='ready';return;}
  if(command==='create_instance')return new Promise((resolve,reject)=>{
+  globalThis.__materialQA.failCreate=()=>reject({code:'network',message:'Safe QA failure before finalize'});
+  globalThis.__materialQA.completeCreate=()=>{const instance={...structuredClone(state.instances[0]),id:args.requestId,name:args.name,status:'ready',error:undefined,directory:'C:/Canary/instances/'+args.requestId};state.instances.push(instance);resolve(instance);};
   globalThis.__materialQA.cancelCreate=()=>{if(globalThis.__materialQA.deferCancel)setTimeout(()=>reject({code:'cancelled',message:'Operation cancelled'}),400);else reject({code:'cancelled',message:'Operation cancelled'});};
   setTimeout(()=>void emit('backend-progress',{id:args.requestId,stage:'libraries',status:'running',completed:43,total:97,downloaded:1048576,bytes_total:2097152,percent:44.3,speed:1024,file:'libraries/minecraft/very-long-library-name-1.21.1.jar'}),50);
  });

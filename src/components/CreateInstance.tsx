@@ -1,4 +1,4 @@
-import {TaskRow,TaskCancel} from "./ActivityDock";
+import {TaskRow,TaskCancel} from "./TaskActivity";
 import {isTerminal} from "../services/activity";
 import GlassSelect from "./GlassSelect";
 import {useEffect,useRef,useState} from "react";

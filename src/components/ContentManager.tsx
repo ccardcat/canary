@@ -1,4 +1,4 @@
-import {TaskRow} from "./ActivityDock";
+import {TaskRow} from "./TaskActivity";
 import {isTerminal} from "../services/activity";
 import GlassSelect from "./GlassSelect";
 import {providerInvoke} from "../services/providers";

@@ -1,94 +1,9 @@
-/* Activity uses the existing utility hit targets and popover surface tokens. */
-.sidebar-bottom .activity-dock {
-  position: relative;
-  gap: 10px;
-  min-height: 42px;
-  flex-shrink: 0;
-}
-.activity-dock-icon {
-  position: relative;
-  display: grid;
-  place-items: center;
-  width: 30px;
-  height: 30px;
-  flex: 0 0 30px;
-}
-.activity-ring {
-  position: absolute;
-  inset: 0;
-  fill: none;
-  stroke: var(--line);
-  stroke-width: 1.7;
-  transform: rotate(-90deg);
-}
-.activity-ring circle + circle {
-  stroke: var(--accent);
-  stroke-linecap: round;
-}
-.activity-game-dot {
-  display: block;
-  width: 6px;
-  height: 6px;
-  border-radius: 50%;
-  background: color-mix(in srgb, #74ad8d 75%, var(--muted));
-  flex: 0 0 6px;
-}
-.activity-dock-icon > .activity-game-dot {
-  position: absolute;
-  right: 1px;
-  bottom: 1px;
-}
-.activity-dock.failed {
-  color: var(--danger, #cf7979);
-}
-.activity-count {
-  position: absolute;
-  right: 5px;
-  top: 3px;
-  border-radius: 8px;
-  min-width: 15px;
-  font-size: 10px;
-  background: var(--surface);
-  color: var(--text);
-  text-align: center;
-}
-.activity-dock .nav-label {
-  min-width: 0;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-  font-size: 0.85em;
-}
-.popover.activity-popover {
-  position: fixed;
-  right: auto;
-  max-height: calc(100dvh - 52px);
-  overflow: hidden;
-  display: flex;
-  flex-direction: column;
-  gap: 10px;
-  padding: 12px;
-  z-index: 20;
-  animation: none;
-  box-sizing: border-box;
-}
-.activity-popover-heading,
+/* Shared progress and cancellation for Downloads, install dialogs and content. */
 .activity-row-heading {
   display: flex;
   align-items: center;
   gap: 8px;
   min-width: 0;
-}
-.activity-popover-heading {
-  font-size: 0.85rem;
-  color: var(--muted);
-  justify-content: space-between;
-  flex-shrink: 0;
-}
-.activity-popover-items {
-  min-height: 0;
-  overflow: auto;
-  overscroll-behavior: contain;
 }
 .activity-task {
   padding: 10px 0;
@@ -170,25 +85,10 @@
 .activity-cancel:not(:disabled):hover {
   color: var(--danger, #cf7979);
 }
-.activity-game-actions {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 6px;
-}
-.activity-popover .activity-more {
-  flex-shrink: 0;
-  min-height: 32px;
-  font-size: 0.8rem;
-}
 .activity-error {
   overflow-wrap: anywhere;
   max-height: 120px;
   overflow: auto;
-}
-.activity-idle {
-  font-size: 0.88rem;
-  color: var(--muted);
-  margin: 12px 0;
 }
 .activity-downloads .activity-active {
   max-width: 760px;
@@ -202,9 +102,6 @@
 }
 .activity-recent summary {
   cursor: pointer;
-}
-.activity-settings .toggle-setting {
-  gap: 12px;
 }
 @keyframes activity-wait {
   0%,
@@ -224,22 +121,9 @@
   }
 }
 @media (forced-colors: active) {
-  .activity-ring circle + circle {
-    stroke: Highlight;
-  }
-  .activity-game-dot {
-    background: Highlight;
-  }
   .activity-progress {
     forced-color-adjust: auto;
   }
-}
-.sidebar .activity-dock {
-  padding: 6px 8px;
-  height: 42px;
-}
-.sidebar.compact .activity-dock {
-  padding: 6px;
 }
 .activity-row-heading > b {
   font-size: calc(14px * var(--ui-font-scale, 1));

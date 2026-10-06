@@ -1,5 +1,5 @@
 import {isTerminal} from "../services/activity";
-import {ActivityTasks} from "./ActivityDock";
+import {ActivityTasks} from "./TaskActivity";
 import GlassSelect from "./GlassSelect";
 import { useEffect, useState } from "react";
 import { isTauri, convertFileSrc } from "@tauri-apps/api/core";

@@ -18,7 +18,6 @@ import { externalLink } from "./services/links";
 import RemoteImage from "./components/RemoteImage";
 const Markdown = lazy(() => import("./components/Markdown"));
 import { isTauri,convertFileSrc } from "@tauri-apps/api/core";
-import {ActivityDock, ActivitySettings} from "./components/ActivityDock";
 import {
   Activity,
   Boxes,
@@ -423,7 +422,6 @@ function App() {
               })}
             </nav>
             <div className="sidebar-bottom">
-              <ActivityDock russian={lang==="ru"} onDownloads={()=>navigation("Downloads")} onOpen={id=>{setLibrarySelectionId(id);navigation("Library");}}/>
               <button
                 onClick={() => {
                   setCompact(sidebarOpen);
@@ -1737,7 +1735,6 @@ function SettingsModal({
     ["typography",russian?"Типографика":"Typography",SlidersHorizontal,"font typography size Monocraft шрифт масштаб размер"],
     ["storage",russian?"Хранилище":"Storage",LibraryIcon,"storage directory migration cache папка диск хранилище перенос кэш"],
     ["minecraft","Minecraft",Boxes,"minecraft java memory ram arguments resolution игра память аргументы разрешение"],
-    ["activity",russian?"Активность":"Activity",Activity,"activity dock game download privacy активность панель игра загрузки приватность"],
     ["downloads",t("downloads"),Download,"downloads concurrency загрузки параллельные"],
     ["accountSettings",t("accountSettings"),UserRound,"accounts Microsoft Ely.by local профиль аккаунт вход"],
     ["advanced",t("advanced"),SettingsIcon,"advanced quality performance logs backups restore retention дополнительные качество логи резервные"],
@@ -1805,7 +1802,7 @@ function SettingsModal({
                 animate={{ opacity: 1, y: 0 }}
                 exit={{ opacity: 0, y: -4 }}
               >
-                {search.trim()?<div className="settings-results">{results.length?results.map(([id,label,Icon,words])=><button key={id} onClick={()=>{setTab(id);setSearch("");}}><Icon size={17}/> {label}<small>{words.split(" ").slice(0,7).join(" · ")}</small></button>):<p>{russian?"Настройки не найдены":"No settings found"}</p>}</div>:tab === "window" ? <WindowPreferencesPanel russian={russian}/> :tab === "background" ? <><VisualPreferences russian={russian} group="background"/><HeroSettings russian={russian}/></> :tab === "effects" ? <EffectsPreferences russian={russian}><MotionPreference t={t} reduceMotion={reduceMotion} setReduceMotion={setReduceMotion}/></EffectsPreferences> :tab === "typography" ? <VisualPreferences russian={russian} group="typography"/> :tab === "storage" ? <StorageSettings russian={russian}/> :tab === "minecraft"?<RuntimeSettingsPanel russian={russian} section="minecraft"/> :tab === "activity"?<ActivitySettings russian={russian}/> :tab === "downloads"?<RuntimeSettingsPanel russian={russian} section="downloads"/> :tab === "appearance" ? (
+                {search.trim()?<div className="settings-results">{results.length?results.map(([id,label,Icon,words])=><button key={id} onClick={()=>{setTab(id);setSearch("");}}><Icon size={17}/> {label}<small>{words.split(" ").slice(0,7).join(" · ")}</small></button>):<p>{russian?"Настройки не найдены":"No settings found"}</p>}</div>:tab === "window" ? <WindowPreferencesPanel russian={russian}/> :tab === "background" ? <><VisualPreferences russian={russian} group="background"/><HeroSettings russian={russian}/></> :tab === "effects" ? <EffectsPreferences russian={russian}><MotionPreference t={t} reduceMotion={reduceMotion} setReduceMotion={setReduceMotion}/></EffectsPreferences> :tab === "typography" ? <VisualPreferences russian={russian} group="typography"/> :tab === "storage" ? <StorageSettings russian={russian}/> :tab === "minecraft"?<RuntimeSettingsPanel russian={russian} section="minecraft"/> :tab === "downloads"?<RuntimeSettingsPanel russian={russian} section="downloads"/> :tab === "appearance" ? (
                   <Appearance
                     t={t}
                     mode={mode}

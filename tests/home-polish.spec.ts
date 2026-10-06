@@ -501,7 +501,7 @@ test("sidebar hover/focus matches full hit area on both sides and layouts withou
             () => document.documentElement.scrollWidth <= innerWidth,
           ),
         ).toBe(true);
-        await page.locator(".sidebar-bottom button:not(.activity-dock)").first().click();
+        await page.locator(".sidebar-bottom button").first().click();
       }
     }
 });

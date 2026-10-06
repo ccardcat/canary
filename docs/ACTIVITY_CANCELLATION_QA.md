@@ -1,6 +1,6 @@
-# Activity Dock and cancellable installations
+# Task progress and cancellable installations
 
-Source baseline: `main` at `f3f5eb8ce7519d44eb40f6aed052971f9e391bd4`.
+Dock removal baseline: `main` at `21c78d39a055499679e1fa5b21adfaec3f266a66`. Backend cancellation and transactional installation are preserved.
 
 ## Task and cancellation contract
 
@@ -18,24 +18,24 @@ Existing preparation/repair copies the instance, including user files, before mo
 
 Copying a large existing instance requires extra disk space and I/O; worlds are copied rather than deleted. Resume is not implemented. Window close is blocked while jobs are active, so the user can explicitly cancel or wait for cleanup; running worlds retain the existing close protection.
 
-## Frontend and Dock
+## Task UI and Sidebar
 
-`BackendProvider` owns tasks. Dock, Downloads/Activity, creation/import dialog, content manager and Library controls read that state. Closing or unmounting a creation dialog does not cancel its command. A later cancel is available through Dock or Downloads. Terminal records move out of active downloads and retain no progress bar or current filename. A small recent error/completion can be shown; cancelled tasks return to idle/other activity immediately.
+`BackendProvider` owns tasks. Downloads/Activity, creation/import dialog, content manager and Library controls read that state. `TaskActivity.tsx` provides shared task rows and Cancel controls. Closing or unmounting a creation dialog does not cancel its command: progress and cancellation remain available in Downloads. Terminal records leave the active list and retain no progress bar or current filename; a collapsed recent list can retain a short completion/cancellation/error entry.
 
-Dock occupies one 42 px utility target above the existing sidebar mode/language controls. Its nonmodal panel uses the existing popover material tokens, opens toward the main content, clamps below the titlebar, and scrolls internally when space is limited. Hover opens after 200 ms; pointer transitions have a 250 ms grace period. Focus, Enter/Space, Escape, and outside click are supported. Progress is a lightweight SVG ring; unknown progress respects reduced motion. The compact panel shows at most three entries and links to Downloads for the remainder.
+Activity Dock, its sidebar target, rings/counts/game indicators, portal, hover/focus/outside-click handlers and timers are removed. Sidebar utilities contain only mode and language controls again. The extreme-height inner-scroll fallback returns to 340 px; the existing scrollbar, hover surfaces, Attached/Floating, Left/Right and Compact/Expanded layouts remain.
 
-Game state comes from the backend process-backed snapshot, with instance/version/loader/elapsed time and the existing normal `stop_instance(force=false)` action. Launch completion alone does not fabricate a playing session. Process exit refreshes the snapshot; a crash generates a distinct recent failure task rather than reopening a completed launch.
+The four Dock-only preferences and their empty Settings section are removed. Existing `canary-visual` configurations are normalized with the established defaults, so those unknown fields are discarded while appearance, typography, material and other valid preferences survive.
 
-Activity settings persist in the existing `canary-visual` preferences with backward defaults: Dock, game activity, progress, and names enabled. Hiding the Dock does not stop tasks. Privacy hides instance names in the Dock.
+Game state still comes from the backend process-backed snapshot. Library running/Stop controls, process-exit handling and internal typed sessions remain. No sidebar game status or Discord Rich Presence is added.
 
 ## Validation
 
 Frontend build passes; the pre-existing >500 kB Vite chunk advisory remains.
 
-The complete Playwright regression run passed all 70 tests (4.9 minutes). Playwright verification uses Tauri IPC/event fixtures, not a native Windows launcher or a real provider download. The new scenarios cover hover/focus/click/Escape/outside interaction, confirmed cancellation, close-and-navigate-away, retry, terminal cleanup, stale event rejection, critical-section disabled cancel, simultaneous game/download/update, launch/playing/stop/exit, persisted preferences/privacy, Left/Right, Compact/Expanded, Attached/Floating, 760×540 and 760×280, Monocraft 120%, all six materials, Light/Dark/AMOLED/System, and reduced motion. Actual material screenshots were inspected in headless Chromium. Existing regression suites also run with the new utility target.
+The full removal regression suite passed all 69 Playwright tests (4.9 minutes); the targeted cancellation/sidebar run also passed all 12 tests. Screenshots of Downloads and the restored Sidebar were inspected in headless Chromium. The removal regression suite uses Tauri IPC/event fixtures, not a native Windows launcher or a real provider download. It verifies absence of Dock/overlay/settings, safe old-config migration, mode/language keyboard access at minimum/extreme heights, all sidebar modes, download progress across all six materials and four themes, reduced motion, closing a dialog without cancellation, cancellation acknowledgement/retry, failed first install, successful publication, terminal cleanup and late-event protection. Existing regression suites also run with the restored two utility targets.
 
-Rust tests add a real local streaming HTTP transfer (test builds permit loopback HTTP only), cancel it mid-file, assert that queued files never start and all `.part` files are gone; test cancellation versus critical commit, terminal progress suppression, invisible failed/cancelled first install followed by successful retry, preservation of existing metadata/world/config on cancelled repair, and recovery of an interrupted directory swap after restart. Production still requires HTTPS. All six new Rust regression tests passed in GitHub Actions on Windows and Linux.
+Preserved Rust tests cover a real local streaming HTTP transfer (test builds permit loopback HTTP only), cancel it mid-file, assert that queued files never start and all `.part` files are gone; test cancellation versus critical commit, terminal progress suppression, invisible failed/cancelled first install followed by successful retry, preservation of existing metadata/world/config on cancelled repair, and recovery of an interrupted directory swap after restart. Production still requires HTTPS. All six cancellation/transaction Rust regression tests passed in GitHub Actions on Windows and Linux.
 
-CI [run 37506456420](https://github.com/ccardcat/canary/actions/runs/37506456420), for code commit `92e39f0f721329c8ca6f3c04a728880f2756c645`, passed `npm run build`, `cargo check --locked` and `cargo test --locked` on Windows and Linux.
+Before removal, CI [run 37506456420](https://github.com/ccardcat/canary/actions/runs/37506456420), for code commit `92e39f0f721329c8ca6f3c04a728880f2756c645`, passed `npm run build`, `cargo check --locked` and `cargo test --locked` on Windows and Linux.
 
 Local `cargo check --locked` and `npm run tauri dev -- --no-watch` were attempted: this workspace has no Cargo toolchain, so neither could run. Native Windows GUI/provider installation/game launch and hardware compositor/DPI validation are not claimed. The baseline Windows workflow already failed in its remote WebView2 inspector step; Linux and Windows Cargo/build steps passed on that baseline.

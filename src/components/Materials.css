@@ -291,7 +291,7 @@
   :root .sidebar nav { gap:5px; }
   :root .sidebar-bottom { margin-top:8px; padding-top:8px; }
 }
-@media(max-height:390px) {
+@media(max-height:340px) {
   /* Below supported minimum: one inner scroller keeps every control reachable. */
   :root .sidebar-content { overflow-y:auto; overflow-x:hidden; overscroll-behavior:contain; scrollbar-gutter:stable; }
   :root .sidebar nav { flex:none; overflow:visible; scrollbar-gutter:auto; }

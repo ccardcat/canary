@@ -12,7 +12,7 @@ const nav = (page: Page, name: string) =>
 async function setup(page: Page) {
   await nativeFixture(page);
   await page.goto("/");
-  await expect(page.locator(".activity-dock")).toBeVisible();
+  await expect(page.locator(".home-greeting")).toBeVisible();
 }
 async function emitTask(page: Page, patch: Record<string, unknown> = {}) {
   return page.evaluate(async (patch) => {
@@ -69,33 +69,6 @@ async function finish(page: Page, task: any, status: string) {
     { task, status },
   );
 }
-test("hover delay, pointer grace, keyboard and outside click", async ({
-  page,
-}) => {
-  await setup(page);
-  const dock = page.locator(".activity-dock"),
-    panel = page.locator(".activity-popover");
-  await dock.hover();
-  await expect(panel).toHaveCount(0, { timeout: 100 });
-  await expect(panel).toBeVisible();
-  await panel.hover();
-  await page.waitForTimeout(300);
-  await expect(panel).toBeVisible();
-  await page.mouse.move(650, 120);
-  await expect(panel).toHaveCount(0);
-  await dock.focus();
-  await expect(panel).toBeVisible();
-  await page.keyboard.press("Escape");
-  await expect(panel).toHaveCount(0);
-  await expect(dock).toBeFocused();
-  await page.keyboard.press("Enter");
-  await expect(panel).toBeVisible();
-  await page.locator(".brand").click();
-  await expect(panel).toHaveCount(0);
-  await dock.click();
-  await expect(panel).toBeVisible();
-  await page.keyboard.press("Escape");
-});
 test("terminal cancellation and failure clear Downloads; late events cannot resurrect a task", async ({
   page,
 }) => {
@@ -107,7 +80,7 @@ test("terminal cancellation and failure clear Downloads; late events cannot resu
   await expect(active.locator("progress")).toHaveAttribute("value", "67");
   await finish(page, task, "cancelled");
   await expect(active.locator(".activity-task")).toHaveCount(0);
-  await expect(page.locator(".activity-ring")).toHaveCount(0);
+
   await page.evaluate(async (task) => {
     const { emit } = await import(
       "/node_modules/@tauri-apps/api/event.js" as string
@@ -164,7 +137,7 @@ test("closing a creation dialog preserves task; cancel waits for native command 
       .getByRole("button", { name: "Cancelling…", exact: true }),
   ).toBeDisabled();
   await expect(page.locator(".activity-active .activity-task")).toHaveCount(0);
-  await expect(page.locator(".activity-ring")).toHaveCount(0);
+
   const calls = await page.evaluate(
     () => (globalThis as any).__materialQA.calls,
   );
@@ -191,179 +164,158 @@ test("closing a creation dialog preserves task; cancel waits for native command 
     0,
   );
 });
-test("finalize disables cancellation; multiple activities include the running game", async ({
+test("Downloads keeps simultaneous tasks and disables cancellation during commit", async ({
   page,
 }) => {
   await setup(page);
-  await emitTask(page);
-  await emitTask(page, {
+  await nav(page, "Downloads").click();
+  const first = await emitTask(page);
+  const second = await emitTask(page, {
     operationId: "second",
     title: "Second pack",
     kind: "update",
     cancellable: false,
     stage: "finalize",
   });
-  await page.locator(".activity-dock").click();
-  const panel = page.locator(".activity-popover");
-  await expect(panel.locator(".activity-task")).toHaveCount(3);
-  await expect(panel).toContainText("Game running");
+  const active = page.locator(".activity-active");
+  await expect(active.locator(".activity-task")).toHaveCount(2);
   await expect(
-    panel.getByRole("button", { name: "Finishing…", exact: true }),
+    active.getByRole("button", { name: "Finishing…", exact: true }),
   ).toBeDisabled();
-  await expect(page.locator(".activity-count")).toHaveText("3");
+  await expect(active).toContainText("Second pack");
+  await finish(page, first, "completed");
+  await expect(active.locator(".activity-task")).toHaveCount(1);
+  await finish(page, second, "failed");
+  await expect(active.locator(".activity-task")).toHaveCount(0);
+  await page.locator(".activity-recent summary").click();
+  await expect(page.locator(".activity-recent progress")).toHaveCount(0);
+  await expect(page.locator(".activity-recent .activity-file")).toHaveCount(0);
 });
-test("Launching only becomes Playing after process-backed snapshot and clears on exit", async ({
+test("Dock is absent and old Dock preferences migrate without losing appearance", async ({
   page,
 }) => {
+  await page.addInitScript(() => {
+    localStorage.setItem(
+      "canary-visual",
+      JSON.stringify({
+        showActivityDock: true,
+        showGameActivity: true,
+        showDownloadProgress: false,
+        showActivityNames: false,
+        showCommunity: false,
+        font: "Monocraft",
+        fontScale: 120,
+        minecraft: "full",
+        sidebarSide: "right",
+        sidebarMode: "floating",
+        materialStyle: "liquid",
+        materialLinked: true,
+        app: "sakura1",
+        cursor: "system",
+      }),
+    );
+  });
   await setup(page);
-  await page.evaluate(async () => {
-    const qa = (globalThis as any).__materialQA;
-    qa.state.instances.forEach((i: any) => (i.status = "ready"));
-    const { emit } = await import(
-      "/node_modules/@tauri-apps/api/event.js" as string
-    );
-    await emit("instances-changed", {});
-  });
-  const task = await emitTask(page, {
-    kind: "launch",
-    operationId: "instance-0",
-    instanceId: "instance-0",
-    title: "Fabulously Optimized",
-    total: 0,
-    bytesTotal: 0,
-    currentFile: "",
-  });
-  await expect(page.locator(".activity-dock")).toContainText(
-    "Launching Minecraft",
-  );
-  await page.locator(".activity-dock").click();
-  await expect(page.locator(".activity-popover .playing")).toHaveCount(0);
-  await page.evaluate(async () => {
-    const qa = (globalThis as any).__materialQA;
-    qa.state.instances[0].status = "running";
-    qa.state.instances[0].last_played = Math.floor(Date.now() / 1000) - 1440;
-    const { emit } = await import(
-      "/node_modules/@tauri-apps/api/event.js" as string
-    );
-    await emit("instances-changed", {});
-  });
-  await finish(page, task, "completed");
-  await expect(page.locator(".activity-popover .playing")).toContainText(
-    "24 min",
-  );
-  await expect(page.locator(".activity-popover .playing")).toContainText(
-    "Minecraft 1.21.1",
-  );
-  await page
-    .locator(".activity-popover")
-    .getByRole("button", { name: "Stop game", exact: true })
-    .click();
-  await expect(page.locator(".activity-popover .playing")).toHaveCount(0);
-  await page.evaluate(async () => {
-    const { emit } = await import(
-      "/node_modules/@tauri-apps/api/event.js" as string
-    );
-    await emit("process-exited", { id: "instance-0", status: "ready" });
-  });
-  await expect(page.locator(".activity-dock.playing")).toHaveCount(0);
-});
-test("Activity settings persist, names are private, hidden dock does not stop tasks", async ({
-  page,
-}) => {
-  await setup(page);
-  const task = await emitTask(page);
-  await nav(page, "Settings").click();
-  await page
-    .locator(".settings-nav")
-    .getByRole("button", { name: "Activity", exact: true })
-    .click();
-  const settings = page.locator(".activity-settings");
-  await settings.getByRole("switch", { name: "Show instance names" }).click();
-  await page.keyboard.press("Escape");
-  await expect(page.locator(".settings-modal")).toHaveCount(0);
-  await page.locator(".activity-dock").click();
-  await expect(page.locator(".activity-popover")).not.toContainText(task.title);
-  await expect(page.locator(".activity-popover")).not.toContainText(
-    "Canary world",
-  );
-  await page.keyboard.press("Escape");
-  await nav(page, "Settings").click();
-  await page
-    .locator(".settings-nav")
-    .getByRole("button", { name: "Activity", exact: true })
-    .click();
-  await settings.getByRole("switch", { name: "Show activity dock" }).click();
-  await page.keyboard.press("Escape");
-  await expect(page.locator(".activity-dock")).toHaveCount(0);
-  await nav(page, "Downloads").click();
-  await expect(page.locator(".activity-active .activity-task")).toHaveCount(1);
-  await page.reload();
-  expect(
-    await page.evaluate(
-      () =>
-        JSON.parse(localStorage.getItem("canary-visual")!).showActivityNames,
+  await expect(page.locator(".sidebar-bottom > button")).toHaveCount(2);
+  const sidebar = page.locator(".sidebar");
+  await sidebar.hover();
+  await page.locator(".sidebar-bottom > button").first().focus();
+  await page.waitForTimeout(300);
+  await expect(
+    page.locator(
+      ".activity-dock,.activity-popover,.activity-ring,.activity-game-dot,.activity-count,#canary-activity-popover",
     ),
-  ).toBe(false);
-  await expect(page.locator(".activity-dock")).toHaveCount(0);
+  ).toHaveCount(0);
+  const saved = await page.evaluate(() =>
+    JSON.parse(localStorage.getItem("canary-visual")!),
+  );
+  for (const key of [
+    "showActivityDock",
+    "showGameActivity",
+    "showDownloadProgress",
+    "showActivityNames",
+  ])
+    expect(saved).not.toHaveProperty(key);
+  expect(saved).toMatchObject({
+    font: "Monocraft",
+    fontScale: 120,
+    minecraft: "full",
+    sidebarSide: "right",
+    sidebarMode: "floating",
+    materialStyle: "liquid",
+    app: "sakura1",
+    showCommunity: false,
+  });
+  await nav(page, "Settings").click();
+  await expect(
+    page
+      .locator(".settings-nav")
+      .getByRole("button", { name: "Activity", exact: true }),
+  ).toHaveCount(0);
+  await page
+    .getByRole("searchbox", { name: "Search settings" })
+    .fill("activity dock");
+  await expect(page.locator(".settings-results button")).toHaveCount(0);
+  await page.keyboard.press("Escape");
+  await nav(page, "Downloads").click();
+  await emitTask(page);
+  await expect(page.locator(".activity-active")).toContainText("43 / 97");
+  await expect(page.locator(".activity-active progress")).toHaveAttribute(
+    "value",
+    "67",
+  );
 });
-test("popover mirrors and clamps; bottom utilities fit small windows in all materials and themes", async ({
+test("failed first install leaves no ghost; successful retry publishes only after completion", async ({
+  page,
+}) => {
+  await setup(page);
+  await nav(page, "Library").click();
+  await page.getByRole("button", { name: "New instance", exact: true }).click();
+  const dialog = page.getByRole("dialog");
+  await dialog.locator("input").first().fill("Failed first install");
+  await dialog
+    .getByRole("button", { name: "New instance", exact: true })
+    .click();
+  await expect(dialog.locator(".activity-task")).toBeVisible();
+  await expect(page.locator(".instance-card")).toHaveCount(9);
+  await page.evaluate(() => (globalThis as any).__materialQA.failCreate());
+  await expect(dialog.locator(".activity-task")).toHaveCount(0);
+  await dialog.getByRole("button", { name: "Close", exact: true }).click();
+  await expect(page.locator(".instance-card")).toHaveCount(9);
+  await nav(page, "Downloads").click();
+  await expect(page.locator(".activity-active .activity-task")).toHaveCount(0);
+  await page.locator(".activity-recent summary").click();
+  await expect(page.locator(".activity-recent")).toContainText(
+    "Failed first install",
+  );
+  await expect(
+    page.locator(".activity-recent progress,.activity-recent .activity-file"),
+  ).toHaveCount(0);
+  await nav(page, "Library").click();
+  await page.getByRole("button", { name: "New instance", exact: true }).click();
+  await dialog.locator("input").first().fill("Successful retry");
+  await dialog
+    .getByRole("button", { name: "New instance", exact: true })
+    .click();
+  await expect(dialog.locator(".activity-task")).toBeVisible();
+  await expect(page.locator(".instance-card")).toHaveCount(9);
+  await page.evaluate(() => (globalThis as any).__materialQA.completeCreate());
+  await expect(dialog).toHaveCount(0);
+  await expect(page.locator(".instance-card")).toHaveCount(10);
+  await expect(
+    page.locator(".instance-card").filter({ hasText: "Successful retry" }),
+  ).toHaveCount(1);
+  await expect(
+    page.locator(".instance-card").filter({ hasText: "Canary world 2" }),
+  ).toHaveCount(1);
+});
+test("Downloads progress remains readable in all materials and themes without a sidebar Dock", async ({
   page,
 }) => {
   test.setTimeout(90000);
   await setup(page);
-  mkdirSync(".qa/activity", { recursive: true });
-  for (const side of ["left", "right"])
-    for (const mode of ["attached", "floating"])
-      for (const compact of [false, true]) {
-        await page.evaluate(
-          ({ side, mode, compact }) => {
-            const p = JSON.parse(localStorage.getItem("canary-visual") || "{}");
-            localStorage.setItem(
-              "canary-visual",
-              JSON.stringify({
-                ...p,
-                sidebarSide: side,
-                sidebarMode: mode,
-                font: "Monocraft",
-                minecraft: "full",
-                fontScale: 120,
-              }),
-            );
-            localStorage.setItem("canary-compact", String(compact));
-            localStorage.setItem(
-              "canary-sidebar-expanded-narrow",
-              String(!compact),
-            );
-          },
-          { side, mode, compact },
-        );
-        await page.setViewportSize({ width: 760, height: 540 });
-        await page.reload();
-        await page.locator(".activity-dock").click();
-        const bounds = await page.locator(".activity-popover").boundingBox(),
-          dock = await page.locator(".activity-dock").boundingBox();
-        expect(bounds!.y).toBeGreaterThanOrEqual(36);
-        expect(bounds!.x).toBeGreaterThanOrEqual(0);
-        expect(bounds!.x + bounds!.width).toBeLessThanOrEqual(760);
-        expect(bounds!.y + bounds!.height).toBeLessThanOrEqual(540);
-        if (side === "left")
-          expect(bounds!.x).toBeGreaterThan(dock!.x + dock!.width);
-        else expect(bounds!.x + bounds!.width).toBeLessThan(dock!.x);
-        await page.keyboard.press("Escape");
-        const buttons = await page
-          .locator(".sidebar-bottom>button")
-          .evaluateAll((items) =>
-            items.map((e) => {
-              const r = e.getBoundingClientRect();
-              return { bottom: r.bottom, height: r.height };
-            }),
-          );
-        expect(buttons).toHaveLength(3);
-        buttons.forEach((r) => {
-          expect(r.bottom).toBeLessThanOrEqual(540);
-          expect(r.height).toBeGreaterThanOrEqual(42);
-        });
-      }
+  await page.setViewportSize({ width: 760, height: 540 });
+  mkdirSync(".qa/dock-removal", { recursive: true });
   for (const theme of ["light", "dark", "amoled", "system"])
     for (const material of [
       "solid",
@@ -381,41 +333,45 @@ test("popover mirrors and clamps; bottom utilities fit small windows in all mate
             "canary-visual",
             JSON.stringify({
               ...p,
-              materialLinked: true,
+              font: "Monocraft",
+              fontScale: 120,
+              minecraft: "full",
               materialStyle: material,
+              materialLinked: true,
+              sidebarSide: "right",
+              sidebarMode: "floating",
             }),
           );
         },
         { theme, material },
       );
       await page.reload();
+      await nav(page, "Downloads").click();
       await emitTask(page);
-      await page.locator(".activity-dock").click();
-      await expect(page.locator(".activity-popover")).toBeVisible();
-      const materialState = await page
-        .locator(".activity-popover")
-        .evaluate((el) => {
-          const s = getComputedStyle(el);
-          return {
-            fill: s.getPropertyValue("--mat-popovers-fill"),
-            background: s.backgroundImage,
-            width: el.getBoundingClientRect().width,
-            scroll: el.scrollWidth,
-          };
-        });
-      expect(materialState.fill).toBeTruthy();
-      expect(materialState.background).not.toBe("none");
-      expect(materialState.scroll).toBeLessThanOrEqual(
-        Math.ceil(materialState.width),
+      const row = page.locator(".activity-active .activity-task");
+      await expect(row).toContainText("43 / 97");
+      await expect(
+        row.getByRole("button", { name: "Cancel", exact: true }),
+      ).toBeVisible();
+      expect(await row.evaluate((el) => el.scrollWidth <= el.clientWidth)).toBe(
+        true,
       );
+      expect(
+        await page.evaluate(
+          () => document.documentElement.scrollWidth <= innerWidth,
+        ),
+      ).toBe(true);
+      await expect(page.locator(".sidebar-bottom > button")).toHaveCount(2);
+      await expect(
+        page.locator(".activity-dock,.activity-popover,.activity-ring"),
+      ).toHaveCount(0);
       if (material === "liquid")
         await page.screenshot({
-          path: ".qa/activity/" + theme + "-liquid.png",
+          path: ".qa/dock-removal/" + theme + "-downloads.png",
         });
-      await page.keyboard.press("Escape");
     }
 });
-test("short viewport, large typography and reduced motion retain keyboard access", async ({
+test("short viewport and reduced motion retain Cancel and both sidebar utilities", async ({
   page,
 }) => {
   await page.addInitScript(() => {
@@ -433,24 +389,22 @@ test("short viewport, large typography and reduced motion retain keyboard access
   });
   await setup(page);
   await page.setViewportSize({ width: 760, height: 280 });
-  const task = await emitTask(page, { total: 0, bytesTotal: 0 });
   await page.emulateMedia({ reducedMotion: "reduce" });
-  await page.locator(".activity-dock").focus();
-  const panel = page.locator(".activity-popover");
-  await expect(panel).toBeVisible();
+  await nav(page, "Загрузки").click();
+  const task = await emitTask(page, { total: 0, bytesTotal: 0 });
+  const active = page.locator(".activity-active");
   expect(
-    await panel
+    await active
       .locator("progress")
       .evaluate((el) => getComputedStyle(el).animationName),
   ).toBe("none");
-  await panel.getByRole("button", { name: "Отменить", exact: true }).focus();
-  const rect = await panel.boundingBox();
-  expect(rect!.y).toBeGreaterThanOrEqual(36);
-  expect(rect!.y + rect!.height).toBeLessThanOrEqual(280);
-  await page.keyboard.press("Escape");
-  await expect(panel).toHaveCount(0);
+  await active.getByRole("button", { name: "Отменить", exact: true }).focus();
   await finish(page, task, "cancelled");
-  await page.locator(".sidebar-bottom>button").last().focus();
+  await expect(active.locator(".activity-task")).toHaveCount(0);
+  await expect(page.locator(".sidebar-bottom > button")).toHaveCount(2);
+  await page.locator(".sidebar-bottom > button").first().focus();
+  await page.keyboard.press("Tab");
+  await expect(page.locator(".sidebar-bottom > button").last()).toBeFocused();
   await page.keyboard.press("Enter");
   await expect(page.locator(".settings-modal")).toBeVisible();
 });
