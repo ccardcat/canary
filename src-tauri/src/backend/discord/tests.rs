@@ -1,4 +1,6 @@
-use super::super::model::{now, BackendError};
+use super::super::model::BackendError;
+#[cfg(unix)]
+use super::super::model::now;
 use super::*;
 
 fn input() -> Input {

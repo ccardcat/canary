@@ -178,13 +178,36 @@ Native evidence: [`docs/qa/discord/native-report.json`](qa/discord/native-report
 `npm run build` и `cargo check --locked --manifest-path src-tauri/Cargo.toml`
 прошли. `npm run tauri dev -- --no-watch` выполнен с cloud runtime helper и
 поддерживаемым override `beforeDevCommand` для уже запущенного Vite.
-Linux DEB/AppImage сборка и Windows EXE/MSI через Actions отслеживаются отдельно.
+Linux DEB собран; SHA256:
+`6687241acfef7eec711cf7b3daf171831a2d3b45ef658c11f2edcae1173465c3`.
+Упакованный DEB извлечён и запущен с отдельным чистым QA profile:
+`tauri://localhost`, Home отрисован, нет alert, пять Discord switches и
+сохраняемый Off проверены; повторный старт DEB сохраняет Off и не выдаёт alert
+([packaged report](qa/discord/packaged-report.json)).
+AppImage также собран (120.47 MiB); SHA256:
+`b6bf59304db7232f7e8855dc1db3c13d3c838c110792089548539461d5b577d0`.
+Cloud sysroot требует явного включения WebKit helpers через локальный AppImage
+config override; итоговый AppImage запущен без PRoot с sysroot OpenGL libraries,
+в Xvfb, с новым profile и без Discord. Home, отсутствие alert, пять switches
+и Off persistence проверены ([AppImage report](qa/discord/appimage-report.json)).
+Это не проверка совместимости со всеми Linux distributions. Официальная
+Ubuntu-22.04 сборка и Windows EXE/MSI через Actions отслеживаются отдельно.
 
-Для незавершённого Windows smoke-теста предыдущего `main` добавлены безопасные
-startup stages и capture stdout/stderr; PowerShell diagnostics использует
-доступный на hosted runner `pwsh`. Прежняя ошибка CDP `ECONNREFUSED :9384`
-не объявляется исправленной до результата нового native test. Установленный
-WebView2 в предыдущем run подтверждён, причина отсутствия inspector ещё нет.
+Windows Actions [37522078057](https://github.com/ccardcat/canary/actions/runs/37522078057):
+TypeScript build, Cargo check, **69 Rust tests passed / 6 ignored**, NSIS EXE
+(19.76 MiB) и MSI (21.11 MiB) успешно собраны. Linux job также успешен.
+Native Windows QA не прошёл: CDP port `9384` недоступен. Безопасные startup
+stages подтверждают завершённый Tauri setup; реальное окно Canary отзывчиво,
+WebView2 processes работают ([startup report](qa/discord/windows-startup-report.json)).
+Это ошибка подключения инспектора, а не свидетельство падения приложения.
+
+Для следующего run добавлен отдельный **native-qa** feature (`tauri/devtools`)
+и explicit loopback inspector configuration. Обычные EXE/MSI создаются до него,
+без feature; затем same-source release executable с инспектором используется
+для автоматизации UI. Это не проверка установки обычного MSI/EXE. Сборка с
+инспектором не попадает в release assets. Build artifacts сохраняются даже
+при провале native QA, но failed QA продолжает блокировать публикацию релиза.
+Результат нового native test ещё требует подтверждения.
 
 ## Git Report
 

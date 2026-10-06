@@ -1,0 +1,53 @@
+{
+  "source": "bc67511caa1807e7002d126c7e9aeabfdacf4fb1",
+  "run_url": "https://github.com/ccardcat/canary/actions/runs/37522078057",
+  "installerBuild": "success",
+  "rustTests": {
+    "passed": 69,
+    "failed": 0,
+    "ignored": 6
+  },
+  "nativeQA": {
+    "platform": "win32",
+    "cases": [],
+    "captures": [],
+    "status": "failure",
+    "error": "TypeError: fetch failed",
+    "app-startup.log": "1791317169 Canary runtime starting\n1791317169 storage initialization\n1791317169 storage loaded\n1791317169 HTTP client initialization\n1791317174 Tauri setup entered\n1791317174 Tauri setup complete\n",
+    "app-stderr.log": "[discord] initialized\n[discord] Unavailable\n",
+    "cause": "Error: connect ECONNREFUSED 127.0.0.1:9384",
+    "startup": {
+      "pid": 6364,
+      "webviews": [
+        {
+          "Id": 512,
+          "ProcessName": "msedgewebview2"
+        },
+        {
+          "Id": 1900,
+          "ProcessName": "msedgewebview2"
+        },
+        {
+          "Id": 1980,
+          "ProcessName": "msedgewebview2"
+        },
+        {
+          "Id": 3112,
+          "ProcessName": "msedgewebview2"
+        },
+        {
+          "Id": 3996,
+          "ProcessName": "msedgewebview2"
+        },
+        {
+          "Id": 4000,
+          "ProcessName": "msedgewebview2"
+        }
+      ],
+      "session": 2,
+      "responding": true,
+      "handle": 327802,
+      "title": "Canary"
+    }
+  }
+}

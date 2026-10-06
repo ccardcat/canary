@@ -1,0 +1,13 @@
+{
+  "source": "bc67511caa1807e7002d126c7e9aeabfdacf4fb1",
+  "artifact": "Canary_0.1.4_amd64.AppImage",
+  "status": "success",
+  "startup": {
+    "url": "tauri://localhost",
+    "home": true,
+    "transition": "false",
+    "alerts": 0
+  },
+  "settingsSwitches": 5,
+  "offPersisted": true
+}

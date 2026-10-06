@@ -70,6 +70,7 @@ jobs:
       - uses: Swatinem/rust-cache@v2
         with:
           workspaces: src-tauri -> target
+          cache-on-failure: true
       - name: Linux dependencies
         if: runner.os == 'Linux'
         run: |
@@ -84,10 +85,14 @@ jobs:
       - shell: bash
         run: set -o pipefail; cargo test --locked --manifest-path src-tauri/Cargo.toml 2>&1 | tee cargo-test.log
       - name: Build desktop installers
+        id: installers
         env:
           APPIMAGE_EXTRACT_AND_RUN: '1'
         shell: bash
         run: set -o pipefail; npm run tauri build -- --ci --bundles ${{ matrix.bundles }} -- --locked 2>&1 | tee desktop-build.log
+      - name: Build Windows inspector executable for native QA
+        if: runner.os == 'Windows'
+        run: node .github/scripts/build-window-qa.mjs
       - name: Prepare Windows WebView2 runtime
         if: runner.os == 'Windows'
         shell: pwsh
@@ -95,7 +100,7 @@ jobs:
       - name: Windows native window and material QA
         if: runner.os == 'Windows'
         shell: bash
-        run: set -o pipefail; node .github/scripts/window-smoke.mjs 2>&1 | tee windows-window-smoke.log
+        run: set -o pipefail; node .github/scripts/window-smoke.mjs qa/windows-window-smoke/canary-native-qa.exe 2>&1 | tee windows-window-smoke.log
       - name: Upload Windows visual QA
         if: runner.os == 'Windows' && always()
         uses: actions/upload-artifact@v4
@@ -104,8 +109,9 @@ jobs:
           path: qa/windows-window-smoke/
           if-no-files-found: warn
       - uses: actions/upload-artifact@v4
+        if: always() && steps.installers.outcome == 'success'
         with:
-          name: canary-verified-${{ matrix.platform }}
+          name: canary-built-${{ matrix.platform }}
           if-no-files-found: error
           path: |
             src-tauri/target/release/bundle/nsis/*.exe
@@ -173,10 +179,15 @@ jobs:
                          'run_url': f"https://github.com/{os.environ['GITHUB_REPOSITORY']}/actions/runs/{os.environ['GITHUB_RUN_ID']}",
                          'failed_steps': [s['name'] for s in job['steps'] if s['conclusion'] == 'failure'],
                          'failure_log': subprocess.check_output(['gh', 'api', root + f"/actions/jobs/{job['id']}/logs"], text=True)[-30000:]}
-              with open('desktop-failure.json', 'w') as output: json.dump(receipt, output, indent=2)
               note = f'refs/notes/qa-{platform}'
               if subprocess.run(['git', 'ls-remote', '--exit-code', 'origin', note]).returncode == 0:
                   subprocess.run(['git', 'fetch', 'origin', f'{note}:{note}'], check=True)
+                  saved = subprocess.run(['git', 'notes', f'--ref=qa-{platform}', 'show', 'HEAD'], capture_output=True, text=True)
+                  if saved.returncode == 0:
+                      previous = json.loads(saved.stdout)
+                      previous.update(receipt)
+                      receipt = previous
+              with open('desktop-failure.json', 'w') as output: json.dump(receipt, output, indent=2)
               subprocess.run(['git', 'notes', f'--ref=qa-{platform}', 'add', '-f', '-F', 'desktop-failure.json', 'HEAD'], check=True)
               subprocess.run(['git', 'push', 'origin', note], check=True)
           PY

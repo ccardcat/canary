@@ -41,6 +41,7 @@ strip = true
 
 [features]
 backend-check = []
+native-qa = ["tauri/devtools"]
 
 [[bin]]
 name = "canary-backend-check"
