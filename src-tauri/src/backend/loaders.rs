@@ -46,7 +46,7 @@ pub async fn profile(backend:Arc<Backend>,instance:&Instance,parent:&Value,clien
     let dir=backend.instance_path(&instance.id)?;let receipt=dir.join("loader.json");
     if !deep&&receipt.is_file(){let value:Value=serde_json::from_slice(&std::fs::read(&receipt)?)?;
         if value["loader_version"].as_str()==instance.loader_version.as_deref()&&value["files"].as_array().is_some_and(|files|!files.is_empty()&&files.iter().all(|f|f["path"].as_str().zip(f["size"].as_u64()).is_some_and(|(p,size)|std::fs::metadata(p).is_ok_and(|m|m.len()==size)))){return Ok(value["profile"].clone());}}
-    let (url,version)=location(instance)?;let response=backend.client.get(format!("{url}.sha1")).send().await?.error_for_status()?.text().await?;
+    let (url,version)=location(instance)?;let response=download::cancellable(&job,async{Ok(backend.client.get(format!("{url}.sha1")).send().await?.error_for_status()?.text().await?)}).await?;
     let checksum=response.split_whitespace().next().filter(|s|s.len()==40&&s.chars().all(|c|c.is_ascii_hexdigit())).ok_or_else(||BackendError::new("loader","Official installer checksum missing"))?;
     let archive=storage::safe_join(&backend.root.join("cache/loaders"),&format!("{}-{version}.jar",instance.loader))?;
     download::batch(backend.clone(),vec![Artifact{url,path:archive.clone(),hash:Some(checksum.into()),algorithm:"sha1",size:None},client.clone()],job.clone(),"loader").await?;

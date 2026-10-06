@@ -1,0 +1,254 @@
+/* Activity uses the existing utility hit targets and popover surface tokens. */
+.sidebar-bottom .activity-dock {
+  position: relative;
+  gap: 10px;
+  min-height: 42px;
+  flex-shrink: 0;
+}
+.activity-dock-icon {
+  position: relative;
+  display: grid;
+  place-items: center;
+  width: 30px;
+  height: 30px;
+  flex: 0 0 30px;
+}
+.activity-ring {
+  position: absolute;
+  inset: 0;
+  fill: none;
+  stroke: var(--line);
+  stroke-width: 1.7;
+  transform: rotate(-90deg);
+}
+.activity-ring circle + circle {
+  stroke: var(--accent);
+  stroke-linecap: round;
+}
+.activity-game-dot {
+  display: block;
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: color-mix(in srgb, #74ad8d 75%, var(--muted));
+  flex: 0 0 6px;
+}
+.activity-dock-icon > .activity-game-dot {
+  position: absolute;
+  right: 1px;
+  bottom: 1px;
+}
+.activity-dock.failed {
+  color: var(--danger, #cf7979);
+}
+.activity-count {
+  position: absolute;
+  right: 5px;
+  top: 3px;
+  border-radius: 8px;
+  min-width: 15px;
+  font-size: 10px;
+  background: var(--surface);
+  color: var(--text);
+  text-align: center;
+}
+.activity-dock .nav-label {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-size: 0.85em;
+}
+.popover.activity-popover {
+  position: fixed;
+  right: auto;
+  max-height: calc(100dvh - 52px);
+  overflow: hidden;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  padding: 12px;
+  z-index: 20;
+  animation: none;
+  box-sizing: border-box;
+}
+.activity-popover-heading,
+.activity-row-heading {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-width: 0;
+}
+.activity-popover-heading {
+  font-size: 0.85rem;
+  color: var(--muted);
+  justify-content: space-between;
+  flex-shrink: 0;
+}
+.activity-popover-items {
+  min-height: 0;
+  overflow: auto;
+  overscroll-behavior: contain;
+}
+.activity-task {
+  padding: 10px 0;
+  min-width: 0;
+  color: var(--text);
+}
+.activity-task + .activity-task {
+  border-top: 1px solid var(--line);
+}
+.activity-row-heading > b {
+  flex: 1;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-size: 0.9rem;
+}
+.activity-row-heading > svg {
+  flex-shrink: 0;
+  color: var(--muted);
+}
+.activity-row-heading > span {
+  font-size: 0.8rem;
+  font-variant-numeric: tabular-nums;
+}
+.activity-task p {
+  margin: 6px 0;
+  font-size: 0.82rem;
+  line-height: 1.45;
+}
+.activity-task .activity-stats,
+.activity-task .activity-file,
+.activity-task .activity-status {
+  color: var(--muted);
+  font-size: 0.76rem;
+}
+.activity-task .activity-file {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.activity-progress {
+  display: block;
+  width: 100%;
+  height: 4px;
+  border: 0;
+  border-radius: 4px;
+  overflow: hidden;
+  appearance: none;
+  background: var(--line);
+  accent-color: var(--accent);
+}
+.activity-progress::-webkit-progress-bar {
+  background: var(--line);
+  border-radius: 4px;
+}
+.activity-progress::-webkit-progress-value {
+  background: var(--accent);
+  border-radius: 4px;
+}
+.activity-progress::-moz-progress-bar {
+  background: var(--accent);
+  border-radius: 4px;
+}
+.activity-progress:indeterminate {
+  background: linear-gradient(
+    90deg,
+    var(--line) 0%,
+    var(--accent) 45%,
+    var(--line) 75%
+  );
+  background-size: 200% 100%;
+  animation: activity-wait 1.8s ease-in-out infinite;
+}
+.activity-task button {
+  min-height: 32px;
+  font-size: 0.78rem;
+  padding: 5px 8px;
+}
+.activity-cancel:not(:disabled):hover {
+  color: var(--danger, #cf7979);
+}
+.activity-game-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+.activity-popover .activity-more {
+  flex-shrink: 0;
+  min-height: 32px;
+  font-size: 0.8rem;
+}
+.activity-error {
+  overflow-wrap: anywhere;
+  max-height: 120px;
+  overflow: auto;
+}
+.activity-idle {
+  font-size: 0.88rem;
+  color: var(--muted);
+  margin: 12px 0;
+}
+.activity-downloads .activity-active {
+  max-width: 760px;
+}
+.activity-downloads .activity-task {
+  padding: 14px 4px;
+}
+.activity-recent {
+  margin-top: 18px;
+  color: var(--muted);
+}
+.activity-recent summary {
+  cursor: pointer;
+}
+.activity-settings .toggle-setting {
+  gap: 12px;
+}
+@keyframes activity-wait {
+  0%,
+  100% {
+    background-position: 100% 0;
+  }
+  50% {
+    background-position: 0 0;
+  }
+}
+:root[data-motion="reduced"] .activity-progress:indeterminate {
+  animation: none;
+}
+@media (prefers-reduced-motion: reduce) {
+  .activity-progress:indeterminate {
+    animation: none;
+  }
+}
+@media (forced-colors: active) {
+  .activity-ring circle + circle {
+    stroke: Highlight;
+  }
+  .activity-game-dot {
+    background: Highlight;
+  }
+  .activity-progress {
+    forced-color-adjust: auto;
+  }
+}
+.sidebar .activity-dock {
+  padding: 6px 8px;
+  height: 42px;
+}
+.sidebar.compact .activity-dock {
+  padding: 6px;
+}
+.activity-row-heading > b {
+  font-size: calc(14px * var(--ui-font-scale, 1));
+}
+.activity-task p {
+  font-size: calc(13px * var(--ui-font-scale, 1));
+}
+.activity-task .activity-stats,
+.activity-task .activity-file,
+.activity-task .activity-status {
+  font-size: calc(12px * var(--ui-font-scale, 1));
+}

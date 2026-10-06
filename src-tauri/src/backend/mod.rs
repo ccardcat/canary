@@ -1,3 +1,5 @@
+pub mod activity;
+pub mod transaction;
 pub mod elyby;
 pub mod microsoft;
 #[cfg(target_os="linux")]mod client_window;
@@ -26,6 +28,8 @@ use std::{collections::HashMap, sync::{Arc, Mutex, atomic::AtomicBool}};
 use model::{BackendError, Result};
 pub struct Backend {
     pub root: std::path::PathBuf,
+    pub tasks:activity::Registry,
+    pub staged:Mutex<HashMap<String,std::path::PathBuf>>,
     pub maintenance:AtomicBool,
     pub wallpaper_lock:Mutex<()>,
     pub auth:tokio::sync::Mutex<()>,
@@ -46,7 +50,10 @@ impl Backend {
     pub fn with_root(root:std::path::PathBuf)->Result<Self>{
         for folder in ["instances", "cache", "logs", "java", "temp"] { std::fs::create_dir_all(root.join(folder))?; }
         let store = storage::load(&root)?;
-        Ok(Self { root,wallpaper_lock:Mutex::new(()),maintenance:AtomicBool::new(false),auth:tokio::sync::Mutex::new(()), store: Mutex::new(store), jobs: Mutex::new(HashMap::new()), provider_requests:Mutex::new(HashMap::new()), processes: Mutex::new(HashMap::new()),
+        transaction::recover(&root.join("instances"))?;
+        if let Some(path)=&store.settings.instances_path{transaction::recover(std::path::Path::new(path))?;}
+        for path in &store.instance_roots {transaction::recover(std::path::Path::new(path))?;}
+        Ok(Self { root,tasks:Mutex::new(HashMap::new()),staged:Mutex::new(HashMap::new()),wallpaper_lock:Mutex::new(()),maintenance:AtomicBool::new(false),auth:tokio::sync::Mutex::new(()), store: Mutex::new(store), jobs: Mutex::new(HashMap::new()), provider_requests:Mutex::new(HashMap::new()), processes: Mutex::new(HashMap::new()),
             private_api_client:reqwest::Client::builder().user_agent("Canary/0.1.0").redirect(reqwest::redirect::Policy::none()).timeout(std::time::Duration::from_secs(30)).build()?,
             client: reqwest::Client::builder().user_agent("Canary/0.1.0 (https://github.com/ccardcat/canary)")
                 .connect_timeout(std::time::Duration::from_secs(20)).timeout(std::time::Duration::from_secs(300)).build()? })
@@ -56,6 +63,7 @@ impl Backend {
     pub fn instances_root(&self)->std::path::PathBuf {self.settings().instances_path.filter(|p|!p.is_empty()).map(std::path::PathBuf::from).unwrap_or_else(||self.root.join("instances"))}
     pub fn instance_roots(&self)->Vec<std::path::PathBuf> {let store=self.store.lock().unwrap();let default=self.root.join("instances");let active=store.settings.instances_path.as_ref().map(std::path::PathBuf::from).unwrap_or(default.clone());let mut roots=vec![active];for path in &store.instance_roots{let p=std::path::PathBuf::from(path);if !roots.contains(&p){roots.push(p);}}if store.instance_roots.is_empty()&&!roots.contains(&default){roots.push(default);}roots}
     pub fn instance_path(&self,id:&str)->Result<std::path::PathBuf> {
+        if let Some(path)=self.staged.lock().unwrap().get(id){return Ok(path.clone());}
         // Metadata paths are never accepted as authority: only registered roots + a safe ID.
         for root in self.instance_roots(){let path=storage::safe_join(&root,id)?;if path.join("instance.json").is_file()||path.join("canary-instance.json").is_file(){return Ok(path);}}
         if self.store.lock().unwrap().instance_catalog.iter().any(|i|i.id==id){return Err(BackendError::new("storage_unavailable","The drive containing this instance is unavailable. Reconnect it and retry."));}
@@ -70,6 +78,7 @@ impl Backend {
     }
     pub fn save_instance(&self,value:&model::Instance)->Result<()> {
         let root=self.instance_path(&value.id)?;let mut value=value.clone();value.directory=root.to_string_lossy().into();storage::write_json(&root.join("instance.json"),&value)?;
+        if self.staged.lock().unwrap().contains_key(&value.id){return Ok(());}
         {let mut store=self.store.lock().unwrap();store.instance_catalog.retain(|i|i.id!=value.id);store.instance_catalog.push(value);}self.persist()
     }
     pub fn begin(&self, id: &str) -> Result<Arc<AtomicBool>> {

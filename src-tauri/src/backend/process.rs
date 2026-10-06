@@ -42,7 +42,7 @@ pub async fn launch(backend:Arc<Backend>,mut instance:Instance,job:Arc<Job>,app:
     for arg in custom_game {if ["--accessToken","--uuid","--username","--userType","--xuid","--clientId","--userProperties"].iter().any(|flag|arg==flag||arg.starts_with(&format!("{flag}="))){return Err(BackendError::new("arguments","Identity arguments are managed by the selected account"));}}
     args.extend(custom_game.clone());
     if instance.overrides.fullscreen.unwrap_or(settings.fullscreen){args.push("--fullscreen".into());}
-    job.check()?;job.emit("launching","running",&instance.name);
+    job.critical()?;job.emit("launching","running",&instance.name);
     let mut command=tokio::process::Command::new(&java.path);command.env_remove("JAVA_TOOL_OPTIONS").env_remove("_JAVA_OPTIONS").env_remove("JDK_JAVA_OPTIONS").env_remove("CLASSPATH").env_remove("CANARY_CURSEFORGE_API_KEY").args(&args).current_dir(&dir).stdout(Stdio::piped()).stderr(Stdio::piped());
     #[cfg(windows)]command.creation_flags(0x08000000);
     let log_dir=storage::safe_join(&dir,"logs")?;std::fs::create_dir_all(&log_dir)?;let log_path=log_dir.join(format!("canary-{}.log",now()));
@@ -76,6 +76,7 @@ pub async fn launch(backend:Arc<Backend>,mut instance:Instance,job:Arc<Job>,app:
         let _=monitor.save_instance(&instance);
         {let mut store=monitor.store.lock().unwrap();store.activity.push(Activity{id:uuid::Uuid::new_v4().to_string(),timestamp:now(),instance:Some(instance.id.clone()),kind:instance.status.clone(),message:format!("{}: {}",instance.name,instance.status)});if store.activity.len()>500{store.activity.remove(0);}}
         let _=monitor.persist();monitor.processes.lock().unwrap().remove(&instance.id);
+        if instance.status=="crashed" {if let Ok(task)=Job::tracked(monitor.clone(),&instance.id,"launch",&instance.name,Some(&instance.id),app.clone(),Arc::new(std::sync::atomic::AtomicBool::new(false)),None){task.finish(&Err::<(),_>(BackendError::new("process_exit","Minecraft exited with an error. Open the instance game logs for details.")));}}
         if let Some(app)=app {let _=app.emit("process-exited",serde_json::json!({"id":instance.id,"status":instance.status,"playtime":instance.playtime,"exit_code":exit.ok().and_then(|s|s.code())}));}
     });
     job.emit("running","success",&pid.to_string());Ok(pid)

@@ -9,8 +9,12 @@ pub async fn curseforge_project(backend:State<'_,B>,id:u32)->Result<serde_json::
 #[tauri::command]
 pub async fn curseforge_files(backend:State<'_,B>,id:u32)->Result<serde_json::Value>{super::curseforge::files(&backend,id).await}
 #[tauri::command]
-pub async fn install_curseforge_pack(backend:State<'_,B>,app:AppHandle,project_id:u32,file_id:u32)->Result<Instance>{
-    let id=format!("curseforge-{project_id}-{file_id}");{let lease=backend.inner().lease(&id)?;let job=Arc::new(Job::new(&id,Some(app.clone()),lease.cancel.clone()));super::curseforge::install(backend.inner().clone(),project_id,file_id,job).await?;}prepare_instance_inner(backend.inner().clone(),id,Some(app),false).await
+pub async fn install_curseforge_pack(backend:State<'_,B>,app:AppHandle,project_id:u32,file_id:u32,task_id:Option<String>)->Result<Instance>{
+    let b=backend.inner().clone();let id=format!("curseforge-{project_id}-{file_id}");let lease=b.lease(&id)?;
+    let existed=b.instance_path(&id)?.exists();
+    let job=Job::tracked(b.clone(),&id,"install","CurseForge",Some(&id),Some(app.clone()),lease.cancel.clone(),task_id)?;
+    let result=staged_work(b.clone(),&id,job.clone(),existed,async {if !existed{super::curseforge::install(b.clone(),project_id,file_id,job.clone()).await?;}prepare_leased(b.clone(),id.clone(),Some(app),false,job.clone()).await?;Ok(())}).await;
+    job.finish(&result);result
 }
 #[tauri::command]
 pub async fn check_modpack_updates(backend:State<'_,B>)->Result<serde_json::Value>{super::modpacks::updates(backend.inner().clone()).await}
@@ -18,7 +22,7 @@ pub async fn check_modpack_updates(backend:State<'_,B>)->Result<serde_json::Valu
 pub fn backend_snapshot(backend:State<'_,B>)->Result<serde_json::Value>{
     let store=backend.store.lock().unwrap().clone();let mut instances=backend.instances()?;
     let processes:std::collections::HashMap<_,_>=backend.processes.lock().unwrap().iter().map(|(id,p)|(id.clone(),p.stopping.load(Ordering::Relaxed))).collect();let preparing:std::collections::HashSet<_>=backend.jobs.lock().unwrap().keys().cloned().collect();for instance in &mut instances{if let Some(process)=processes.get(&instance.id){instance.status=if *process{"stopping"}else{"running"}.into();}else if preparing.contains(&instance.id){instance.status="preparing".into();}}
-    Ok(serde_json::json!({"instances":instances,"accounts":store.accounts,"settings":store.settings,"providers":accounts::providers(),"activity":store.activity,"data_folder":backend.root,"physical_memory_mb":super::system::memory_mb()}))
+    Ok(serde_json::json!({"instances":instances,"accounts":store.accounts,"settings":store.settings,"providers":accounts::providers(),"activity":store.activity,"data_folder":backend.root,"physical_memory_mb":super::system::memory_mb(),"tasks":backend.tasks.lock().unwrap().values().map(|r|r.task.clone()).collect::<Vec<_>>()}))
 }
 #[tauri::command]
 pub fn save_backend_settings(backend:State<'_,B>,settings:Settings)->Result<()> {
@@ -67,32 +71,42 @@ pub async fn loader_versions(backend:State<'_,B>,minecraft:String,loader:String)
     let host=match loader.as_str(){"fabric"=>"https://meta.fabricmc.net/v2", "quilt"=>"https://meta.quiltmc.org/v3",_=>return Err(BackendError::new("loader_unsupported","This loader installer is not implemented"))};
     let mut url=reqwest::Url::parse(host).unwrap();url.path_segments_mut().unwrap().extend(["versions","loader",&minecraft]);super::download::json(&backend,url.as_str()).await
 }
+pub async fn staged_work(b:B,id:&str,job:Arc<Job>,existing:bool,work:impl std::future::Future<Output=Result<()>>)->Result<Instance>{
+    let mut stage=super::transaction::InstanceStage::new(b,id)?;
+    let result=async {if existing{stage.copy_existing(job.clone()).await?;}work.await?;stage.commit(&job)}.await;
+    match stage.cleanup(){Ok(())=>result,Err(e)=>Err(BackendError::new("cleanup",format!("Incomplete staging cleanup: {e}")))}
+}
 pub async fn prepare_instance_inner(backend:B,id:String,app:Option<AppHandle>,deep:bool)->Result<Instance>{
-    let lease=backend.lease(&id)?;let job=Arc::new(Job::new(&id,app.clone(),lease.cancel.clone()));
-    prepare_leased(backend,id,app,deep,job).await
+    prepare_task(backend,id,app,deep,None).await
 }
-async fn prepare_leased(backend:B,id:String,app:Option<AppHandle>,deep:bool,job:Arc<Job>)->Result<Instance>{
+async fn prepare_task(b:B,id:String,app:Option<AppHandle>,deep:bool,task_id:Option<String>)->Result<Instance>{
+    let instance=b.instance(&id)?;let lease=b.lease(&id)?;
+    let job=Job::tracked(b.clone(),&id,if deep{"repair"}else{"install"},&instance.name,Some(&id),app.clone(),lease.cancel.clone(),task_id)?;
+    let result=staged_work(b.clone(),&id,job.clone(),true,async{prepare_leased(b.clone(),id.clone(),app,deep,job.clone()).await?;Ok(())}).await;job.finish(&result);result
+}
+async fn prepare_leased(backend:B,id:String,_app:Option<AppHandle>,deep:bool,job:Arc<Job>)->Result<Instance>{
     job.check()?;let mut instance=backend.instance(&id)?;
-    if instance.icon.is_none()&&instance.provider=="modrinth"{if let Some(project)=&instance.project_id{let mut url=reqwest::Url::parse("https://api.modrinth.com/v2/project/").unwrap();url.path_segments_mut().unwrap().pop_if_empty().push(project);if let Ok(data)=super::download::json(&backend,url.as_str()).await{instance.icon=data["icon_url"].as_str().map(str::to_owned);}}}
-    instance.status="preparing".into();backend.save_instance(&instance)?;
-    let result:Result<()>=async {let runtime=minecraft::prepare(backend.clone(),&instance,job.clone(),deep).await?;java::select(backend.clone(),&instance,runtime.java_major,job.clone()).await?;job.check()?;Ok(())}.await;
-    if result.is_ok(){let _=super::artwork::cache(&backend,&mut instance).await;}
-    match result {Ok(())=>{instance.status="ready".into();instance.error=None;job.emit("ready","success",&instance.name)},Err(error)=>{instance.status="failed".into();instance.error=Some(BackendErrorData{code:error.code.clone(),message:error.message.clone()});backend.save_instance(&instance)?;job.emit(&error.stage,"failure",&error.message);return Err(error)}}
-    backend.save_instance(&instance)?;if let Some(app)=app{let _=app.emit("instances-changed",());}Ok(instance)
+    let runtime=minecraft::prepare(backend.clone(),&instance,job.clone(),deep).await?;
+    java::select(backend.clone(),&instance,runtime.java_major,job.clone()).await?;job.check()?;
+    let _=super::download::cancellable(&job,super::artwork::cache(&backend,&mut instance)).await;job.check()?;
+    instance.status="ready".into();instance.error=None;backend.save_instance(&instance)?;Ok(instance)
 }
 #[tauri::command]
-pub async fn prepare_instance(backend:State<'_,B>,app:AppHandle,id:String,repair:bool)->Result<Instance>{prepare_instance_inner(backend.inner().clone(),id,Some(app),repair).await}
+pub async fn prepare_instance(backend:State<'_,B>,app:AppHandle,id:String,repair:bool,task_id:Option<String>)->Result<Instance>{prepare_task(backend.inner().clone(),id,Some(app),repair,task_id).await}
 #[tauri::command]
-pub async fn create_instance(backend:State<'_,B>,app:AppHandle,name:String,minecraft:String,loader:String,loader_version:Option<String>,request_id:Option<String>)->Result<Instance>{
+pub async fn create_instance(backend:State<'_,B>,app:AppHandle,name:String,minecraft:String,loader:String,loader_version:Option<String>,request_id:Option<String>,task_id:Option<String>)->Result<Instance>{
     if name.trim().is_empty()||name.len()>256{return Err(BackendError::new("instance","Instance name required (up to 256 characters)"));}
     let valid_version=|v:&str|!v.is_empty()&&v.len()<=96&&v.chars().all(|c|c.is_ascii_alphanumeric()||matches!(c,'.'|'-'|'_'));
     if !valid_version(&minecraft)||!matches!(loader.as_str(),"vanilla"|"fabric"|"quilt"|"forge"|"neoforge")||loader!="vanilla"&&!loader_version.as_deref().is_some_and(valid_version){return Err(BackendError::new("loader","Choose a supported Minecraft and loader version"));}
     let id=request_id.unwrap_or_else(||uuid::Uuid::new_v4().to_string());uuid::Uuid::parse_str(&id).map_err(|_|BackendError::new("instance","Invalid creation request ID"))?;
-    let _creation=backend.inner().lease("create-instance")?;let lease=backend.inner().lease(&id)?;let job=Arc::new(Job::new(&id,Some(app.clone()),lease.cancel.clone()));
-    let dir=backend.instance_path(&id)?;if dir.exists(){return Err(BackendError::new("content_duplicate","This creation request already has an instance"));}std::fs::create_dir(&dir)?;
-    for folder in ["mods","config","resourcepacks","shaderpacks","saves","screenshots","logs"]{std::fs::create_dir_all(dir.join(folder))?;}
-    let instance=Instance{id:id.clone(),name:name.trim().into(),minecraft,loader,loader_version,provider:"vanilla".into(),directory:dir.to_string_lossy().into(),status:"installing".into(),..Instance::default()};
-    backend.save_instance(&instance)?;let _=app.emit("instances-changed",());prepare_leased(backend.inner().clone(),id,Some(app),false,job).await
+    let b=backend.inner().clone();let _creation=b.lease("create-instance")?;let lease=b.lease(&id)?;
+    let existed=b.instance_path(&id)?.exists();
+    let job=Job::tracked(b.clone(),&id,"install",name.trim(),Some(&id),Some(app.clone()),lease.cancel.clone(),task_id)?;
+    let result=if existed{Err(BackendError::new("content_duplicate","This creation request already has an instance"))}else{staged_work(b.clone(),&id,job.clone(),false,async{
+        let dir=b.instance_path(&id)?;std::fs::create_dir(&dir)?;for folder in ["mods","config","resourcepacks","shaderpacks","saves","screenshots","logs"]{std::fs::create_dir_all(dir.join(folder))?;}
+        b.save_instance(&Instance{id:id.clone(),name:name.trim().into(),minecraft,loader,loader_version,provider:"vanilla".into(),directory:dir.to_string_lossy().into(),status:"installing".into(),..Instance::default()})?;
+        prepare_leased(b.clone(),id.clone(),Some(app),false,job.clone()).await?;Ok(())
+    }).await};job.finish(&result);result
 }
 #[tauri::command]
 pub async fn choose_mrpack_file(app:AppHandle)->Result<Option<super::mrpack_import::Preview>>{
@@ -103,21 +117,28 @@ pub async fn choose_mrpack_file(app:AppHandle)->Result<Option<super::mrpack_impo
     }).await.map_err(|_|BackendError::new("mrpack_archive","Cannot inspect the chosen archive"))?
 }
 #[tauri::command]
-pub async fn import_mrpack(backend:State<'_,B>,app:AppHandle,path:String,expected_hash:String,name:Option<String>,request_id:String)->Result<Instance>{
+pub async fn import_mrpack(backend:State<'_,B>,app:AppHandle,path:String,expected_hash:String,name:Option<String>,request_id:String,task_id:Option<String>)->Result<Instance>{
     uuid::Uuid::parse_str(&request_id).map_err(|_|BackendError::new("mrpack_archive","Invalid import request ID"))?;
-    let _creation=backend.inner().lease("create-instance")?;let lease=backend.inner().lease(&request_id)?;let job=Arc::new(Job::new(&request_id,Some(app.clone()),lease.cancel.clone()));
-    let instance=match super::mrpack_import::import(backend.inner().clone(),path.into(),expected_hash,name,job.clone()).await{Ok(instance)=>instance,Err(error)=>{job.emit(&error.stage,"failure",&error.message);return Err(error)}};
-    let _=app.emit("instances-changed",());prepare_leased(backend.inner().clone(),instance.id,Some(app),false,job).await
+    let b=backend.inner().clone();let _creation=b.lease("create-instance")?;let lease=b.lease(&request_id)?;
+    let existed=b.instance_path(&request_id)?.exists();
+    let job=Job::tracked(b.clone(),&request_id,"install",name.as_deref().unwrap_or("MRPACK"),Some(&request_id),Some(app.clone()),lease.cancel.clone(),task_id)?;
+    let result=if existed{Err(BackendError::new("content_duplicate","This import request already has an instance"))}else{staged_work(b.clone(),&request_id,job.clone(),false,async{
+        let instance=super::mrpack_import::import(b.clone(),path.into(),expected_hash,name,job.clone()).await?;
+        prepare_leased(b.clone(),instance.id,Some(app),false,job.clone()).await?;Ok(())
+    }).await};job.finish(&result);result
 }
 #[tauri::command]
-pub async fn launch_instance(backend:State<'_,B>,app:AppHandle,id:String)->Result<u32>{
-    let instance=backend.instance(&id)?;let lease=backend.lease(&id)?;let cancel=lease.cancel.clone();let job=Arc::new(Job::new(&id,Some(app.clone()),cancel));
-    let result=process::launch(backend.inner().clone(),instance,job.clone(),Some(app.clone())).await;if let Err(error)=&result{job.emit(&error.stage,"failure",&error.message);}let _=app.emit("instances-changed",());result
+pub async fn launch_instance(backend:State<'_,B>,app:AppHandle,id:String,task_id:Option<String>)->Result<u32>{
+    let instance=backend.instance(&id)?;let lease=backend.lease(&id)?;let cancel=lease.cancel.clone();let job=Job::tracked(backend.inner().clone(),&id,"launch",&instance.name,Some(&id),Some(app.clone()),cancel,task_id)?;
+    let result=process::launch(backend.inner().clone(),instance,job.clone(),Some(app.clone())).await;job.finish(&result);let _=app.emit("instances-changed",());result
 }
 #[tauri::command]
 pub async fn stop_instance(backend:State<'_,B>,id:String,force:bool)->Result<()>{process::stop(&backend,&id,force).await}
 #[tauri::command]
-pub fn cancel_operation(backend:State<'_,B>,id:String)->Result<()>{
+pub fn cancel_operation(backend:State<'_,B>,app:AppHandle,id:String)->Result<()>{
+    if super::activity::cancel(&backend,&id,Some(&app))?{return Ok(());}
+    let task=backend.tasks.lock().unwrap().values().find(|r|r.task.operation_id==id&&!super::activity::terminal(&r.task.status)).map(|r|r.task.id.clone());
+    if let Some(task)=task{super::activity::cancel(&backend,&task,Some(&app))?;return Ok(());}
     let job=backend.jobs.lock().unwrap().get(&id).cloned().or_else(||backend.provider_requests.lock().unwrap().get(&id).cloned()).ok_or_else(||BackendError::new("operation","Operation not found"))?;job.store(true,Ordering::Relaxed);Ok(())
 }
 #[tauri::command]
@@ -196,10 +217,10 @@ pub async fn content_versions(backend:State<'_,B>,id:String,project:String,kind:
 #[tauri::command]
 pub async fn content_preview(backend:State<'_,B>,id:String,project:String,version:Option<String>,kind:String,world:Option<String>,beta:bool,provider:Option<String>)->Result<super::content_provider::Plan>{let _lease=backend.inner().lease(&id)?;super::content_provider::identify(&backend,&id).await?;super::content_provider::provider_preview(&backend,provider.as_deref().unwrap_or("modrinth"),&backend.instance(&id)?,&project,version.as_deref(),&kind,world,beta).await}
 #[tauri::command]
-pub async fn install_content(backend:State<'_,B>,app:AppHandle,id:String,project:String,version:Option<String>,kind:String,world:Option<String>,beta:bool,fingerprint:String,provider:Option<String>)->Result<super::content::State>{
- let lease=backend.inner().lease(&id)?;let job=Arc::new(Job::new(&id,Some(app.clone()),lease.cancel.clone()));
+pub async fn install_content(backend:State<'_,B>,app:AppHandle,id:String,project:String,version:Option<String>,kind:String,world:Option<String>,beta:bool,fingerprint:String,provider:Option<String>,task_id:Option<String>)->Result<super::content::State>{
+ let lease=backend.inner().lease(&id)?;let job=Job::tracked(backend.inner().clone(),&id,"install",&backend.instance(&id)?.name,Some(&id),Some(app.clone()),lease.cancel.clone(),task_id)?;
  let result=async {let instance=backend.instance(&id)?;job.emit("content_resolve","running",&project);let plan=super::download::cancellable(&job,super::content_provider::provider_preview(&backend,provider.as_deref().unwrap_or("modrinth"),&instance,&project,version.as_deref(),&kind,world,beta)).await?;if plan.fingerprint!=fingerprint{return Err(BackendError::new("content_plan_changed","Install plan changed; review it again"));}super::content_provider::install(backend.inner().clone(),&id,plan,job.clone()).await}.await;
- if let Err(e)=&result{job.emit(&e.stage,"failure",&e.message);}let _=app.emit("content-changed",serde_json::json!({"id":id}));result
+ job.finish(&result);let _=app.emit("content-changed",serde_json::json!({"id":id}));result
 }
 #[tauri::command]
 pub async fn content_action(backend:State<'_,B>,app:AppHandle,id:String,ids:Vec<String>,action:String)->Result<super::content::State>{let b=backend.inner().clone();let event_id=id.clone();let result=tokio::task::spawn_blocking(move||{let _lease=b.lease(&id)?;super::content::mutate(&b,&id,&ids,&action)}).await.map_err(|e|BackendError::new("content_action",e.to_string()))?;let _=app.emit("content-changed",serde_json::json!({"id":event_id}));result}
@@ -214,21 +235,21 @@ pub async fn choose_content_files(app:AppHandle)->Result<Vec<String>>{
 #[tauri::command]
 pub async fn inspect_content_files(backend:State<'_,B>,id:String,paths:Vec<String>)->Result<Vec<super::content::Inspection>>{let b=backend.inner().clone();tokio::task::spawn_blocking(move||{let i=b.instance(&id)?;paths.iter().map(|p|super::content::inspect(std::path::Path::new(p),&i)).collect()}).await.map_err(|e|BackendError::new("content_file",e.to_string()))?}
 #[tauri::command]
-pub async fn import_content_files(backend:State<'_,B>,app:AppHandle,id:String,paths:Vec<String>,world:Option<String>)->Result<super::content::State>{let b=backend.inner().clone();let lease=b.lease(&id)?;let job=Arc::new(Job::new(&id,Some(app.clone()),lease.cancel.clone()));let worker_job=job.clone();let event_id=id.clone();let result=tokio::task::spawn_blocking(move||{let _lease=lease;super::content_provider::import_with_job(&b,&id,paths,world,Some(&worker_job))}).await.map_err(|e|BackendError::new("content_file",e.to_string()))?;if let Err(e)=&result{job.emit(&e.stage,"failure",&e.message);}let _=app.emit("content-changed",serde_json::json!({"id":event_id}));result}
+pub async fn import_content_files(backend:State<'_,B>,app:AppHandle,id:String,paths:Vec<String>,world:Option<String>,task_id:Option<String>)->Result<super::content::State>{let b=backend.inner().clone();let lease=b.lease(&id)?;let job=Job::tracked(backend.inner().clone(),&id,"install",&backend.instance(&id)?.name,Some(&id),Some(app.clone()),lease.cancel.clone(),task_id)?;let worker_job=job.clone();let event_id=id.clone();let result=tokio::task::spawn_blocking(move||{let _lease=lease;super::content_provider::import_with_job(&b,&id,paths,world,Some(&worker_job))}).await.unwrap_or_else(|e|Err(BackendError::new("content_file",e.to_string())));job.finish(&result);let _=app.emit("content-changed",serde_json::json!({"id":event_id}));result}
 
 #[derive(serde::Deserialize)]
 pub struct ContentRequest {#[serde(default="super::content::default_provider")]provider:String,project:String,version:Option<String>,kind:String,world:Option<String>,beta:bool,fingerprint:String}
 #[tauri::command]
-pub async fn bulk_install_content(backend:State<'_,B>,app:AppHandle,id:String,requests:Vec<ContentRequest>)->Result<super::content::State>{
- let lease=backend.inner().lease(&id)?;let job=Arc::new(Job::new(&id,Some(app.clone()),lease.cancel.clone()));
+pub async fn bulk_install_content(backend:State<'_,B>,app:AppHandle,id:String,requests:Vec<ContentRequest>,task_id:Option<String>)->Result<super::content::State>{
+ let lease=backend.inner().lease(&id)?;let job=Job::tracked(backend.inner().clone(),&id,"install",&backend.instance(&id)?.name,Some(&id),Some(app.clone()),lease.cancel.clone(),task_id)?;
  let result=async{let instance=backend.instance(&id)?;let mut plans=vec![];if requests.len()>100{return Err(BackendError::new("dependency","Too many projects"));}for r in requests{job.check()?;job.emit("content_resolve","running",&r.project);let p=super::download::cancellable(&job,super::content_provider::provider_preview(&backend,&r.provider,&instance,&r.project,r.version.as_deref(),&r.kind,r.world,r.beta)).await?;if p.fingerprint!=r.fingerprint{return Err(BackendError::new("content_plan_changed","Install plan changed"));}plans.push(p);}super::content_provider::install_many(backend.inner().clone(),&id,plans,job.clone()).await}.await;
- if let Err(e)=&result{job.emit(&e.stage,"failure",&e.message);}let _=app.emit("content-changed",serde_json::json!({"id":id}));result
+ job.finish(&result);let _=app.emit("content-changed",serde_json::json!({"id":id}));result
 }
 
 #[tauri::command]
 pub async fn pack_update_preview(backend:State<'_,B>,id:String,beta:bool)->Result<super::pack_update::Preview>{let _lease=backend.inner().lease(&id)?;super::pack_update::preview(&backend,&id,beta).await}
 #[tauri::command]
-pub async fn apply_pack_update(backend:State<'_,B>,app:AppHandle,id:String,beta:bool,fingerprint:String)->Result<super::content::State>{let lease=backend.inner().lease(&id)?;let job=Arc::new(Job::new(&id,Some(app.clone()),lease.cancel.clone()));let result=super::pack_update::install(backend.inner().clone(),&id,beta,&fingerprint,job.clone()).await;if let Err(e)=&result{job.emit(&e.stage,"failure",&e.message);}let _=app.emit("content-changed",serde_json::json!({"id":id}));result}
+pub async fn apply_pack_update(backend:State<'_,B>,app:AppHandle,id:String,beta:bool,fingerprint:String,task_id:Option<String>)->Result<super::content::State>{let lease=backend.inner().lease(&id)?;let job=Job::tracked(backend.inner().clone(),&id,"update",&backend.instance(&id)?.name,Some(&id),Some(app.clone()),lease.cancel.clone(),task_id)?;let result=super::pack_update::install(backend.inner().clone(),&id,beta,&fingerprint,job.clone()).await;job.finish(&result);let _=app.emit("content-changed",serde_json::json!({"id":id}));result}
 
 #[tauri::command]
 pub async fn begin_microsoft_login(app:AppHandle,backend:State<'_,B>)->Result<serde_json::Value>{super::microsoft::begin(backend.inner().clone(),app).await}

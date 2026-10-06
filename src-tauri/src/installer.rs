@@ -175,8 +175,10 @@ fn apply_overrides<R: Read + std::io::Seek>(
     base: &Path,
     prefix: &str,
     stage: &str,
-) -> Result<()> {
+) -> Result<()> {apply_overrides_job(archive,base,prefix,stage,None)}
+fn apply_overrides_job<R:Read+std::io::Seek>(archive:&mut ZipArchive<R>,base:&Path,prefix:&str,stage:&str,job:Option<&crate::backend::download::Job>)->Result<()> {
     for i in 0..archive.len() {
+        if let Some(job)=job{job.check().map_err(|e|InstallError::new("cancelled",e.message))?;}
         let mut entry = archive
             .by_index(i)
             .map_err(|e| InstallError::cause(stage, e))?;
@@ -205,28 +207,17 @@ fn apply_overrides<R: Read + std::io::Seek>(
         }
         let mut file =
             fs::File::create(&output).map_err(|e| InstallError::cause(stage, e).path(&output))?;
-        std::io::copy(&mut entry, &mut file)
-            .map_err(|e| InstallError::cause(stage, e).path(&output))?;
+        let mut buf=[0u8;128*1024];loop{if let Some(job)=job{job.check().map_err(|e|InstallError::new("cancelled",e.message))?;}let n=entry.read(&mut buf).map_err(|e|InstallError::cause(stage,e))?;if n==0{break;}std::io::Write::write_all(&mut file,&buf[..n]).map_err(|e|InstallError::cause(stage,e))?;}
     }
     Ok(())
 }
-async fn download(client: &reqwest::Client, url: &str, stage: &str) -> Result<Vec<u8>> {
-    let parsed = reqwest::Url::parse(url).map_err(|e| InstallError::cause(stage, e).url(url))?;
-    if parsed.scheme() != "https" {
-        return Err(InstallError::new(stage, "Downloads must use HTTPS").url(url));
-    }
-    let response = client
-        .get(url)
-        .send()
-        .await
-        .map_err(|e| InstallError::cause(stage, e).url(url))?
-        .error_for_status()
-        .map_err(|e| InstallError::cause(stage, e).url(url))?;
-    Ok(response
-        .bytes()
-        .await
-        .map_err(|e| InstallError::cause(stage, e).url(url))?
-        .to_vec())
+async fn download_job(client:&reqwest::Client,url:&str,stage:&str,job:Option<&crate::backend::download::Job>)->Result<Vec<u8>> {
+    let parsed=reqwest::Url::parse(url).map_err(|e|InstallError::cause(stage,e))?;if parsed.scheme()!="https"{return Err(InstallError::new(stage,"Downloads must use HTTPS"));}
+    let file_name=parsed.path().rsplit('/').next().unwrap_or("").to_owned();
+    let work=async {let mut response=client.get(parsed).send().await.map_err(|e|InstallError::cause(stage,e))?.error_for_status().map_err(|e|InstallError::cause(stage,e))?;
+        if response.url().scheme()!="https"{return Err(InstallError::new(stage,"Insecure redirect rejected"));}
+        let mut bytes=vec![];let mut tick=std::time::Instant::now();while let Some(chunk)=response.chunk().await.map_err(|e|InstallError::cause(stage,e))?{bytes.extend_from_slice(&chunk);if let Some(job)=job{use std::sync::atomic::Ordering;job.downloaded.fetch_add(chunk.len() as u64,Ordering::Relaxed);job.network.fetch_add(chunk.len() as u64,Ordering::Relaxed);if tick.elapsed().as_millis()>=120{job.emit(stage,"running",&file_name);tick=std::time::Instant::now();}}}Ok(bytes)};
+    tokio::pin!(work);loop{tokio::select!{result=&mut work=>return result,_=tokio::time::sleep(Duration::from_millis(150))=>{if let Some(job)=job{job.check().map_err(|e|InstallError::new("cancelled",e.message))?;}}}}
 }
 
 fn start<F: FnMut(Progress)>(
@@ -256,9 +247,14 @@ pub async fn install_at<F: FnMut(Progress)>(
     instances: &Path,
     mut emit: F,
 ) -> Result<PathBuf> {
+    install_at_job(project_id,version_id,name,instances,None,emit).await
+}
+pub async fn install_at_job<F:FnMut(Progress)>(project_id:&str,version_id:&str,name:&str,instances:&Path,job:Option<&crate::backend::download::Job>,mut emit:F)->Result<PathBuf>{
+    let check=||->Result<()>{if let Some(job)=job{job.check().map_err(|e|InstallError::new("cancelled",e.message))?;}Ok(())};
     let mut progress = Progress::default();
     let mut stage = "fetch_version";
     let result = async {
+        check()?;
         stage = start("fetch_version", 0.0, &mut progress, &mut emit);
         if !id_safe(project_id) || !id_safe(version_id) {
             return Err(InstallError::new(stage, "Invalid project or version ID"));
@@ -270,7 +266,7 @@ pub async fn install_at<F: FnMut(Progress)>(
             .build()
             .map_err(|e| InstallError::cause(stage, e))?;
         let url = format!("https://api.modrinth.com/v2/version/{version_id}");
-        let version: Version = serde_json::from_slice(&download(&client, &url, stage).await?)
+        let version: Version = serde_json::from_slice(&download_job(&client, &url, stage,job).await?)
             .map_err(|e| InstallError::cause(stage, e).url(&url))?;
         if version.project_id != project_id {
             return Err(InstallError::new(stage, "Version belongs to a different project").url(&url));
@@ -281,11 +277,11 @@ pub async fn install_at<F: FnMut(Progress)>(
             .filter(|f| f.filename.ends_with(".mrpack"))
             .max_by_key(|f| f.primary)
             .ok_or_else(|| InstallError::new(stage, "Version has no .mrpack file"))?;
-        succeeded(stage);
+        check()?;succeeded(stage);
         stage = start("download_mrpack", 2.0, &mut progress, &mut emit);
-        let data = download(&client, &file.url, stage).await?;
+        let data = download_job(&client, &file.url, stage,job).await?;
         verify(&data, &file.hashes, stage, Path::new(&file.filename)).map_err(|e| e.url(&file.url))?;
-        succeeded(stage);
+        check()?;succeeded(stage);
         stage = start("read_index", 5.0, &mut progress, &mut emit);
         let mut archive =
             ZipArchive::new(Cursor::new(data)).map_err(|e| InstallError::cause(stage, e))?;
@@ -309,7 +305,7 @@ pub async fn install_at<F: FnMut(Progress)>(
             .collect();
         progress.total = files.len() as u64;
         progress.bytes_total = files.iter().map(|f| f.file_size).sum();
-        succeeded(stage);
+        check()?;succeeded(stage);
         stage = start("prepare_instance", 7.0, &mut progress, &mut emit);
 
         fs::create_dir_all(&instances).map_err(|e| InstallError::cause(stage, e).path(&instances))?;
@@ -331,9 +327,9 @@ pub async fn install_at<F: FnMut(Progress)>(
             }
             progress.completed = progress.total;
             progress.downloaded = progress.bytes_total;
-            succeeded(stage);
+            check()?;succeeded(stage);
             stage = start("finalize", 98.0, &mut progress, &mut emit);
-            succeeded(stage);
+            check()?;succeeded(stage);
             return Ok(root);
         }
         if root.exists() {
@@ -350,10 +346,12 @@ pub async fn install_at<F: FnMut(Progress)>(
         if staging.exists() {
             fs::remove_dir_all(&staging).map_err(|e| InstallError::cause(stage, e).path(&staging))?;
         }
+        let _cleanup=crate::backend::storage::Staging(staging.clone());
         fs::create_dir(&staging).map_err(|e| InstallError::cause(stage, e).path(&staging))?;
-        succeeded(stage);
+        check()?;succeeded(stage);
         let prepared:Result<()> = async {
                 for file in &files {
+                    check()?;
                     stage = start(
                         "download_files",
                         10.0 + 78.0 * progress.completed as f64 / progress.total.max(1) as f64,
@@ -367,7 +365,7 @@ pub async fn install_at<F: FnMut(Progress)>(
                         .downloads
                         .first()
                         .ok_or_else(|| InstallError::new(stage, "Missing download URL").path(&output))?;
-                    let bytes = download(&client, url, stage)
+                    let bytes = download_job(&client, url, stage,job)
                         .await
                         .map_err(|e| e.path(&output))?;
                     if bytes.len() as u64 != file.file_size {
@@ -382,9 +380,9 @@ pub async fn install_at<F: FnMut(Progress)>(
                         .path(&output)
                         .url(url));
                     }
-                    succeeded(stage);
+                    check()?;succeeded(stage);
                     stage = start("verify_hashes", progress.percent, &mut progress, &mut emit);
-                    verify(&bytes, &file.hashes, stage, &output).map_err(|e| e.url(url))?;
+                    check()?;verify(&bytes, &file.hashes, stage, &output).map_err(|e| e.url(url))?;
                     if let Some(parent) = output.parent() {
                         fs::create_dir_all(parent).map_err(|e| InstallError::cause(stage, e).path(parent))?;
                     }
@@ -397,28 +395,28 @@ pub async fn install_at<F: FnMut(Progress)>(
                         "[install][download_files] {}/{} complete",
                         progress.completed, progress.total
                     );
-                    succeeded(stage);
+                    check()?;succeeded(stage);
                 }
                 stage = start("apply_overrides", 90.0, &mut progress, &mut emit);
-                apply_overrides(&mut archive, &staging, "overrides/", stage)?;
-                succeeded(stage);
+                apply_overrides_job(&mut archive, &staging, "overrides/", stage,job)?;
+                check()?;succeeded(stage);
                 stage = start("apply_client_overrides", 94.0, &mut progress, &mut emit);
-                apply_overrides(&mut archive, &staging, "client-overrides/", stage)?;
-                succeeded(stage);
+                apply_overrides_job(&mut archive, &staging, "client-overrides/", stage,job)?;
+                check()?;succeeded(stage);
                 stage = start("write_instance_metadata", 97.0, &mut progress, &mut emit);
                 let metadata = serde_json::json!({"project_id":project_id,"version_id":version_id,"name":name,"instance_path":root,"pack_name":index.name,"pack_version":index.version_id,"dependencies":index.dependencies});
                 let path = staging.join("canary-instance.json");
                 let data = serde_json::to_vec_pretty(&metadata).map_err(|e| InstallError::cause(stage, e))?;
                 fs::write(&path, data).map_err(|e| InstallError::cause(stage, e).path(&path))?;
                 let mut content_receipt=vec![];
-                for folder in ["mods","shaderpacks","resourcepacks"]{let dir=staging.join(folder);if !dir.is_dir(){continue;}for entry in fs::read_dir(&dir).map_err(|e|InstallError::cause(stage,e))?{let entry=entry.map_err(|e|InstallError::cause(stage,e))?;if !entry.file_type().map_err(|e|InstallError::cause(stage,e))?.is_file(){continue;}let path=entry.path();if path.extension().is_some_and(|e|e=="jar"||e=="zip"){let hash=crate::backend::download::hash(&path,"sha512").map_err(|e|InstallError::new(stage,e.to_string()))?;content_receipt.push(serde_json::json!({"path":format!("{folder}/{}",entry.file_name().to_string_lossy()),"hash":hash}));}}}
+                for folder in ["mods","shaderpacks","resourcepacks"]{let dir=staging.join(folder);if !dir.is_dir(){continue;}for entry in fs::read_dir(&dir).map_err(|e|InstallError::cause(stage,e))?{check()?;let entry=entry.map_err(|e|InstallError::cause(stage,e))?;if !entry.file_type().map_err(|e|InstallError::cause(stage,e))?.is_file(){continue;}let path=entry.path();if path.extension().is_some_and(|e|e=="jar"||e=="zip"){let hash=crate::backend::download::hash_cancellable(&path,"sha512",job.map(|j|j.cancel.as_ref())).map_err(|e|InstallError::new(if e.code=="cancelled"{"cancelled"}else{stage},e.to_string()))?;content_receipt.push(serde_json::json!({"path":format!("{folder}/{}",entry.file_name().to_string_lossy()),"hash":hash}));}}}
                 fs::write(staging.join("pack-content-files.json"),serde_json::to_vec(&content_receipt).map_err(|e|InstallError::cause(stage,e))?).map_err(|e|InstallError::cause(stage,e))?;
                 let manifest_path=staging.join("modrinth.index.json");
                 fs::write(&manifest_path,&raw).map_err(|e|InstallError::cause(stage,e).path(&manifest_path))?;
-                succeeded(stage);
+                check()?;succeeded(stage);
                 stage = start("finalize", 98.0, &mut progress, &mut emit);
                 fs::rename(&staging, &root).map_err(|e| InstallError::cause(stage, e).path(&root))?;
-                succeeded(stage);
+                check()?;succeeded(stage);
                 Ok(())
             }.await;
         if prepared.is_err() {

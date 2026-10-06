@@ -45,7 +45,7 @@ pub async fn prepare(backend:Arc<Backend>,instance:&Instance,job:Arc<Job>,deep:b
     let dir=backend.instance_path(&instance.id)?;let prepared_path=dir.join("runtime.json");
     if !deep&&prepared_path.is_file(){let cached:Prepared=serde_json::from_slice(&std::fs::read(&prepared_path)?)?;
         if cached.platform==os_name()&&!cached.files.is_empty()&&cached.files.iter().all(|(p,size)|std::fs::metadata(p).is_ok_and(|m|m.len()==*size))&&cached.classpath.iter().all(|p|std::path::Path::new(p).is_file())&&std::path::Path::new(&cached.natives).is_dir(){return Ok(cached);}}
-    let versions=manifest(&backend).await?;let version=versions["versions"].as_array().and_then(|list|list.iter().find(|v|v["id"]==instance.minecraft)).ok_or_else(||BackendError::new("minecraft_version","Minecraft version not found"))?;
+    let versions=download::cancellable(&job,manifest(&backend)).await?;let version=versions["versions"].as_array().and_then(|list|list.iter().find(|v|v["id"]==instance.minecraft)).ok_or_else(||BackendError::new("minecraft_version","Minecraft version not found"))?;
     let metadata_path=storage::safe_join(&backend.root.join("cache/versions"),&format!("{}.json",instance.minecraft))?;
     let metadata_artifact=artifact(version,metadata_path.clone())?;
     download::batch(backend.clone(),vec![metadata_artifact],job.clone(),"minecraft").await?;
@@ -59,7 +59,7 @@ pub async fn prepare(backend:Arc<Backend>,instance:&Instance,job:Arc<Job>,deep:b
         let host=match instance.loader.as_str(){"fabric"=>"https://meta.fabricmc.net/v2","quilt"=>"https://meta.quiltmc.org/v3",_=>return Err(BackendError::new("loader_unsupported","Unknown mod loader"))};
         let exact=instance.loader_version.as_ref().ok_or_else(||BackendError::new("loader","Missing loader version"))?;
         let mut profile=reqwest::Url::parse(host).unwrap();profile.path_segments_mut().unwrap().extend(["versions","loader",&instance.minecraft,exact,"profile","json"]);
-        let child=download::json(&backend,profile.as_str()).await?;
+        let child=download::cancellable(&job,download::json(&backend,profile.as_str())).await?;
         if child["inheritsFrom"].as_str().is_some_and(|id|id!=instance.minecraft){return Err(BackendError::new("loader","Loader profile targets a different Minecraft version"));}
         metadata=merge(&metadata,&child);
     }
@@ -89,9 +89,9 @@ pub async fn prepare(backend:Arc<Backend>,instance:&Instance,job:Arc<Job>,deep:b
     let mut required:Vec<_>=files.iter().map(|f|f.path.clone()).collect();
     let receipts:Vec<_>=files.iter().filter(|f|f.hash.is_none()).map(|f|f.path.clone()).collect();
     download::batch(backend.clone(),files,job.clone(),"libraries").await?;
-    for path in receipts {let copy=path.clone();let hash=tokio::task::spawn_blocking(move||download::hash(&copy,"sha256")).await.map_err(|e|BackendError::new("hash",e.to_string()))??;std::fs::write(path.with_extension("sha256"),hash)?;}
+    for path in receipts {let copy=path.clone();let cancel=job.cancel.clone();let hash=tokio::task::spawn_blocking(move||download::hash_cancellable(&copy,"sha256",Some(&cancel))).await.map_err(|e|BackendError::new("hash",e.to_string()))??;std::fs::write(path.with_extension("sha256"),hash)?;}
     let native_dir=dir.join("natives");std::fs::create_dir_all(&native_dir)?;
-    for path in natives {job.check()?;let target=native_dir.clone();tokio::task::spawn_blocking(move||storage::extract(&path,&target)).await.map_err(|e|BackendError::new("natives",e.to_string()))??;}
+    for path in natives {job.check()?;let target=native_dir.clone();let token=job.clone();tokio::task::spawn_blocking(move||storage::extract_job(&path,&target,Some(&token))).await.map_err(|e|BackendError::new("natives",e.to_string()))??;}
     let index=&metadata["assetIndex"];let index_id=index["id"].as_str().or(metadata["assets"].as_str()).ok_or_else(||BackendError::new("metadata","Asset index missing"))?.to_owned();
     let index_path=storage::safe_join(&cache.join("assets/indexes"),&format!("{index_id}.json"))?;
     download::batch(backend.clone(),vec![artifact(index,index_path.clone())?],job.clone(),"assets").await?;

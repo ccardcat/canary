@@ -4,45 +4,27 @@ use window_material::{apply_window_material,window_material_capabilities};
 pub mod backend;
 use backend::commands::*;
 use std::sync::Arc;
-use installer::InstallError;
-use std::sync::atomic::{AtomicBool, Ordering};
 use tauri::{AppHandle, Emitter, State};
-#[derive(Default)]
-struct InstallState(AtomicBool);
-struct InstallGuard<'a>(&'a AtomicBool);
-impl Drop for InstallGuard<'_> {
-    fn drop(&mut self) {
-        self.0.store(false, Ordering::Release);
-    }
-}
 #[tauri::command]
-async fn install_modpack(
-    app: AppHandle,
-    state: State<'_, InstallState>,
-    backend:State<'_,Arc<backend::Backend>>,
-    project_id: String,
-    version_id: String,
-    name: String,
-) -> Result<String, InstallError> {
-    if state.0.swap(true, Ordering::AcqRel) {
-        return Err(InstallError::new(
-            "prepare_instance",
-            "Another installation is already running",
-        ));
-    }
-    let _guard = InstallGuard(&state.0);
-    let _lease=backend.inner().lease(&format!("{project_id}-{version_id}")).map_err(|e|InstallError::new("prepare_instance",e.message))?;
-    let instances=backend.instances_root();
-    installer::install_at(&project_id, &version_id, &name, &instances, |p| {
-        let _ = app.emit("install-progress", p);
-    })
-    .await
-    .map(|p| p.to_string_lossy().into())
+async fn install_modpack(app:AppHandle,backend:State<'_,Arc<backend::Backend>>,project_id:String,version_id:String,name:String,task_id:Option<String>)->backend::model::Result<String>{
+    use backend::{download::Job,model::*};
+    let b=backend.inner().clone();let _serial=b.lease("modpack-install")?;let id=format!("{project_id}-{version_id}");let lease=b.lease(&id)?;
+    let existed=b.instance_path(&id)?.exists();
+    let job=Job::tracked(b.clone(),&id,"install",&name,Some(&id),Some(app.clone()),lease.cancel.clone(),task_id)?;
+    let result=backend::commands::staged_work(b.clone(),&id,job.clone(),existed,async {
+        if !existed{let instances=b.instance_path(&id)?.parent().unwrap().to_owned();
+            installer::install_at_job(&project_id,&version_id,&name,&instances,Some(&job),|p|{
+                job.files.store(p.total,std::sync::atomic::Ordering::Relaxed);job.completed.store(p.completed,std::sync::atomic::Ordering::Relaxed);job.total.store(p.bytes_total,std::sync::atomic::Ordering::Relaxed);job.downloaded.store(p.downloaded,std::sync::atomic::Ordering::Relaxed);job.emit(&p.stage,"running",&p.file);
+                let _=app.emit("install-progress",p);
+            }).await.map_err(|e|BackendError::new(if e.stage=="cancelled"{"cancelled"}else{"modpack"},e.to_string()))?;
+        }
+        let mut instance=b.instance(&id)?;let runtime=backend::minecraft::prepare(b.clone(),&instance,job.clone(),false).await?;backend::java::select(b.clone(),&instance,runtime.java_major,job.clone()).await?;job.check()?;let _=backend::download::cancellable(&job,backend::artwork::cache(&b,&mut instance)).await;job.check()?;b.save_instance(&instance)?;Ok(())
+    }).await;
+    job.finish(&result);result.map(|i|i.directory)
 }
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
     tauri::Builder::default()
-        .manage(InstallState::default())
         .manage(Arc::new(backend::Backend::new().expect("Cannot initialize Canary data storage")))
         .plugin(tauri_plugin_opener::init())
         .plugin(tauri_plugin_dialog::init())
@@ -51,6 +33,7 @@ pub fn run() {
             if let tauri::WindowEvent::CloseRequested{api,..}=event {
                 use tauri::Manager;
                 let backend=window.state::<Arc<backend::Backend>>();
+                if !backend.jobs.lock().unwrap().is_empty(){api.prevent_close();let _=window.emit("backend-error",backend::model::BackendError::new("tasks_running","Cancel active operations or wait for them to finish before closing Canary"));}
                 if !backend.processes.lock().unwrap().is_empty(){
                     // Keep the process monitor alive; never silently kill an active world.
                     api.prevent_close();let _=window.emit("backend-error",backend::model::BackendError::new("game_running","Stop Minecraft before closing Canary"));

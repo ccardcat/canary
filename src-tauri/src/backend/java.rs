@@ -28,20 +28,20 @@ pub async fn select(backend:Arc<Backend>,instance:&Instance,required:u32,job:Arc
     job.files.store(0,Ordering::Relaxed);job.completed.store(0,Ordering::Relaxed);job.downloaded.store(0,Ordering::Relaxed);job.total.store(0,Ordering::Relaxed);job.emit("java","running",&required.to_string());job.check()?;
     let settings=backend.settings();
     if let Some(path)=instance.overrides.java.as_ref().or(settings.java_path.as_ref()) {
-        let java=test(Path::new(path),Path::new(path).starts_with(backend.root.join("java"))).await?;
+        let java=download::cancellable(&job,test(Path::new(path),Path::new(path).starts_with(backend.root.join("java")))).await?;
         if java.major!=required||!compatible_arch(&java.architecture){return Err(BackendError::new("java_incompatible",format!("Minecraft requires Java {required} with matching system architecture; selected runtime is Java {} ({})",java.major,java.architecture)));}return Ok(java);
     }
-    if let Some(java)=detect(&backend.root).await?.into_iter().find(|j|j.major==required&&compatible_arch(&j.architecture)){return Ok(java);}
+    if let Some(java)=download::cancellable(&job,detect(&backend.root)).await?.into_iter().find(|j|j.major==required&&compatible_arch(&j.architecture)){return Ok(java);}
     if !settings.automatic_java{return Err(BackendError::new("java_missing",format!("Install or select Java {required}")));}
     job.emit("java","running",&required.to_string());
     let arch=if cfg!(target_arch="aarch64"){"aarch64"}else{"x64"};
     let os=if cfg!(windows){"windows"}else if cfg!(target_os="macos"){"mac"}else{"linux"};
-    let metadata=download::json(&backend,&format!("https://api.adoptium.net/v3/assets/latest/{required}/hotspot?architecture={arch}&image_type=jre&os={os}&vendor=eclipse")).await?;
+    let metadata=download::cancellable(&job,download::json(&backend,&format!("https://api.adoptium.net/v3/assets/latest/{required}/hotspot?architecture={arch}&image_type=jre&os={os}&vendor=eclipse"))).await?;
     let package=&metadata[0]["binary"]["package"];let hash=package["checksum"].as_str().ok_or_else(||BackendError::new("java","Runtime checksum missing"))?;
     let archive=backend.root.join("cache").join(format!("java-{required}-{hash}.{}",if cfg!(windows){"zip"}else{"tar.gz"}));
     download::batch(backend.clone(),vec![Artifact{url:package["link"].as_str().ok_or_else(||BackendError::new("java","Runtime download URL missing"))?.into(),path:archive.clone(),hash:Some(hash.into()),algorithm:"sha256",size:package["size"].as_u64()}],job.clone(),"java").await?;
-    let target=backend.root.join("java").join(format!("{required}-{hash}"));let staging=backend.root.join("temp").join(format!("java-{}",uuid::Uuid::new_v4()));let _cleanup=storage::Staging(staging.clone());let extract=staging.clone();
-    tokio::task::spawn_blocking(move||if cfg!(windows){storage::extract(&archive,&extract)}else{extract_runtime_tar(&archive,&extract)}).await.map_err(|e|BackendError::new("java",e.to_string()))??;
+    let target=backend.root.join("java").join(format!("{required}-{hash}"));let staging=backend.root.join("temp").join(format!("java-{}",uuid::Uuid::new_v4()));let _cleanup=storage::Staging(staging.clone());let extract=staging.clone();let token=job.clone();
+    tokio::task::spawn_blocking(move||if cfg!(windows){storage::extract_job(&archive,&extract,Some(&token))}else{extract_runtime_tar(&archive,&extract,Some(&token))}).await.map_err(|e|BackendError::new("java",e.to_string()))??;
     let mut executable=None;for entry in std::fs::read_dir(&staging)?{let entry=entry?;let path=entry.path().join(bin_path());if path.is_file(){executable=Some(path);break;}}
     let checked=test(&executable.ok_or_else(||BackendError::new("java","Runtime archive has no Java executable"))?,true).await?;
     if checked.major!=required{return Err(BackendError::new("java","Downloaded runtime version mismatch"));}job.check()?;
@@ -51,12 +51,12 @@ pub async fn select(backend:Arc<Backend>,instance:&Instance,required:u32,job:Arc
 fn compatible_arch(arch:&str)->bool{if cfg!(target_arch="aarch64"){matches!(arch,"aarch64"|"arm64")}else{matches!(arch,"amd64"|"x86_64")}}
 #[cfg(test)]mod tests{use super::*;#[test]fn java_versions(){assert_eq!(major("1.8.0_412"),Some(8));assert_eq!(major("21.0.4+7"),Some(21));assert_eq!(major("25-ea"),Some(25));assert_eq!(major("bad"),None);}}
 
-fn extract_runtime_tar(archive:&Path,root:&Path)->Result<()> {
+fn extract_runtime_tar(archive:&Path,root:&Path,job:Option<&Job>)->Result<()> {
     let decoder=flate2::read::GzDecoder::new(std::fs::File::open(archive)?);let mut archive=tar::Archive::new(decoder);std::fs::create_dir_all(root)?;let mut links=vec![];
-    for entry in archive.entries()?{let mut entry=entry?;let kind=entry.header().entry_type();let name=entry.path()?.to_string_lossy().trim_end_matches('/').to_owned();if name.is_empty(){continue;}let path=storage::safe_join(root,&name)?;
-        if kind.is_dir(){std::fs::create_dir_all(path)?;}else if kind.is_file(){if entry.size()>512*1024*1024{return Err(BackendError::new("java","Runtime archive entry too large"));}std::fs::create_dir_all(path.parent().unwrap())?;let mut file=std::fs::File::create(&path)?;std::io::copy(&mut entry,&mut file)?;#[cfg(unix)]{use std::os::unix::fs::PermissionsExt;std::fs::set_permissions(path,std::fs::Permissions::from_mode(entry.header().mode()?&0o777))?;}}
+    for entry in archive.entries()?{if let Some(job)=job{job.check()?;}let mut entry=entry?;let kind=entry.header().entry_type();let name=entry.path()?.to_string_lossy().trim_end_matches('/').to_owned();if name.is_empty(){continue;}let path=storage::safe_join(root,&name)?;
+        if kind.is_dir(){std::fs::create_dir_all(path)?;}else if kind.is_file(){if entry.size()>512*1024*1024{return Err(BackendError::new("java","Runtime archive entry too large"));}std::fs::create_dir_all(path.parent().unwrap())?;let mut file=std::fs::File::create(&path)?;{use std::io::{Read,Write};let mut buf=[0u8;128*1024];loop{if let Some(job)=job{job.check()?;}let n=entry.read(&mut buf)?;if n==0{break;}file.write_all(&buf[..n])?;}}#[cfg(unix)]{use std::os::unix::fs::PermissionsExt;std::fs::set_permissions(path,std::fs::Permissions::from_mode(entry.header().mode()?&0o777))?;}}
         else if kind.is_symlink()||kind.is_hard_link(){let target=entry.link_name()?.ok_or_else(||BackendError::new("java","Runtime link target missing"))?;if target.is_absolute(){return Err(BackendError::new("unsafe_path","Absolute runtime link"));}let base=if kind.is_hard_link(){root}else{path.parent().unwrap()};let mut resolved=base.to_path_buf();for component in target.components(){match component{std::path::Component::Normal(part)=>resolved.push(part),std::path::Component::CurDir=>{},std::path::Component::ParentDir=>{if resolved==root||!resolved.pop(){return Err(BackendError::new("unsafe_path","Runtime link escapes archive"));}},_=>return Err(BackendError::new("unsafe_path","Invalid runtime link"))}}if !resolved.starts_with(root){return Err(BackendError::new("unsafe_path","Runtime link escapes archive"));}links.push((path,resolved));}
         else{return Err(BackendError::new("unsafe_path","Unsupported runtime archive entry"));}}
     // Flatten verified internal links; the managed tree contains no symlinks.
-    while !links.is_empty(){let before=links.len();let mut pending=vec![];for (path,target) in links{if target.is_file(){std::fs::create_dir_all(path.parent().unwrap())?;std::fs::copy(target,path)?;}else{pending.push((path,target));}}if pending.len()==before{return Err(BackendError::new("java","Unresolvable runtime archive link"));}links=pending;}Ok(())
+    while !links.is_empty(){let before=links.len();let mut pending=vec![];for (path,target) in links{if let Some(job)=job{job.check()?;}if target.is_file(){std::fs::create_dir_all(path.parent().unwrap())?;std::fs::copy(target,path)?;}else{pending.push((path,target));}}if pending.len()==before{return Err(BackendError::new("java","Unresolvable runtime archive link"));}links=pending;}Ok(())
 }

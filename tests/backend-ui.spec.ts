@@ -184,7 +184,7 @@ test("CurseForge detail accepts ZIP pack versions and retains provider during in
   await page.locator(".detail-actions").getByRole("button",{name:"Install",exact:true}).click();
   await expect(page.locator(".library-grid")).toContainText("CurseForge contract pack");
   const calls=await page.evaluate(()=>(globalThis as any).__backendTest.calls);
-  expect(calls.find((call:any)=>call.command==="install_curseforge_pack")?.args).toEqual({projectId:100,fileId:200});
+  expect(calls.find((call:any)=>call.command==="install_curseforge_pack")?.args).toMatchObject({projectId:100,fileId:200,taskId:expect.any(String)});
   expect(calls.some((call:any)=>call.command==="install_modpack")).toBe(false);
 });
 

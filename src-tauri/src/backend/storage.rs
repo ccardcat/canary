@@ -52,14 +52,15 @@ pub fn instances_in(root:&Path)->Result<Vec<Instance>> {
     }
     out.sort_by_key(|i|std::cmp::Reverse(i.installed)); Ok(out)
 }
-pub fn extract(archive:&Path,base:&Path)->Result<()> {
+pub fn extract(archive:&Path,base:&Path)->Result<()> {extract_job(archive,base,None)}
+pub fn extract_job(archive:&Path,base:&Path,job:Option<&super::download::Job>)->Result<()> {
     let mut zip=zip::ZipArchive::new(fs::File::open(archive)?).map_err(|e|BackendError::new("archive",e.to_string()))?;
     fs::create_dir_all(base)?;
-    for i in 0..zip.len(){let mut entry=zip.by_index(i).map_err(|e|BackendError::new("archive",e.to_string()))?;
+    for i in 0..zip.len(){if let Some(job)=job{job.check()?;}let mut entry=zip.by_index(i).map_err(|e|BackendError::new("archive",e.to_string()))?;
         let rel=entry.name().trim_end_matches('/'); if rel.is_empty()||rel.starts_with("META-INF/"){continue;}
         if entry.unix_mode().is_some_and(|m|m&0o170000==0o120000){return Err(BackendError::new("archive","Archive contains symbolic links"));}
         let output=safe_join(base,rel)?;
-        if entry.is_dir(){fs::create_dir_all(output)?;}else{fs::create_dir_all(output.parent().unwrap())?;let mut file=fs::File::create(output)?;std::io::copy(&mut entry,&mut file)?;}
+        if entry.is_dir(){fs::create_dir_all(output)?;}else{fs::create_dir_all(output.parent().unwrap())?;let mut file=fs::File::create(output)?;{use std::io::Read;let mut buf=[0u8;128*1024];loop{if let Some(job)=job{job.check()?;}let n=entry.read(&mut buf)?;if n==0{break;}file.write_all(&buf[..n])?;}}}
     }Ok(())
 }
 #[cfg(test)] mod tests {use super::*;#[test]fn traversal(){for value in ["../x","C:/x","/x","a\\b","a/../b","CON.txt","a/NUL","x:stream","a/COM1.jar"]{assert!(safe_join(Path::new("safe"),value).is_err(),"{value}");}assert!(safe_join(Path::new("safe"),"mods/a.jar").is_ok());}

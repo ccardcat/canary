@@ -12,7 +12,7 @@ pub async fn verify(backend:Arc<Backend>,instance:&Instance,job:Arc<Job>,deep:bo
         if instance.provider=="mrpack"{return Err(BackendError::new("mrpack_archive","Local pack manifest is missing. Back up your worlds and import the original MRPACK again."));}
         let version=instance.version_id.as_ref().ok_or_else(||BackendError::new("modpack","Pack version ID missing"))?;
         let mut url=reqwest::Url::parse("https://api.modrinth.com/v2/version/").unwrap();url.path_segments_mut().unwrap().pop_if_empty().push(version);
-        let metadata=download::json(&backend,url.as_str()).await?;
+        let metadata=download::cancellable(&job,download::json(&backend,url.as_str())).await?;
         if metadata["project_id"].as_str()!=instance.project_id.as_deref(){return Err(BackendError::new("modpack","Modrinth project/version mismatch"));}
         let files=metadata["files"].as_array().ok_or_else(||BackendError::new("modpack","Modrinth version files missing"))?;
         let mrpack=files.iter().find(|f|f["filename"].as_str().is_some_and(|name|name.ends_with(".mrpack"))).ok_or_else(||BackendError::new("modpack","Version has no .mrpack"))?;
@@ -25,7 +25,7 @@ pub async fn verify(backend:Arc<Backend>,instance:&Instance,job:Arc<Job>,deep:bo
     if data["formatVersion"]!=1||data["game"]!="minecraft"{return Err(BackendError::new("modpack","Invalid Modrinth manifest"));}
     let content=super::content::load(&dir)?;
     let mut files=vec![];let mut paths=vec![];
-    for file in data["files"].as_array().ok_or_else(||BackendError::new("modpack","Missing manifest files"))? {
+    for file in data["files"].as_array().ok_or_else(||BackendError::new("modpack","Missing manifest files"))? {job.check()?;
         if file["env"]["client"]=="unsupported"{continue;}
         let rel=file["path"].as_str().ok_or_else(||BackendError::new("modpack","File path missing"))?;let path=storage::safe_join(&dir,rel)?;
         if matches!(rel.split('/').next().unwrap_or(""),"pack-content-files.json"|"content.json"|".canary-content"|"instance.json"|"runtime.json"|"loader.json"|"provider-files.json"|"process.json"|"canary-instance.json"){return Err(BackendError::new("modpack","Manifest cannot manage Canary metadata"));}
@@ -35,7 +35,7 @@ pub async fn verify(backend:Arc<Backend>,instance:&Instance,job:Arc<Job>,deep:bo
         if path.is_file()&&!(rel.starts_with("mods/")||rel.starts_with("libraries/")){continue;}
         let (algorithm,hash)=if let Some(h)=file["hashes"]["sha512"].as_str(){("sha512",h)}else if let Some(h)=file["hashes"]["sha1"].as_str(){("sha1",h)}else{return Err(BackendError::new("checksum","Manifest file has no supported checksum"));};
         let item=Artifact{url:file["downloads"][0].as_str().ok_or_else(||BackendError::new("modpack","File download URL missing"))?.into(),path:path.clone(),hash:Some(hash.into()),algorithm,size:file["fileSize"].as_u64()};
-        if path.is_file()&&!download::valid(&item).await?{let backup=storage::safe_join(&dir.join("conflicts").join(now().to_string()),rel)?;std::fs::create_dir_all(backup.parent().unwrap())?;std::fs::copy(&path,backup)?;}
+        if path.is_file()&&!download::valid_job(&item,&job).await?{let backup=storage::safe_join(&dir.join("conflicts").join(now().to_string()),rel)?;std::fs::create_dir_all(backup.parent().unwrap())?;std::fs::copy(&path,backup)?;}
         paths.push(rel.to_owned());files.push(item);
     }
     download::batch(backend.clone(),files,job.clone(),"mods").await?;

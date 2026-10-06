@@ -271,10 +271,10 @@ test("structured install errors hide raw details, retry succeeds and persists th
     .getByRole("button", { name: "Downloads", exact: true })
     .first()
     .click();
-  await expect(page.locator(".download-stage strong")).toHaveText("100%");
-  await expect(page.locator(".downloads-page h2")).toHaveText(
-    "Installation complete",
-  );
+  await expect(page.locator(".activity-active .activity-task")).toHaveCount(0);
+  await page.locator(".activity-recent summary").click();
+  await expect(page.locator(".activity-recent .activity-task.completed")).toContainText("Completed");
+  await expect(page.locator(".activity-recent progress")).toHaveCount(0);
 });
 
 test("System responds live, AMOLED remains black, and OS reduced motion stops ambient motion", async ({

@@ -17,8 +17,8 @@ import { diagnostics, type Progress } from "./services/installation";
 import { externalLink } from "./services/links";
 import RemoteImage from "./components/RemoteImage";
 const Markdown = lazy(() => import("./components/Markdown"));
-import { isTauri, invoke,convertFileSrc } from "@tauri-apps/api/core";
-import { listen } from "@tauri-apps/api/event";
+import { isTauri,convertFileSrc } from "@tauri-apps/api/core";
+import {ActivityDock, ActivitySettings} from "./components/ActivityDock";
 import {
   Activity,
   Boxes,
@@ -147,9 +147,8 @@ function App() {
     readStored("canary-library", []),
   );
   const homeLibrary:Project[]=isTauri()?(backend.snapshot?.instances||[]).filter(i=>!i.internal).sort((a,b)=>(b.last_played??b.installed)-(a.last_played??a.installed)).map(i=>({native_instance_id:i.id,project_id:i.project_id||i.id,provider:i.provider==="curseforge"?"curseforge":"modrinth",title:i.name,description:`Minecraft ${i.minecraft} · ${i.loader}`,icon_url:i.icon&&!/^https?:|^asset:/i.test(i.icon)?convertFileSrc(i.icon):i.icon,downloads:0,versions:[i.minecraft],categories:[i.loader],project_type:"modpack",version_name:i.version_name,instance_path:i.directory})):lib;
-  const [progress, setProgress] = useState<Progress | null>(null);
+  const progress=backend.progress;
   const [busy, setBusy] = useState(false);
-  const progressRef = useRef<Progress | null>(null);
   const installing = useRef(false);
   const [error, setError] = useState<{
     message: string;
@@ -238,28 +237,6 @@ function App() {
     return () => controller.abort();
   }, []);
   useEffect(() => {
-    if (!isTauri()) return;
-    let disposed = false;
-    let unsubscribe: (() => void) | undefined;
-    listen<Progress>("install-progress", (event) => {
-      if (installing.current) {
-        progressRef.current = event.payload;
-        setProgress(event.payload);
-      }
-    })
-      .then((fn) => {
-        if (disposed) fn();
-        else unsubscribe = fn;
-      })
-      .catch((e) =>
-        setError({ message: t("networkError"), details: String(e) }),
-      );
-    return () => {
-      disposed = true;
-      unsubscribe?.();
-    };
-  }, [t]);
-  useEffect(() => {
     const close = (e: MouseEvent) => {
       if (!accountRef.current?.contains(e.target as Node))
         setAccountOpen(false);
@@ -336,20 +313,7 @@ function App() {
     setBusy(true);
     setError(null);
     setSuccess(false);
-    const base: Progress = {
-      stage: "fetch_version",
-      status: "running",
-      file: "",
-      completed: 0,
-      total: 0,
-      downloaded: 0,
-      bytes_total: 0,
-      percent: 0,
-    };
-    progressRef.current = base;
-    setProgress(base);
     let stage = "fetch_version";
-    let current = base;
     try {
       // Never reuse versions from a different open project.
       const list = await providerVersions(p);
@@ -357,11 +321,8 @@ function App() {
         ? list.find((v) => v.id === versionId)
         : p.provider==="curseforge"?list[0]:list.find((v) => v.files.some((f) => f.filename.endsWith(".mrpack")));
       if (!version) throw Error("No compatible modpack version");
-      const instancePath = p.provider==="curseforge" ? (await backend.run<{directory:string}>("install_curseforge_pack",{projectId:Number(p.project_id),fileId:Number(version.id)})).directory : await invoke<string>("install_modpack", {projectId:p.project_id,versionId:version.id,name:p.title});
-      if(p.provider!=="curseforge")await backend.run("prepare_instance",{id:`${p.project_id}-${version.id}`,repair:false});
+      const instancePath = p.provider==="curseforge" ? (await backend.run<{directory:string}>("install_curseforge_pack",{projectId:Number(p.project_id),fileId:Number(version.id)},{reportError:false})).directory : await backend.run<string>("install_modpack", {projectId:p.project_id,versionId:version.id,name:p.title},{reportError:false});
       stage = "add_to_library";
-      current = { ...(progressRef.current || base), stage, percent: 99 };
-      setProgress(current);
       console.info("[install][add_to_library] starting", p.project_id);
       const next = [
         ...lib.filter((x) => x.project_id !== p.project_id||(x.provider||"modrinth")!==(p.provider||"modrinth")),
@@ -377,12 +338,6 @@ function App() {
       localStorage.setItem("canary-library", JSON.stringify(next));
       setLib(next);
       console.info("[install][add_to_library] success", instancePath);
-      setProgress({
-        ...current,
-        stage: "finalize",
-        status: "success",
-        percent: 100,
-      });
       console.info("[install][finalize] success");
       setSuccess(true);
       setDetail(null);
@@ -392,11 +347,7 @@ function App() {
         `[install][${typeof e === "object" && e && "stage" in e ? e.stage : stage}] failure`,
         e,
       );
-      setProgress((prev) =>
-        prev
-          ? { ...prev, status: "failure" }
-          : { ...current, status: "failure" },
-      );
+      if((e as {code?:string})?.code==="cancelled")return;
       setError({
         title: t("installError"),
         message: t("installErrorSub"),
@@ -472,6 +423,7 @@ function App() {
               })}
             </nav>
             <div className="sidebar-bottom">
+              <ActivityDock russian={lang==="ru"} onDownloads={()=>navigation("Downloads")} onOpen={id=>{setLibrarySelectionId(id);navigation("Library");}}/>
               <button
                 onClick={() => {
                   setCompact(sidebarOpen);
@@ -541,20 +493,6 @@ function App() {
               </AnimatePresence>
             </div>
           </header>
-          {busy && progress && (
-            <button
-              className="install-strip"
-              aria-busy="true"
-              onClick={() => navigation("Downloads")}
-            >
-              <Download size={16} />
-              <span>{t("installing")}</span>
-              <div className="progress">
-                <i style={{ width: `${progress.percent}%` }} />
-              </div>
-              <b>{Math.round(progress.percent)}%</b>
-            </button>
-          )}
           {detailLoading && (
             <div className="loading-detail" role="status">
               {t("loading")}
@@ -629,7 +567,7 @@ function App() {
                   onDiscover={() => navigation("Discover")}
                 />
               ) : page === "Downloads" ? (
-                <><RuntimeProgress russian={lang === "ru"}/><DownloadsPage t={t} progress={progress} error={error} /></>
+                isTauri()?<RuntimeProgress russian={lang === "ru"}/>:<DownloadsPage t={t} progress={progress} error={error} />
               ) : page === "Screenshots" ? (
                 isTauri() ? <RuntimeScreenshots russian={lang === "ru"}/> : <EmptyPage
                   icon={Image}
@@ -1799,6 +1737,7 @@ function SettingsModal({
     ["typography",russian?"Типографика":"Typography",SlidersHorizontal,"font typography size Monocraft шрифт масштаб размер"],
     ["storage",russian?"Хранилище":"Storage",LibraryIcon,"storage directory migration cache папка диск хранилище перенос кэш"],
     ["minecraft","Minecraft",Boxes,"minecraft java memory ram arguments resolution игра память аргументы разрешение"],
+    ["activity",russian?"Активность":"Activity",Activity,"activity dock game download privacy активность панель игра загрузки приватность"],
     ["downloads",t("downloads"),Download,"downloads concurrency загрузки параллельные"],
     ["accountSettings",t("accountSettings"),UserRound,"accounts Microsoft Ely.by local профиль аккаунт вход"],
     ["advanced",t("advanced"),SettingsIcon,"advanced quality performance logs backups restore retention дополнительные качество логи резервные"],
@@ -1866,7 +1805,7 @@ function SettingsModal({
                 animate={{ opacity: 1, y: 0 }}
                 exit={{ opacity: 0, y: -4 }}
               >
-                {search.trim()?<div className="settings-results">{results.length?results.map(([id,label,Icon,words])=><button key={id} onClick={()=>{setTab(id);setSearch("");}}><Icon size={17}/> {label}<small>{words.split(" ").slice(0,7).join(" · ")}</small></button>):<p>{russian?"Настройки не найдены":"No settings found"}</p>}</div>:tab === "window" ? <WindowPreferencesPanel russian={russian}/> :tab === "background" ? <><VisualPreferences russian={russian} group="background"/><HeroSettings russian={russian}/></> :tab === "effects" ? <EffectsPreferences russian={russian}><MotionPreference t={t} reduceMotion={reduceMotion} setReduceMotion={setReduceMotion}/></EffectsPreferences> :tab === "typography" ? <VisualPreferences russian={russian} group="typography"/> :tab === "storage" ? <StorageSettings russian={russian}/> :tab === "minecraft"?<RuntimeSettingsPanel russian={russian} section="minecraft"/> :tab === "downloads"?<RuntimeSettingsPanel russian={russian} section="downloads"/> :tab === "appearance" ? (
+                {search.trim()?<div className="settings-results">{results.length?results.map(([id,label,Icon,words])=><button key={id} onClick={()=>{setTab(id);setSearch("");}}><Icon size={17}/> {label}<small>{words.split(" ").slice(0,7).join(" · ")}</small></button>):<p>{russian?"Настройки не найдены":"No settings found"}</p>}</div>:tab === "window" ? <WindowPreferencesPanel russian={russian}/> :tab === "background" ? <><VisualPreferences russian={russian} group="background"/><HeroSettings russian={russian}/></> :tab === "effects" ? <EffectsPreferences russian={russian}><MotionPreference t={t} reduceMotion={reduceMotion} setReduceMotion={setReduceMotion}/></EffectsPreferences> :tab === "typography" ? <VisualPreferences russian={russian} group="typography"/> :tab === "storage" ? <StorageSettings russian={russian}/> :tab === "minecraft"?<RuntimeSettingsPanel russian={russian} section="minecraft"/> :tab === "activity"?<ActivitySettings russian={russian}/> :tab === "downloads"?<RuntimeSettingsPanel russian={russian} section="downloads"/> :tab === "appearance" ? (
                   <Appearance
                     t={t}
                     mode={mode}

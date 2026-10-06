@@ -318,14 +318,15 @@ pub async fn import(
         return Err(archive_error("Invalid import request ID"));
     }
     let root = backend.instances_root();
-    let destination = storage::safe_join(&root, &job.id)?;
+    let id=job.operation_id();
+    let destination = backend.instance_path(&id)?;
     if destination.exists() {
         return Err(BackendError::new(
             "content_duplicate",
             "An instance with this request ID already exists",
         ));
     }
-    let stage = root.join(format!(".mrpack-{}", uuid::Uuid::new_v4()));
+    let stage = destination.parent().unwrap().join(format!(".mrpack-{}", uuid::Uuid::new_v4()));
     std::fs::create_dir(&stage)?;
     let _cleanup = storage::Staging(stage.clone());
     job.emit("mrpack_prepare", "running", "Validating archive");
@@ -432,7 +433,7 @@ pub async fn import(
         for entry in std::fs::read_dir(stage.join(folder))? {
             let entry = entry?;
             if entry.file_type()?.is_file() {
-                content.push(serde_json::json!({"path":format!("{folder}/{}",entry.file_name().to_string_lossy()),"hash":download::hash(&entry.path(),"sha512")?}));
+                content.push(serde_json::json!({"path":format!("{folder}/{}",entry.file_name().to_string_lossy()),"hash":download::hash_cancellable(&entry.path(),"sha512",Some(&job.cancel))?}));
             }
         }
     }
@@ -444,7 +445,7 @@ pub async fn import(
         return Err(archive_error("Instance name is too long"));
     }
     let instance = Instance {
-        id: job.id.clone(),
+        id: id.clone(),
         name: name.trim().into(),
         provider: "mrpack".into(),
         version_name: preview.version,

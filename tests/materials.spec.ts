@@ -108,9 +108,9 @@ test('RU/EN Monocraft settings, both sidebar sides, themes and scaled viewports 
 test('install 43/97 progress and preparation/cancel actions keep readable spacing',async({page})=>{
  await nativeFixture(page);await page.goto('/');await page.getByRole('button',{name:'Library',exact:true}).first().click();await page.getByRole('button',{name:'New instance',exact:true}).click();
  const dialog=page.getByRole('dialog',{name:'New instance',exact:true});await dialog.getByRole('textbox',{name:'Name',exact:true}).fill('Progress QA');await dialog.getByRole('button',{name:'New instance',exact:true}).click();
- await expect(dialog.locator('.install-progress')).toContainText('43/97');await expect(dialog.locator('.install-progress small')).toContainText('very-long-library-name');
- const progress=(await dialog.locator('.install-progress').boundingBox())!,actions=(await dialog.locator('.install-dialog-actions').boundingBox())!;expect(actions.y-(progress.y+progress.height)).toBeGreaterThanOrEqual(16);
- const prepare=(await dialog.getByRole('button',{name:'Preparing',exact:true}).boundingBox())!,cancel=(await dialog.getByRole('button',{name:'Cancel',exact:true}).boundingBox())!;expect(cancel.x-(prepare.x+prepare.width)).toBeGreaterThanOrEqual(11);
+ await expect(dialog.locator('.activity-task')).toContainText('43 / 97');await expect(dialog.locator('.activity-file')).toContainText('very-long-library-name');
+ const progress=(await dialog.locator('.activity-task').boundingBox())!,actions=(await dialog.locator('.install-dialog-actions').boundingBox())!;expect(actions.y-(progress.y+progress.height)).toBeGreaterThanOrEqual(16);
+ const prepare=(await dialog.getByRole('button',{name:'Preparing',exact:true}).boundingBox())!,cancel=(await dialog.getByRole('button',{name:'Cancel',exact:true}).boundingBox())!;expect(cancel.height).toBeGreaterThanOrEqual(32);expect(cancel.x-(prepare.x+prepare.width)).toBeGreaterThanOrEqual(11);
  await page.screenshot({path:'.qa/materials/install-progress.png'});await dialog.getByRole('button',{name:'Cancel',exact:true}).click();await expect(dialog.locator('form')).toHaveAttribute('aria-busy','false');
 });
 
