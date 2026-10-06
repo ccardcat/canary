@@ -207,7 +207,12 @@ WebView2 processes работают ([startup report](qa/discord/windows-startup
 для автоматизации UI. Это не проверка установки обычного MSI/EXE. Сборка с
 инспектором не попадает в release assets. Build artifacts сохраняются даже
 при провале native QA, но failed QA продолжает блокировать публикацию релиза.
-Результат нового native test ещё требует подтверждения.
+Результат нового native test ещё требует подтверждения. Дополнительно устранена
+гонка в `choose()` оконного smoke-теста: он ждёт renderer control после animated
+Settings tab transition. В настоящем GTK/WebKit подтверждено, что немедленно
+после перехода control отсутствует; ожидание, Traffic Lights, Left controls,
+Text branding и восстановление исходных preferences проходят без alert
+([dropdown report](qa/discord/dropdown-wait-report.json)).
 
 ## Git Report
 

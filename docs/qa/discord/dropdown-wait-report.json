@@ -1,0 +1,11 @@
+{
+  "status": "success",
+  "runtime": "native GTK/WebKit",
+  "immediatelyReady": false,
+  "renderWaitMs": 2745,
+  "windowControls": true,
+  "controlPosition": true,
+  "branding": true,
+  "preferencesRestored": true,
+  "alerts": 0
+}
