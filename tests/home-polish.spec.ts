@@ -113,13 +113,16 @@ test("local-time greeting changes live, switches account and handles no account 
   });
   await page.goto("/");
   const heading = page.locator(".home-greeting");
-  await expect(heading).toContainText("С добрым утром, LicensedPlayer");
+  await expect(heading).toContainText("Доброе утро, LicensedPlayer");
   for (const [utc, period, text] of [
-    ["09:00", "day", "С добрым днём"],
-    ["15:00", "evening", "С добрым вечером"],
-    ["20:30", "night", "С доброй ночью"],
-    ["23:00", "night", "С доброй ночью"],
-    ["02:00", "morning", "С добрым утром"],
+    ["09:00", "day", "Добрый день"],
+    ["10:00", "day", "Добрый день"],
+    ["15:00", "evening", "Добрый вечер"],
+    ["17:00", "evening", "Добрый вечер"],
+    ["20:30", "night", "Доброй ночи"],
+    ["23:00", "night", "Доброй ночи"],
+    ["22:00", "night", "Доброй ночи"],
+    ["02:00", "morning", "Доброе утро"],
   ]) {
     await page.clock.setSystemTime(new Date(`2026-10-06T${utc}:00Z`));
     await page.evaluate(() => window.dispatchEvent(new Event("focus")));
@@ -148,7 +151,7 @@ test("local-time greeting changes live, switches account and handles no account 
     (globalThis as any).__materialQA.state.accounts = [];
   });
   await refresh(page);
-  await expect(heading).toHaveText("С добрым утром");
+  await expect(heading).toHaveText("Доброе утро");
   await page.evaluate(() => localStorage.setItem("canary-language", "en"));
   await page.reload();
   await expect(heading).toContainText("Good morning");

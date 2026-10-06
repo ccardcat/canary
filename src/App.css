@@ -1564,7 +1564,6 @@ select,
   --highlight: #ffffff12;
   --danger-surface: color-mix(in srgb, var(--danger) 9%, var(--surface));
   --danger-border: color-mix(in srgb, var(--danger) 38%, var(--line));
-  --scroll-thumb: #61716a80;
   --faint: #899590;
   --ease: cubic-bezier(0.2, 0.8, 0.2, 1);
   color-scheme: dark;
@@ -1573,7 +1572,6 @@ select,
   --highlight: #ffffff9c;
   --faint: #65716b;
   --danger: #a32a39;
-  --scroll-thumb: #73857b66;
   color-scheme: light;
 }
 :root[data-mode="dark"][data-preset="softDark"] {
@@ -1676,25 +1674,6 @@ img {
   background: color-mix(in srgb, var(--accent) 28%, transparent);
   color: var(--text);
 }
-* {
-  scrollbar-width: thin;
-  scrollbar-color: var(--scroll-thumb) transparent;
-}
-::-webkit-scrollbar {
-  width: 9px;
-  height: 9px;
-}
-::-webkit-scrollbar-track {
-  background: color-mix(in srgb, var(--bg) 85%, transparent);
-}
-::-webkit-scrollbar-thumb {
-  border: 2px solid var(--bg);
-  border-radius: 20px;
-  background: var(--scroll-thumb);
-}
-::-webkit-scrollbar-thumb:hover {
-  background: color-mix(in srgb, var(--text) 45%, transparent);
-}
 .canary-app {
   height: 100dvh;
   min-height: 0;
@@ -1759,7 +1738,23 @@ img {
 }
 .sidebar nav {
   position: relative;
+  display: flex;
+  flex-direction: column;
+  flex: 1 1 0;
+  min-height: 0;
+  overflow-y: auto;
+  overflow-x: hidden;
+  overscroll-behavior: contain;
 }
+.sidebar-content {
+  display: flex;
+  flex-direction: column;
+  flex: 1;
+  min-height: 0;
+  min-width: 0;
+}
+.sidebar-content > .brand { flex-shrink: 0; }
+.sidebar nav > button { flex-shrink: 0; }
 .sidebar nav button,
 .settings-nav button {
   position: relative;
@@ -1803,7 +1798,8 @@ img {
   backdrop-filter: blur(16px) saturate(1.2);
 }
 .sidebar-bottom {
-  margin-top: auto;
+  flex-shrink: 0;
+  margin-top: 10px;
   padding-top: 14px;
 }
 .topbar {

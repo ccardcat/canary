@@ -24,10 +24,10 @@ export function useTimeOfDay() {
 }
 const greetings = {
   ru: {
-    morning: "С добрым утром",
-    day: "С добрым днём",
-    evening: "С добрым вечером",
-    night: "С доброй ночью",
+    morning: "Доброе утро",
+    day: "Добрый день",
+    evening: "Добрый вечер",
+    night: "Доброй ночи",
   },
   en: {
     morning: "Good morning",

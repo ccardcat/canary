@@ -54,6 +54,7 @@ import {
   Square,
 } from "lucide-react";
 import "./App.css";
+import "./Scrollbars.css";
 
 import TitleBar from "./components/TitleBar";
 import HomeGreeting from "./components/HomeGreeting";
@@ -183,12 +184,15 @@ function App() {
   const [narrow, setNarrow] = useState(
     () => matchMedia("(max-width: 900px)").matches,
   );
+  const [expandNarrow, setExpandNarrow] = useState(
+    () => localStorage.getItem("canary-sidebar-expanded-narrow") === "true",
+  );
   const [preset, setPreset] = useState(
     () => localStorage.getItem("canary-preset") || "graphite",
   );
   const resolvedMode =
     mode === "system" ? (systemLight ? "light" : "dark") : mode;
-  const sidebarOpen = !compact && !narrow;
+  const sidebarOpen = !compact && (!narrow || expandNarrow);
   const accountRef = useRef<HTMLDivElement>(null);
   const filterRef = useRef<HTMLDivElement>(null);
 
@@ -428,63 +432,77 @@ function App() {
       <div className={"canary-app" + (busy ? " is-installing" : "")}>
         <aside className={sidebarOpen ? "sidebar" : "sidebar compact"}>
           <SidebarArtwork />
-          <div className="brand">
-            <img
-              src={
-                resolvedMode === "light"
-                  ? "/branding/canary-bird-black.png"
-                  : "/branding/canary-bird-white.png"
-              }
-              alt=""
-              draggable={false}
-            />
-            <span>Canary</span>
-          </div>
-          <nav aria-label={t("navigation")}>
-            {(Object.keys(nav) as Page[]).map((id) => {
-              const Icon = nav[id];
-              return (
-                <button
-                  key={id}
-                  aria-label={t(id.toLowerCase() as Key)}
-                  aria-current={activeNav === id ? "page" : undefined}
-                  data-tooltip={t(id.toLowerCase() as Key)}
-                  className={activeNav === id ? "active" : ""}
-                  onClick={() => navigation(id)}
-                >
-                  {activeNav === id && (
-                    <motion.span
-                      className="nav-capsule"
-                      layoutId="sidebar-active"
-                    />
-                  )}
-                  <Icon size={19} />
-                  <span className="nav-label">
-                    {t(id.toLowerCase() as Key)}
-                  </span>
-                </button>
-              );
-            })}
-          </nav>
-          <div className="sidebar-bottom">
-            <button
-              onClick={() => setCompact(!compact)}
-              aria-label={compact ? t("expand") : t("collapse")}
-              data-tooltip={compact ? t("expand") : t("collapse")}
-            >
-              <PanelLeftClose size={18} />
-              <span className="nav-label">{t("collapse")}</span>
-            </button>
-            <button
-              onClick={() => {
-                setSettingsTab("language");
-                setSettingsOpen(true);
-              }}
-              data-tooltip={t("language")}
-            >
-              <span className="language-code">{lang.toUpperCase()}</span>
-              <span className="nav-label">{t("language")}</span>
-            </button>
+          <div className="sidebar-content">
+            <div className="brand">
+              <img
+                src={
+                  resolvedMode === "light"
+                    ? "/branding/canary-bird-black.png"
+                    : "/branding/canary-bird-white.png"
+                }
+                alt=""
+                draggable={false}
+              />
+              <span>Canary</span>
+            </div>
+            <nav aria-label={t("navigation")}>
+              {(Object.keys(nav) as Page[]).map((id) => {
+                const Icon = nav[id];
+                return (
+                  <button
+                    key={id}
+                    aria-label={t(id.toLowerCase() as Key)}
+                    aria-current={activeNav === id ? "page" : undefined}
+                    data-tooltip={t(id.toLowerCase() as Key)}
+                    className={activeNav === id ? "active" : ""}
+                    onClick={() => navigation(id)}
+                  >
+                    {activeNav === id && (
+                      <motion.span
+                        className="nav-capsule"
+                        layoutId="sidebar-active"
+                      />
+                    )}
+                    <Icon size={19} />
+                    <span className="nav-label">
+                      {t(id.toLowerCase() as Key)}
+                    </span>
+                  </button>
+                );
+              })}
+            </nav>
+            <div className="sidebar-bottom">
+              <button
+                onClick={() => {
+                  setCompact(sidebarOpen);
+                  if (narrow) {
+                    setExpandNarrow(!sidebarOpen);
+                    localStorage.setItem(
+                      "canary-sidebar-expanded-narrow",
+                      String(!sidebarOpen),
+                    );
+                  }
+                }}
+                aria-label={sidebarOpen ? t("collapse") : t("expand")}
+                data-tooltip={sidebarOpen ? t("collapse") : t("expand")}
+              >
+                <PanelLeftClose size={18} />
+                <span className="nav-label">
+                  {sidebarOpen ? t("collapse") : t("expand")}
+                </span>
+              </button>
+              <button
+                onClick={() => {
+                  setSettingsTab("language");
+                  setSettingsOpen(true);
+                }}
+                data-tooltip={t("language")}
+                aria-label={t("language")}
+              >
+                <span className="language-code">{lang.toUpperCase()}</span>
+                <span className="nav-label">{t("language")}</span>
+              </button>
+            </div>
           </div>
         </aside>
         <main className="content-shell">
