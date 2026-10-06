@@ -171,7 +171,7 @@ Native evidence: [`docs/qa/discord/native-report.json`](qa/discord/native-report
 Не выполнено: визуальный профиль в **настоящем авторизованном Discord desktop**,
 закрытие/открытие именно Discord client, Developer Portal assets и клик кнопки
 в Discord. Тестовый protocol peer и реальные Canary/Minecraft не выдаются за
-эти проверки. Финальная Windows executable/native QA зависит от Actions.
+эти проверки. Windows native QA evidence и ограничения приведены ниже.
 
 ## Build Report
 
@@ -214,6 +214,26 @@ Settings tab transition. В настоящем GTK/WebKit подтвержден
 Text branding и восстановление исходных preferences проходят без alert
 ([dropdown report](qa/discord/dropdown-wait-report.json)).
 
+
+После включения инспектора Windows run `37524574258` проверил реальное окно:
+F11/Escape, normal/maximized restore, 15 сочетаний темы и native material,
+fullscreen fallback/restoration, opacity/blur/tint, sidebar side, titlebar и
+keyboard dropdowns. **36 captures выполнены методом native-desktop**. High
+quality sample: 258 frames / 4007.5 ms, median 15.6 ms, p95 15.7 ms, 0 frames
+>50 ms. Это измерения hosted runner, не обещание FPS на пользовательском GPU.
+[Native material report](qa/discord/windows-material-report.json) содержит
+частичный успех и итоговый failure на Low: sidebar blur оказался `4px`.
+
+Для **0.1.5** исправлены stale Low-quality override и порядок prefixed/standard
+backdrop declarations: при production CSS minification прежний порядок оставлял
+только WebKit property, которую Chromium игнорировал. Standard declaration
+теперь идёт после vendor fallback. В **production Vite assets**, headless Chromium,
+для Light/Dark/AMOLED sidebar/settings/nav-capsule проверены `backdrop-filter:none`
+([production report](qa/discord/production-low-report.json)). Existing low-quality
+appearance regression и 10 material/appearance tests также прошли. Windows native pass для исправленного 0.1.5
+ещё ожидается. В publication download добавлен installer-only artifact pattern;
+QA executable с инспектором исключён из release asset inputs.
+
 ## Git Report
 
 Branch: `main`. Starting commit:
@@ -223,7 +243,7 @@ status приводятся в сообщении о выполнении. Су�
 
 ## Remaining Issues
 
-Нужны native Windows + реальный Discord desktop для визуального подтверждения,
+Нужен полный native Windows pass для 0.1.5 и реальный Discord desktop для визуального подтверждения,
 подтверждение/загрузка assets в Developer Portal и проверка публичного сайта.
 Отсутствующие Discord credentials не являются требованием к запуску или сборке.
 HTTP site verification в облаке ограничен network policy. Download button

@@ -1,0 +1,61 @@
+{
+  "version": "0.1.5",
+  "status": "success",
+  "runtime": "production Vite assets in headless Chromium; no mocked CSS",
+  "results": [
+    {
+      "mode": "light",
+      "quality": "low",
+      "surfaces": [
+        {
+          "selector": ".sidebar",
+          "blur": "none"
+        },
+        {
+          "selector": ".settings-modal",
+          "blur": "none"
+        },
+        {
+          "selector": ".nav-capsule",
+          "blur": "none"
+        }
+      ]
+    },
+    {
+      "mode": "dark",
+      "quality": "low",
+      "surfaces": [
+        {
+          "selector": ".sidebar",
+          "blur": "none"
+        },
+        {
+          "selector": ".settings-modal",
+          "blur": "none"
+        },
+        {
+          "selector": ".nav-capsule",
+          "blur": "none"
+        }
+      ]
+    },
+    {
+      "mode": "amoled",
+      "quality": "low",
+      "surfaces": [
+        {
+          "selector": ".sidebar",
+          "blur": "none"
+        },
+        {
+          "selector": ".settings-modal",
+          "blur": "none"
+        },
+        {
+          "selector": ".nav-capsule",
+          "blur": "none"
+        }
+      ]
+    }
+  ]
+}

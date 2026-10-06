@@ -1,0 +1,526 @@
+{
+  "source": "e8a352e9336b1dc32ef4deab8b1bdd155312fde9",
+  "run_url": "https://github.com/ccardcat/canary/actions/runs/37524574258",
+  "nativeQA": {
+    "platform": "win32",
+    "cases": [
+      {
+        "name": "normal-fullscreen-normal",
+        "before": {
+          "fullscreen": false,
+          "maximized": false,
+          "size": {
+            "width": 900,
+            "height": 620
+          },
+          "position": {
+            "x": 50,
+            "y": 40
+          },
+          "ui": {
+            "state": "normal",
+            "fullscreen": "false",
+            "titlebar": "flex"
+          }
+        },
+        "after": {
+          "fullscreen": false,
+          "maximized": false,
+          "size": {
+            "width": 900,
+            "height": 620
+          },
+          "position": {
+            "x": 50,
+            "y": 40
+          },
+          "ui": {
+            "state": "normal",
+            "fullscreen": "false",
+            "titlebar": "flex"
+          }
+        }
+      },
+      {
+        "name": "maximized-fullscreen-maximized",
+        "state": {
+          "fullscreen": false,
+          "maximized": true,
+          "size": {
+            "width": 1024,
+            "height": 720
+          },
+          "position": {
+            "x": 0,
+            "y": 0
+          },
+          "ui": {
+            "state": "maximized",
+            "fullscreen": "false",
+            "titlebar": "flex"
+          }
+        }
+      },
+      {
+        "name": "rapid-F11-and-Escape",
+        "state": {
+          "fullscreen": false,
+          "maximized": false,
+          "size": {
+            "width": 900,
+            "height": 620
+          },
+          "position": {
+            "x": 50,
+            "y": 40
+          },
+          "ui": {
+            "state": "normal",
+            "fullscreen": "false",
+            "titlebar": "flex"
+          }
+        }
+      },
+      {
+        "name": "material",
+        "theme": "Light",
+        "requested": "solid",
+        "actual": "solid",
+        "root": "rgb(245, 246, 245)"
+      },
+      {
+        "name": "fullscreen-material-restoration",
+        "theme": "Light",
+        "requested": "solid",
+        "normal": "solid",
+        "fullscreen": "solid",
+        "restored": "solid"
+      },
+      {
+        "name": "material",
+        "theme": "Light",
+        "requested": "transparent",
+        "actual": "transparent",
+        "root": "rgba(0, 0, 0, 0)"
+      },
+      {
+        "name": "fullscreen-material-restoration",
+        "theme": "Light",
+        "requested": "transparent",
+        "normal": "transparent",
+        "fullscreen": "transparent",
+        "restored": "transparent"
+      },
+      {
+        "name": "material",
+        "theme": "Light",
+        "requested": "acrylic",
+        "actual": "acrylic",
+        "root": "rgba(0, 0, 0, 0)"
+      },
+      {
+        "name": "fullscreen-material-restoration",
+        "theme": "Light",
+        "requested": "acrylic",
+        "normal": "acrylic",
+        "fullscreen": "acrylic",
+        "restored": "acrylic"
+      },
+      {
+        "name": "material",
+        "theme": "Light",
+        "requested": "mica",
+        "actual": "mica",
+        "root": "rgba(0, 0, 0, 0)"
+      },
+      {
+        "name": "fullscreen-material-restoration",
+        "theme": "Light",
+        "requested": "mica",
+        "normal": "mica",
+        "fullscreen": "acrylic",
+        "restored": "mica"
+      },
+      {
+        "name": "material",
+        "theme": "Light",
+        "requested": "mica-alt",
+        "actual": "mica-alt",
+        "root": "rgba(0, 0, 0, 0)"
+      },
+      {
+        "name": "fullscreen-material-restoration",
+        "theme": "Light",
+        "requested": "mica-alt",
+        "normal": "mica-alt",
+        "fullscreen": "acrylic",
+        "restored": "mica-alt"
+      },
+      {
+        "name": "material",
+        "theme": "Dark",
+        "requested": "solid",
+        "actual": "solid",
+        "root": "rgb(8, 10, 11)"
+      },
+      {
+        "name": "fullscreen-material-restoration",
+        "theme": "Dark",
+        "requested": "solid",
+        "normal": "solid",
+        "fullscreen": "solid",
+        "restored": "solid"
+      },
+      {
+        "name": "material",
+        "theme": "Dark",
+        "requested": "transparent",
+        "actual": "transparent",
+        "root": "rgba(0, 0, 0, 0)"
+      },
+      {
+        "name": "fullscreen-material-restoration",
+        "theme": "Dark",
+        "requested": "transparent",
+        "normal": "transparent",
+        "fullscreen": "transparent",
+        "restored": "transparent"
+      },
+      {
+        "name": "material",
+        "theme": "Dark",
+        "requested": "acrylic",
+        "actual": "acrylic",
+        "root": "rgba(0, 0, 0, 0)"
+      },
+      {
+        "name": "fullscreen-material-restoration",
+        "theme": "Dark",
+        "requested": "acrylic",
+        "normal": "acrylic",
+        "fullscreen": "acrylic",
+        "restored": "acrylic"
+      },
+      {
+        "name": "material",
+        "theme": "Dark",
+        "requested": "mica",
+        "actual": "mica",
+        "root": "rgba(0, 0, 0, 0)"
+      },
+      {
+        "name": "fullscreen-material-restoration",
+        "theme": "Dark",
+        "requested": "mica",
+        "normal": "mica",
+        "fullscreen": "acrylic",
+        "restored": "mica"
+      },
+      {
+        "name": "material",
+        "theme": "Dark",
+        "requested": "mica-alt",
+        "actual": "mica-alt",
+        "root": "rgba(0, 0, 0, 0)"
+      },
+      {
+        "name": "fullscreen-material-restoration",
+        "theme": "Dark",
+        "requested": "mica-alt",
+        "normal": "mica-alt",
+        "fullscreen": "acrylic",
+        "restored": "mica-alt"
+      },
+      {
+        "name": "material",
+        "theme": "AMOLED",
+        "requested": "solid",
+        "actual": "solid",
+        "root": "rgb(0, 0, 0)"
+      },
+      {
+        "name": "fullscreen-material-restoration",
+        "theme": "AMOLED",
+        "requested": "solid",
+        "normal": "solid",
+        "fullscreen": "solid",
+        "restored": "solid"
+      },
+      {
+        "name": "material",
+        "theme": "AMOLED",
+        "requested": "transparent",
+        "actual": "transparent",
+        "root": "rgba(0, 0, 0, 0)"
+      },
+      {
+        "name": "fullscreen-material-restoration",
+        "theme": "AMOLED",
+        "requested": "transparent",
+        "normal": "transparent",
+        "fullscreen": "transparent",
+        "restored": "transparent"
+      },
+      {
+        "name": "material",
+        "theme": "AMOLED",
+        "requested": "acrylic",
+        "actual": "acrylic",
+        "root": "rgba(0, 0, 0, 0)"
+      },
+      {
+        "name": "fullscreen-material-restoration",
+        "theme": "AMOLED",
+        "requested": "acrylic",
+        "normal": "acrylic",
+        "fullscreen": "acrylic",
+        "restored": "acrylic"
+      },
+      {
+        "name": "material",
+        "theme": "AMOLED",
+        "requested": "mica",
+        "actual": "mica",
+        "root": "rgba(0, 0, 0, 0)"
+      },
+      {
+        "name": "fullscreen-material-restoration",
+        "theme": "AMOLED",
+        "requested": "mica",
+        "normal": "mica",
+        "fullscreen": "acrylic",
+        "restored": "mica"
+      },
+      {
+        "name": "material",
+        "theme": "AMOLED",
+        "requested": "mica-alt",
+        "actual": "mica-alt",
+        "root": "rgba(0, 0, 0, 0)"
+      },
+      {
+        "name": "fullscreen-material-restoration",
+        "theme": "AMOLED",
+        "requested": "mica-alt",
+        "normal": "mica-alt",
+        "fullscreen": "acrylic",
+        "restored": "mica-alt"
+      },
+      {
+        "name": "custom-opacity-blur-tint",
+        "windowTransparency": 77,
+        "surfaceOpacity": 74,
+        "surfaceBlur": 23,
+        "tint": "strong"
+      }
+    ],
+    "captures": [
+      {
+        "name": "fullscreen",
+        "method": "native-desktop"
+      },
+      {
+        "name": "light-solid",
+        "method": "native-desktop"
+      },
+      {
+        "name": "light-solid-fullscreen",
+        "method": "native-desktop"
+      },
+      {
+        "name": "light-transparent",
+        "method": "native-desktop"
+      },
+      {
+        "name": "light-transparent-fullscreen",
+        "method": "native-desktop"
+      },
+      {
+        "name": "light-acrylic",
+        "method": "native-desktop"
+      },
+      {
+        "name": "light-acrylic-fullscreen",
+        "method": "native-desktop"
+      },
+      {
+        "name": "light-mica",
+        "method": "native-desktop"
+      },
+      {
+        "name": "light-mica-fullscreen",
+        "method": "native-desktop"
+      },
+      {
+        "name": "light-mica-alt",
+        "method": "native-desktop"
+      },
+      {
+        "name": "light-mica-alt-fullscreen",
+        "method": "native-desktop"
+      },
+      {
+        "name": "dark-solid",
+        "method": "native-desktop"
+      },
+      {
+        "name": "dark-solid-fullscreen",
+        "method": "native-desktop"
+      },
+      {
+        "name": "dark-transparent",
+        "method": "native-desktop"
+      },
+      {
+        "name": "dark-transparent-fullscreen",
+        "method": "native-desktop"
+      },
+      {
+        "name": "dark-acrylic",
+        "method": "native-desktop"
+      },
+      {
+        "name": "dark-acrylic-fullscreen",
+        "method": "native-desktop"
+      },
+      {
+        "name": "dark-mica",
+        "method": "native-desktop"
+      },
+      {
+        "name": "dark-mica-fullscreen",
+        "method": "native-desktop"
+      },
+      {
+        "name": "dark-mica-alt",
+        "method": "native-desktop"
+      },
+      {
+        "name": "dark-mica-alt-fullscreen",
+        "method": "native-desktop"
+      },
+      {
+        "name": "amoled-solid",
+        "method": "native-desktop"
+      },
+      {
+        "name": "amoled-solid-fullscreen",
+        "method": "native-desktop"
+      },
+      {
+        "name": "amoled-transparent",
+        "method": "native-desktop"
+      },
+      {
+        "name": "amoled-transparent-fullscreen",
+        "method": "native-desktop"
+      },
+      {
+        "name": "amoled-acrylic",
+        "method": "native-desktop"
+      },
+      {
+        "name": "amoled-acrylic-fullscreen",
+        "method": "native-desktop"
+      },
+      {
+        "name": "amoled-mica",
+        "method": "native-desktop"
+      },
+      {
+        "name": "amoled-mica-fullscreen",
+        "method": "native-desktop"
+      },
+      {
+        "name": "amoled-mica-alt",
+        "method": "native-desktop"
+      },
+      {
+        "name": "amoled-mica-alt-fullscreen",
+        "method": "native-desktop"
+      },
+      {
+        "name": "right-sidebar-fullscreen",
+        "method": "native-desktop"
+      },
+      {
+        "name": "left-traffic-controls",
+        "method": "native-desktop"
+      },
+      {
+        "name": "centered-text-brand",
+        "method": "native-desktop"
+      },
+      {
+        "name": "glass-dropdown",
+        "method": "native-desktop"
+      },
+      {
+        "name": "performance-high-fullscreen",
+        "method": "native-desktop"
+      }
+    ],
+    "capabilities": {
+      "platform": "windows",
+      "build": 26100,
+      "supported": [
+        "solid",
+        "transparent",
+        "acrylic",
+        "mica",
+        "mica-alt"
+      ]
+    },
+    "performance": [
+      {
+        "quality": "high",
+        "durationMs": 4007.5,
+        "frames": 258,
+        "medianMs": 15.600000000000364,
+        "p95Ms": 15.700000000000273,
+        "over50ms": 0,
+        "particles": 0,
+        "sidebarBlur": "blur(24px)",
+        "material": "acrylic",
+        "fullscreen": "true"
+      }
+    ],
+    "status": "failure",
+    "error": "AssertionError [ERR_ASSERTION]: Expected values to be strictly equal:\n+ actual - expected\n\n+ 'blur(4px)'\n- 'none'\n",
+    "app-startup.log": "1791318695 Canary runtime starting\n1791318695 storage initialization\n1791318695 storage loaded\n1791318695 HTTP client initialization\n1791318698 Tauri setup entered\n1791318698 Tauri setup complete\n",
+    "app-stderr.log": "[discord] initialized\n[discord] Unavailable\n",
+    "startup": {
+      "webviews": [
+        {
+          "Id": 1140,
+          "ProcessName": "msedgewebview2"
+        },
+        {
+          "Id": 2536,
+          "ProcessName": "msedgewebview2"
+        },
+        {
+          "Id": 2788,
+          "ProcessName": "msedgewebview2"
+        },
+        {
+          "Id": 5620,
+          "ProcessName": "msedgewebview2"
+        },
+        {
+          "Id": 6520,
+          "ProcessName": "msedgewebview2"
+        },
+        {
+          "Id": 7060,
+          "ProcessName": "msedgewebview2"
+        }
+      ],
+      "responding": true,
+      "title": "Canary",
+      "session": 2,
+      "handle": 131432,
+      "pid": 8340
+    }
+  }
+}

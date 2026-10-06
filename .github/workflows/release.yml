@@ -147,6 +147,7 @@ jobs:
         if: needs.build.result == 'success' || inputs.reuse_run != ''
         uses: actions/download-artifact@v4
         with:
+          pattern: canary-*-x64
           path: ${{ runner.temp }}/canary-installers
           merge-multiple: true
           github-token: ${{ github.token }}

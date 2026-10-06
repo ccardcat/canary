@@ -56,7 +56,7 @@
 :root[data-focus="true"] :is(.global-wallpaper,.sidebar-art,.hero-art) { animation:none!important; }
 :root[data-focus="true"] .global-wallpaper { opacity:calc(var(--wallpaper-opacity) * .65); }
 :root[data-focus="true"] .project-card { background:var(--surface); }
-:root[data-quality="low"] :is(.nav-capsule,.type-tabs,.popover,.account-button,.settings-modal,.sidebar) { backdrop-filter:blur(4px); }
+:root[data-quality="low"] :is(.nav-capsule,.type-tabs,.popover,.account-button,.settings-modal,.sidebar) { -webkit-backdrop-filter:none; backdrop-filter:none; }
 :root[data-quality="low"] :is(.project-card,.home-hero,.popover) { box-shadow:inset 0 1px var(--highlight),0 3px 12px #00000012; }
 :root[data-quality="low"] :is(.global-wallpaper,.sidebar-art,.hero-art) { animation:none!important; }
 :root[data-quality="low"] .global-wallpaper { filter:blur(min(var(--wallpaper-blur),2px)) brightness(var(--wallpaper-brightness,1)) saturate(var(--wallpaper-saturation,.75)); }
