@@ -4,6 +4,7 @@ import {resolve} from 'node:path';
 import {openSync,closeSync} from 'node:fs';
 import assert from 'node:assert/strict';
 import {materialPresetQA} from './material-preset-qa.mjs';
+import {discoverInstallQA} from './discover-install-qa.mjs';
 
 // Connect to the real WebView2 of the packaged executable. No mocked IPC.
 if(process.platform!=='win32')throw Error('This check requires a Windows desktop runner');
@@ -104,6 +105,7 @@ try{
  await call('Runtime.enable');await call('Page.enable');await until(()=>evaluate(`!!document.querySelector('.home-hero')&&document.documentElement.dataset.windowTransition==='false'`),'restarted Canary Home');
  const reopened=await persistence();assert.deepEqual(reopened,saved);assert.notEqual(app.pid,previousPid);await screenshot('right-floating-compact-clear-process-restart');
  report.cases.push({name:'material-layout-full-process-restart',previousPid,restartedPid:app.pid,sidebarSide:reopened.visual.sidebarSide,sidebarMode:reopened.visual.sidebarMode,compact:reopened.compact,preset:reopened.cards,configurationPreserved:true});
+ await discoverInstallQA({evaluate,invoke,click,textButton,until,screenshot,report});
  report.status='success';console.log('WINDOWS_NATIVE_FULLSCREEN_GEOMETRY_MATERIAL_THEMES_DROPDOWNS_VERIFIED');
 }catch(error){
  report.status='failure';report.error=String(error);
