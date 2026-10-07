@@ -35,6 +35,7 @@ async function start(page: Page, russian = false) {
   }, russian);
   await page.goto("/");
   await expect(page.locator(".home-greeting")).toBeVisible();
+  await expect(page.locator(".startup-splash")).toHaveCount(0);
   await page.evaluate(() => document.fonts.ready);
 }
 
@@ -224,13 +225,13 @@ test("wheel, scrollbar drag and Tab reveal navigation while utilities stay pinne
   for (let i = 0; i < 6; i++) await page.keyboard.press("Tab");
   await expect(nav.locator("button").last()).toBeFocused();
   expect(await nav.evaluate((el) => el.scrollTop)).toBeGreaterThan(0);
-  await expect(nav.locator("button").last()).toHaveCSS("outline-style", "none");
+  await expect(nav.locator("button").last()).toHaveCSS("outline-style", "solid");
   expect(
     await nav
       .locator("button")
       .last()
       .evaluate((el) => getComputedStyle(el).boxShadow),
-  ).not.toBe("none");
+  ).toBe("none");
   await page.keyboard.press("Tab");
   await expect(page.locator(".sidebar-bottom button").first()).toBeFocused();
   await page.keyboard.press("Tab");

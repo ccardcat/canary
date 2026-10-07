@@ -423,7 +423,7 @@ function App() {
                         layoutId="sidebar-active"
                       />
                     )}
-                    <Icon size={19} />
+                    <span className="sidebar-icon" aria-hidden="true"><Icon size={20} /></span>
                     <span className="nav-label">
                       {t(id.toLowerCase() as Key)}
                     </span>
@@ -446,7 +446,7 @@ function App() {
                 aria-label={sidebarOpen ? t("collapse") : t("expand")}
                 data-tooltip={sidebarOpen ? t("collapse") : t("expand")}
               >
-                <PanelLeftClose size={18} />
+                <span className="sidebar-icon" aria-hidden="true"><PanelLeftClose size={20} /></span>
                 <span className="nav-label">
                   {sidebarOpen ? t("collapse") : t("expand")}
                 </span>
@@ -459,7 +459,7 @@ function App() {
                 data-tooltip={t("language")}
                 aria-label={t("language")}
               >
-                <span className="language-code">{lang.toUpperCase()}</span>
+                <span className="sidebar-icon" aria-hidden="true"><span className="language-code">{lang.toUpperCase()}</span></span>
                 <span className="nav-label">{t("language")}</span>
               </button>
             </div>

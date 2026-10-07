@@ -213,7 +213,7 @@
 .material-settings output { color:var(--muted); }
 .material-settings input[type=range] { width:100%; accent-color:var(--accent); }
 .material-controls { display:grid; grid-template-columns:repeat(auto-fit,minmax(min(100%,190px),1fr)); column-gap:16px; }
-.material-preview { display:flex; align-items:stretch; gap:12px; padding:20px; border-radius:20px; background:linear-gradient(135deg,#42495280,#17242b60),url('/backgrounds/sakura1-bg.jpg') center/cover; margin:16px 0; min-width:0; }
+.material-preview { display:flex; align-items:stretch; gap:12px; padding:20px; border-radius:20px; background:linear-gradient(color-mix(in srgb,var(--surface-primary) 88%,transparent),color-mix(in srgb,var(--surface-primary) 88%,transparent)),url('/backgrounds/sakura1-bg.jpg') center/cover; margin:16px 0; min-width:0; }
 .material-preview-sidebar { display:flex; align-items:center; flex-direction:column; gap:12px; padding:16px 8px; min-width:56px; font-size:.7rem; border:1px solid var(--mat-sidebar-edge); }
 .material-preview-card { min-width:0; flex:1; padding:16px; border:1px solid var(--mat-cards-edge); }
 .material-preview-card p { font-size:.75rem; color:var(--muted); }
@@ -371,6 +371,66 @@
 .material-swatch-sheet i:nth-child(2) { width:85%; }.material-swatch-sheet i:nth-child(3) { width:45%; }
 :root .sidebar { background:transparent; }
 
-/* The live sample has no page veil: back only its text, leaving the sheet visible. */
-.material-preview-card>b,.material-preview-card>p,.material-preview-sidebar>span { background:var(--mat-cards-readable-fill); border-radius:4px; width:fit-content; }
-.material-preview-sidebar>span { background:var(--mat-sidebar-readable-fill); }
+/* Readability belongs to the whole preview scene, never to individual glyphs. */
+
+/* Sidebar controls reserve the same border space in every state. */
+:root .sidebar .sidebar-content button {
+  box-sizing:border-box;
+  width:100%;
+  min-width:0;
+  min-height:45px;
+  height:45px;
+  padding:10px 15px;
+  display:flex;
+  align-items:center;
+  justify-content:flex-start;
+  gap:13px;
+  border:1px solid transparent;
+  outline:0;
+  box-shadow:none;
+  background:transparent;
+  transform:none;
+}
+:root .sidebar .sidebar-content button:is(:hover,:active,.active,[aria-current="page"]) {
+  border-color:transparent;
+  outline:0;
+  box-shadow:none;
+  transform:none;
+}
+:root .sidebar .sidebar-content button:hover { background:var(--surface-hover); }
+:root .sidebar .sidebar-content button:active { background:var(--surface-pressed); }
+:root .sidebar .sidebar-content button .nav-capsule {
+  border:1px solid transparent;
+  box-shadow:none;
+  background:var(--surface-selected);
+  outline:0;
+}
+:root .sidebar .sidebar-content button:is(:hover,:active) .nav-capsule { background:transparent; }
+:root .sidebar .sidebar-content button::before,
+:root .sidebar .sidebar-content button::after,
+:root .sidebar .nav-capsule::before,
+:root .sidebar .nav-capsule::after { border:0;outline:0;box-shadow:none; }
+:root .sidebar .sidebar-content button:focus-visible {
+  outline:1.5px solid var(--focus-ring);
+  outline-offset:-3px;
+  box-shadow:none;
+}
+:root .sidebar.compact .sidebar-content button { justify-content:center;padding-inline:0; }
+/* Long translated labels keep the icon hit area stable. */
+:root .sidebar .nav-label { overflow:hidden;text-overflow:ellipsis;white-space:nowrap; }
+.sidebar-icon {
+  position:relative;
+  z-index:1;
+  display:flex;
+  align-items:center;
+  justify-content:center;
+  flex:0 0 20px;
+  width:20px;
+  height:20px;
+}
+:root .sidebar .sidebar-icon svg { display:block;width:20px;height:20px;flex:none; }
+:root .sidebar .sidebar-bottom { gap:7px;min-width:0;grid-template-columns:minmax(0,1fr);padding-inline-end:var(--scrollbar-width); }
+@media(max-height:620px) { :root .sidebar .sidebar-bottom { gap:5px; } }
+/* Below this height the shared content scroller reserves the gutter instead. */
+@media(max-height:340px) { :root .sidebar .sidebar-bottom { padding-inline-end:0; } }
+@media(forced-colors:active) { :root .sidebar .sidebar-content button:focus-visible { outline-color:Highlight; } }
