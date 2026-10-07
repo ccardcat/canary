@@ -32,7 +32,7 @@ export const materialPresets = {
   canary:{materialCategories:{...categories}, surfaceOpacity:82, surfaceBlur:16},
   solid:{materialStyle:'solid',materialLinked:true,materialIntensity:40,surfaceOpacity:100,surfaceBlur:0},
   soft:{materialStyle:'soft',materialLinked:true,materialIntensity:40,surfaceOpacity:82,surfaceBlur:8},
-  vibrancy:{materialStyle:'vibrancy',materialLinked:true,materialIntensity:60,surfaceOpacity:82,surfaceBlur:16},
+  vibrancy:{materialStyle:'vibrancy',materialLinked:true,materialIntensity:60,surfaceOpacity:76,surfaceBlur:28},
   glass:{materialStyle:'glass',materialLinked:true,materialIntensity:50,surfaceOpacity:82,surfaceBlur:18},
   clear:{materialStyle:'clear',materialLinked:true,materialIntensity:50,surfaceOpacity:72,surfaceBlur:18},
   liquid:{materialStyle:'liquid',materialLinked:true,materialIntensity:55,surfaceOpacity:82,surfaceBlur:18},
@@ -81,7 +81,7 @@ export type TokenPreferences=MaterialPreferences & {surfaceOpacity:number;surfac
 export const materialProfiles:Record<SurfaceMaterial,{opacity:number;blur:number;saturation:number;light:number;edge:number;shadow:number;influence:number}>={
   solid:{opacity:100,blur:0,saturation:1,light:0,edge:.16,shadow:.035,influence:0},
   soft:{opacity:90,blur:.12,saturation:1,light:.012,edge:.08,shadow:.055,influence:.16},
-  vibrancy:{opacity:72,blur:.8,saturation:1.32,light:.025,edge:.1,shadow:.085,influence:.85},
+  vibrancy:{opacity:70,blur:1.3,saturation:1.18,light:0,edge:.018,shadow:.07,influence:.88},
   glass:{opacity:76,blur:1,saturation:1,light:.045,edge:.15,shadow:.09,influence:.55},
   clear:{opacity:48,blur:1,saturation:1,light:.018,edge:.075,shadow:.055,influence:.92},
   liquid:{opacity:58,blur:.9,saturation:1.08,light:.075,edge:.13,shadow:.1,influence:.72},

@@ -1,4 +1,5 @@
 pub mod activity;
+pub mod game_logs;
 pub mod discord;
 pub mod transaction;
 pub mod elyby;
@@ -8,6 +9,7 @@ pub mod content;
 pub mod content_provider;
 pub mod pack_update;
 pub mod accounts;
+pub mod account_resources;
 pub mod artwork;
 pub mod wallpapers;
 pub mod commands;
@@ -24,6 +26,7 @@ pub mod process;
 pub mod storage;
 pub mod storage_settings;
 pub mod system;
+pub mod memory;
 
 use std::{collections::HashMap, sync::{Arc, Mutex, atomic::AtomicBool}};
 use model::{BackendError, Result};
@@ -44,6 +47,7 @@ pub struct Backend {
     pub maintenance:AtomicBool,
     pub wallpaper_lock:Mutex<()>,
     pub auth:tokio::sync::Mutex<()>,
+    pub account_resources:account_resources::Registry,
     pub client: reqwest::Client,
     pub private_api_client:reqwest::Client,
     pub store: Mutex<model::Store>,
@@ -67,10 +71,14 @@ impl Backend {
         if let Some(path)=&store.settings.instances_path{transaction::recover(std::path::Path::new(path))?;}
         for path in &store.instance_roots {transaction::recover(std::path::Path::new(path))?;}
         startup_phase("HTTP client initialization");
-        Ok(Self { root,discord:Arc::new(discord::Manager::default()),tasks:Mutex::new(HashMap::new()),staged:Mutex::new(HashMap::new()),wallpaper_lock:Mutex::new(()),maintenance:AtomicBool::new(false),auth:tokio::sync::Mutex::new(()), store: Mutex::new(store), jobs: Mutex::new(HashMap::new()), provider_requests:Mutex::new(HashMap::new()), processes: Mutex::new(HashMap::new()),
+        Ok(Self { root,discord:Arc::new(discord::Manager::default()),tasks:Mutex::new(HashMap::new()),staged:Mutex::new(HashMap::new()),wallpaper_lock:Mutex::new(()),maintenance:AtomicBool::new(false),auth:tokio::sync::Mutex::new(()),account_resources:Mutex::new(HashMap::new()), store: Mutex::new(store), jobs: Mutex::new(HashMap::new()), provider_requests:Mutex::new(HashMap::new()), processes: Mutex::new(HashMap::new()),
             private_api_client:reqwest::Client::builder().user_agent("Canary/0.1.0").redirect(reqwest::redirect::Policy::none()).timeout(std::time::Duration::from_secs(30)).build()?,
             client: reqwest::Client::builder().user_agent("Canary/0.1.0 (https://github.com/ccardcat/canary)")
                 .connect_timeout(std::time::Duration::from_secs(20)).timeout(std::time::Duration::from_secs(300)).build()? })
+    }
+    pub fn record_activity(&self,kind:&str,message:&str,instance:Option<&str>)->Result<()>{
+        {let mut store=self.store.lock().unwrap();store.activity.push(model::Activity{id:uuid::Uuid::new_v4().to_string(),timestamp:model::now(),instance:instance.map(str::to_owned),kind:kind.into(),message:message.into()});store.activity.retain(|a|a.kind!="ready"&&a.timestamp>=model::now().saturating_sub(30*86400));let excess=store.activity.len().saturating_sub(300);store.activity.drain(..excess);}
+        self.persist()
     }
     pub fn settings(&self) -> model::Settings { self.store.lock().unwrap().settings.clone() }
     pub fn persist(&self) -> Result<()> { storage::write_json(&self.root.join("settings.json"), &*self.store.lock().unwrap()) }
@@ -83,21 +91,28 @@ impl Backend {
         if self.store.lock().unwrap().instance_catalog.iter().any(|i|i.id==id){return Err(BackendError::new("storage_unavailable","The drive containing this instance is unavailable. Reconnect it and retry."));}
         storage::safe_join(&self.instances_root(),id)
     }
-    pub fn instance(&self,id:&str)->Result<model::Instance> {storage::instance_from_dir(&self.instance_path(id)?,id)}
+    pub fn instance(&self,id:&str)->Result<model::Instance> {let mut value=storage::instance_from_dir(&self.instance_path(id)?,id)?;self.normalize_account(&mut value);Ok(value)}
+    pub fn normalize_account(&self,value:&mut model::Instance){if value.overrides.account.as_ref().is_some_and(|id|self.store.lock().unwrap().removed_accounts.contains(id)){value.overrides.account=None;}}
     pub fn instances(&self)->Result<Vec<model::Instance>> {
         let mut out=vec![];let mut available=vec![];
         for root in self.instance_roots(){if !root.is_dir(){continue;}available.push(root.clone());for i in storage::instances_in(&root)?{if !out.iter().any(|v:&model::Instance|v.id==i.id){out.push(i);}}}
-        {let mut store=self.store.lock().unwrap();for cached in &store.instance_catalog{if !out.iter().any(|i|i.id==cached.id)&&!available.iter().any(|r|std::path::Path::new(&cached.directory).parent()==Some(r.as_path())){let mut i=cached.clone();i.status="unavailable".into();i.error=Some(model::BackendErrorData{code:"storage_unavailable".into(),message:"Instance drive is unavailable".into()});out.push(i);}}store.instance_catalog=out.clone();}
-        self.persist()?;out.sort_by_key(|i|std::cmp::Reverse(i.installed));Ok(out)
+        {let mut store=self.store.lock().unwrap();for cached in &store.instance_catalog{if !out.iter().any(|i|i.id==cached.id)&&!available.iter().any(|r|std::path::Path::new(&cached.directory).parent()==Some(r.as_path())){let mut i=cached.clone();i.status="unavailable".into();i.error=Some(model::BackendErrorData{code:"storage_unavailable".into(),message:"Instance drive is unavailable".into()});out.push(i);}}for value in &mut out{if value.overrides.account.as_ref().is_some_and(|id|store.removed_accounts.contains(id)){value.overrides.account=None;}}if serde_json::to_value(&store.instance_catalog)?!=serde_json::to_value(&out)?{store.instance_catalog=out.clone();storage::write_json(&self.root.join("settings.json"),&*store)?;}}
+        out.sort_by_key(|i|std::cmp::Reverse(i.installed));Ok(out)
     }
     pub fn save_instance(&self,value:&model::Instance)->Result<()> {
-        let root=self.instance_path(&value.id)?;let mut value=value.clone();value.directory=root.to_string_lossy().into();storage::write_json(&root.join("instance.json"),&value)?;
-        if self.staged.lock().unwrap().contains_key(&value.id){return Ok(());}
-        {let mut store=self.store.lock().unwrap();store.instance_catalog.retain(|i|i.id!=value.id);store.instance_catalog.push(value);}self.persist()
+        let root=self.instance_path(&value.id)?;let mut value=value.clone();value.directory=root.to_string_lossy().into();
+        let staged=self.staged.lock().unwrap().contains_key(&value.id);
+        let mut store=self.store.lock().unwrap();
+        if value.overrides.account.as_ref().is_some_and(|id|store.removed_accounts.contains(id)){value.overrides.account=None;}
+        storage::write_json(&root.join("instance.json"),&value)?;
+        if staged{return Ok(());}
+        store.instance_catalog.retain(|i|i.id!=value.id);store.instance_catalog.push(value);
+        storage::write_json(&self.root.join("settings.json"),&*store)
     }
     pub fn begin(&self, id: &str) -> Result<Arc<AtomicBool>> {
         let mut jobs = self.jobs.lock().unwrap();
-        if self.maintenance.load(std::sync::atomic::Ordering::Acquire)||jobs.contains_key(id) || self.processes.lock().unwrap().contains_key(id) { return Err(BackendError::new("busy", "Instance is already preparing or running")); }
+        if self.maintenance.load(std::sync::atomic::Ordering::Acquire){return Err(BackendError::new("storage_in_use", "Storage maintenance is in progress"));}
+        if jobs.contains_key(id) || self.processes.lock().unwrap().contains_key(id) { return Err(BackendError::new("instance_in_use", "This instance is already preparing or running")); }
         let cancel = Arc::new(AtomicBool::new(false)); jobs.insert(id.into(), cancel.clone()); Ok(cancel)
     }
     pub fn lease(self:&Arc<Self>,id:&str)->Result<JobLease>{Ok(JobLease{backend:self.clone(),id:id.into(),cancel:self.begin(id)?})}

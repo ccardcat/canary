@@ -10,7 +10,7 @@ pub fn write_json(path:&Path, value:&impl serde::Serialize)->Result<()> {
 }
 pub fn load(root:&Path)->Result<Store> {
     let path=root.join("settings.json"); let mut store:Store=if path.is_file(){serde_json::from_slice(&fs::read(path)?)?}else{Store::default()};
-    store.schema=1; Ok(store)
+    store.activity.retain(|a|a.kind!="ready"&&a.timestamp>=now().saturating_sub(30*86400));let excess=store.activity.len().saturating_sub(300);store.activity.drain(..excess);store.schema=1; Ok(store)
 }
 pub fn safe_join(base:&Path, rel:&str)->Result<PathBuf> {
     if rel.is_empty()||rel.contains(['\\',':'])||Path::new(rel).components().any(|c|!matches!(c,Component::Normal(_))) {return Err(BackendError::new("unsafe_path","Unsafe relative path"));}

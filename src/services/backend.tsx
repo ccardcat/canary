@@ -1,3 +1,6 @@
+import {normalizeError} from "./errors";
+import {taskStore,useTaskLifecycle} from "./taskStore";
+import {gameLogStore} from "./gameLogStore";
 import {availableProviders} from "./providers";
 import {
   createContext,
@@ -6,6 +9,7 @@ import {
   useEffect,
   useRef,
   useState,
+  useMemo,
   type ReactNode,
 } from "react";
 import { invoke, isTauri } from "@tauri-apps/api/core";
@@ -48,6 +52,7 @@ export interface RuntimeInstance {
   status: string;
   error?: { code: string; message: string };
   overrides: {
+    memory_mode?: "auto" | "manual";
     java?: string;
     min_memory?: number;
     max_memory?: number;
@@ -67,6 +72,7 @@ export interface RuntimeSettings {
   update_checks: boolean;
   automatic_java: boolean;
   java_path?: string;
+  memory_mode?: "auto" | "manual";
   min_memory: number;
   max_memory: number;
   jvm_args: string[];
@@ -138,6 +144,7 @@ interface ContextValue {
   progress: BackendProgress | null;
   error: unknown;
   clearError: () => void;
+  retryError: () => Promise<unknown>;
   refresh: () => Promise<void>;
   run: <T>(
     command: string,
@@ -154,6 +161,7 @@ const Context = createContext<ContextValue>({
   progress: null,
   error: null,
   clearError: () => {},
+  retryError: async () => {},
   refresh: async () => {},
   run: async () => {
     throw Error("Desktop application required");
@@ -162,7 +170,7 @@ const Context = createContext<ContextValue>({
 });
 export function BackendProvider({ children }: { children: ReactNode }) {
   const [snapshot, setSnapshot] = useState<Snapshot | null>(null);
-  const [tasks, setTasks] = useState<ActivityTask[]>([]);
+  const setTasks=(tasks:ActivityTask[])=>taskStore.set(tasks);
   const taskRef = useRef<ActivityTask[]>([]);
   const preparing = useRef(new Map<string,AbortController>());
   const updateTask = useCallback((task: ActivityTask) => {
@@ -182,23 +190,8 @@ export function BackendProvider({ children }: { children: ReactNode }) {
       startedAt: i.last_played ?? Date.now() / 1000,
       status: i.status === "stopping" ? "stopping" : "playing",
     }));
-  const progressTask = [...tasks].reverse().find((t) => !isTerminal(t));
-  const progress: BackendProgress | null = progressTask
-    ? {
-        id: progressTask.operationId,
-        stage: progressTask.stage,
-        status: "running",
-        file: progressTask.currentFile,
-        completed: progressTask.completed,
-        total: progressTask.total,
-        downloaded: progressTask.downloaded,
-        bytes_total: progressTask.bytesTotal,
-        percent: progressTask.percent,
-        speed: progressTask.speed,
-      }
-    : null;
   const [error, setError] = useState<unknown>(null);
-  const [logs, setLogs] = useState<string[]>([]);
+  const retryRef=useRef<(()=>Promise<unknown>)|null>(null);
   const snapshotRef = useRef(snapshot);
   snapshotRef.current = snapshot;
   const updateChecked = useRef(false);
@@ -329,6 +322,7 @@ export function BackendProvider({ children }: { children: ReactNode }) {
             "detect_java",
             "test_java",
             "game_logs",
+            "game_log_sessions","read_game_log","open_game_log",
             "scan_screenshots",
             "content_inventory",
             "content_worlds",
@@ -351,17 +345,16 @@ export function BackendProvider({ children }: { children: ReactNode }) {
         return result;
       } catch (caught) {
         if(task)preparing.current.delete(task.id);
-        const error=controller?.signal.aborted?{code:'cancelled',message:'Operation cancelled'}:caught;
+        const error=normalizeError(controller?.signal.aborted?{code:"cancelled",message:"Operation cancelled"}:caught);
         finish(error);
         const code =
           (error as { code?: string; stage?: string })?.code ??
           (error as { stage?: string })?.stage;
-        if (code !== "cancelled" && options?.reportError !== false)
-          setError(
-            typeof error === "object" && error !== null
-              ? { ...error, instance_id: args?.id }
-              : error,
-          );
+        if (code !== "cancelled" && options?.reportError !== false){
+          const retryAvailable=error.retryable===true&&["install_modpack","install_curseforge_pack","prepare_instance","launch_instance","install_content","bulk_install_content","create_instance","import_mrpack"].includes(command);
+          retryRef.current=retryAvailable?()=>run(command,args,options):null;
+          setError({...error,command,task_id:task?.id,instance_id:task?.instanceId??args?.id,retry_available:retryAvailable});
+        }
         await refresh().catch(() => {});
         throw error;
       }
@@ -380,13 +373,14 @@ export function BackendProvider({ children }: { children: ReactNode }) {
       ]) {
         const unlisten = await listen(
           event,
-          () => void refresh().catch(setError),
+          e => {if(event==="process-exited"){const exit=e.payload as {id:string;status:string};gameLogStore.finish(exit.id,exit.status);}void refresh().catch(setError);},
         );
         if (cancelled) unlisten();
         else disposers.push(unlisten);
       }
       for (const [event, handler] of [
-        ["backend-error", (payload: unknown) => setError(payload)],
+        ["backend-error", (payload: unknown) => {retryRef.current=null;setError(normalizeError(payload));}],
+        ["memory-adjusted",(payload:unknown)=>setError({code:"memory_adjusted",...(payload as object)})],
         [
           "activity-task",
           (payload: unknown) => updateTask(payload as ActivityTask),
@@ -412,12 +406,13 @@ export function BackendProvider({ children }: { children: ReactNode }) {
               });
           },
         ],
+        ["process-output-batch",(payload:unknown)=>{const batch=payload as {id:string;session?:string;lines:string[]};gameLogStore.pushBatch(batch,snapshotRef.current?.instances.find(i=>i.id===batch.id));}],
         [
           "process-output",
-          (payload: unknown) =>
-            setLogs((lines) =>
-              [...lines, (payload as { line: string }).line].slice(-500),
-            ),
+          (payload: unknown) => {
+            const line=payload as {id:string;session?:string;line:string};
+            gameLogStore.push(line,snapshotRef.current?.instances.find(i=>i.id===line.id));
+          },
         ],
       ] as const) {
         const unlisten = await listen(event, (e) => handler(e.payload));
@@ -435,6 +430,7 @@ export function BackendProvider({ children }: { children: ReactNode }) {
     return () => {
       cancelled = true;
       disposers.forEach((fn) => fn());
+      taskStore.flush();gameLogStore.dispose();
     };
   }, [refresh, updateTask]);
   useEffect(() => {
@@ -449,23 +445,15 @@ export function BackendProvider({ children }: { children: ReactNode }) {
       .then(refresh)
       .catch(() => {});
   }, [snapshot?.settings.update_checks, refresh]);
-  return (
-    <Context.Provider
-      value={{
-        tasks,
-        sessions,
-        cancelTask,
-        snapshot,
-        progress,
-        error,
-        clearError: () => setError(null),
-        refresh,
-        run,
-        logs,
-      }}
-    >
-      {children}
-    </Context.Provider>
-  );
+  const clearError=useCallback(()=>{setError(null);retryRef.current=null;},[]);
+  const retryError=useCallback(async()=>{const retry=retryRef.current;setError(null);retryRef.current=null;return retry?.();},[]);
+  const context=useMemo(()=>({tasks:[],sessions,cancelTask,snapshot,progress:null,error,clearError,retryError,refresh,run,logs:[]}),[snapshot,error,cancelTask,clearError,retryError,refresh,run]);
+  return <Context.Provider value={context}>{children}</Context.Provider>;
 }
-export const useBackend = () => useContext(Context);
+
+export const useBackend = () => {
+  const base=useContext(Context);const tasks=useTaskLifecycle();
+  const task=[...tasks].reverse().find(t=>!isTerminal(t));
+  const progress:BackendProgress|null=task?{id:task.operationId,stage:task.stage,status:"running",file:task.currentFile,completed:task.completed,total:task.total,downloaded:task.downloaded,bytes_total:task.bytesTotal,percent:task.percent,speed:task.speed}:null;
+  return {...base,tasks,progress};
+};

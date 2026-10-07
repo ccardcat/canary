@@ -77,8 +77,7 @@ pub fn checkpoint(root:&Path,state:&mut State,action:&str)->Result<Snapshot>{
 }
 pub fn record(backend:&Backend,id:&str,state:&mut State,action:&str,items:&[Item])->Result<()> {
     let change=Change{timestamp:now(),action:action.into(),names:items.iter().map(|i|i.name.clone()).collect(),ids:items.iter().map(|i|i.id.clone()).collect()};state.history.push(change);if state.history.len()>50{state.history.remove(0);}
-    {let mut store=backend.store.lock().unwrap();store.activity.push(Activity{id:uuid::Uuid::new_v4().to_string(),timestamp:now(),instance:Some(id.into()),kind:format!("content_{action}"),message:items.iter().map(|i|i.name.as_str()).collect::<Vec<_>>().join(", ")});if store.activity.len()>500{store.activity.remove(0);}}
-    backend.persist()
+    backend.record_activity(&format!("content_{action}"),&items.iter().map(|i|i.name.as_str()).collect::<Vec<_>>().join(", "),Some(id))
 }
 pub fn mutate(backend:&Backend,id:&str,ids:&[String],action:&str)->Result<State>{
     let root=backend.instance_path(id)?;let mut state=scan(backend,id)?;let items=state.items.iter().filter(|i|ids.contains(&i.id)).cloned().collect::<Vec<_>>();if items.len()!=ids.len(){return Err(BackendError::new("content_missing","Content selection changed; rescan"));}

@@ -61,7 +61,7 @@ export function mergeTask(
   }
   return old
     ? tasks.map((t) => (t.id === next.id ? next : t))
-    : [...tasks, next];
+    : [...tasks.filter(t=>!isTerminal(t)),...tasks.filter(isTerminal).slice(-99),next];
 }
 export const taskCommands: Record<string, TaskKind> = {
   install_modpack: "install",

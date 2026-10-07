@@ -1,6 +1,7 @@
+import {SmoothRange,previewParticle} from "./SmoothRange";
 import {discordDefaults,type DiscordPreferences} from "../services/discord";
 import GlassSelect from "./GlassSelect";
-import { createContext, useContext, useEffect, useLayoutEffect, useRef, useState, type ReactNode } from "react";
+import { createContext, useContext, useEffect, useLayoutEffect, useRef, useState, useCallback, type ReactNode } from "react";
 import type { CSSProperties } from "react";
 import "./VisualAppearance.css";
 import "./CursorPack.css";
@@ -73,7 +74,7 @@ export function VisualAppearanceProvider({ children }: { children: ReactNode }) 
   const native=useNativeMaterial(value);
   useEffect(() => { const media = matchMedia("(prefers-reduced-motion: reduce)"); const sync = () => setReduced(media.matches); sync(); media.addEventListener("change", sync); return () => media.removeEventListener("change", sync); }, []);
   useLayoutEffect(() => {
-    localStorage.setItem("canary-visual", JSON.stringify(value));
+
     applyLayoutTokens(document.documentElement,value);
     applyMaterialTokens(document.documentElement,value);
     const root = document.documentElement;
@@ -103,18 +104,24 @@ export function VisualAppearanceProvider({ children }: { children: ReactNode }) 
     root.style.setProperty("--sidebar-art", `url("${registry.find(p => p.id === value.sidebar)?.sidebar || "/backgrounds/sidebar-bg.webp"}")`);
     root.style.setProperty("--sidebar-blur", `${value.sidebarBlur}px`);
   }, [value,custom]);
+  const savedRef=useRef(value);savedRef.current=value;
+  useEffect(()=>{const timer=setTimeout(()=>localStorage.setItem("canary-visual",JSON.stringify(value)),400);return()=>clearTimeout(timer);},[value]);
+  useEffect(()=>{const flush=()=>localStorage.setItem("canary-visual",JSON.stringify(savedRef.current));window.addEventListener("pagehide",flush);return()=>{window.removeEventListener("pagehide",flush);flush();};},[]);
+  useLayoutEffect(()=>{for(const key of ["density","particleOpacity","particleSpeed","particleSize","particleWind"] as const)previewParticle(key,value[key]);},[value.density,value.particleOpacity,value.particleSpeed,value.particleSize,value.particleWind,value.ambient,value.quality,value.app,value.sidebar,value.focus,reduced]);
+  const update=useCallback((patch:Partial<Preferences>)=>setValue(old=>({...old,...patch,...(!("materialPreset" in patch)&&Object.keys(patch).some(key=>key in materialDefaults||["surfaceOpacity","surfaceBlur","glassIntensity"].includes(key))?{materialPreset:"custom"}:{})})),[]);
+  useEffect(()=>{const pause=()=>{const layer=document.querySelector<HTMLElement>(".ambient-particles");layer?.getAnimations({subtree:true}).forEach(animation=>document.hidden?animation.pause():animation.play());};document.addEventListener("visibilitychange",pause);return()=>document.removeEventListener("visibilitychange",pause);},[]);
   const automaticSakura = value.sidebar === "default" ||
     registry.some(p => (p.id === value.app || p.id === value.sidebar) && p.ambient === "sakura");
   const effect = value.ambient === "automatic" ? (automaticSakura ? "sakura" : "off") : value.ambient;
   const image = registry.find(p => p.id === value.app)?.app;
-  return <Context.Provider value={{registry,reload,value,native,update: patch => setValue(old => ({ ...old, ...patch, ...(!("materialPreset" in patch) && Object.keys(patch).some(key=>key in materialDefaults||["surfaceOpacity","surfaceBlur","glassIntensity"].includes(key))?{materialPreset:"custom"}:{}) })) }}>
+  return <Context.Provider value={{registry,reload,value,native,update }}>
     <div className="visual-backdrop" aria-hidden="true" style={{ "--wallpaper-opacity": value.intensity / 100, "--wallpaper-blur": `${value.blur}px` } as CSSProperties}>
       <ArtworkFade source={image} className="global-wallpaper" />
       <div className="wallpaper-veil" />
     </div>
     {value.backgroundSource!=="canary"&&<div className="native-window-veil" aria-hidden="true"/>}
     {children}
-    {!reduced && !value.focus && effect !== "off" && <div className={`ambient-particles ${effect}`} aria-hidden="true">{Array.from({ length: Math.min(value.density, value.quality === "low" ? 6 : value.quality === "balanced" ? 16 : 24) }, (_, i) => <i key={i} style={{ left: `${(i * 37 + 9) % 100}%`, animationDelay: `${-i * 2.7}s`, animationDuration: `${(22 + i % 5 * 4) / (value.particleSpeed / 100)}s`, "--drift": `${(i % 2 ? 65 : -55)*value.particleWind/100}px`, "--sway":`${(i%3+1)*9}px`,"--leaf-color":["#dca14a","#e0b358","#c97938"][i%3],opacity: value.particleOpacity / 100 * (.75 + (i % 4) * .08), "--particle-scale": value.particleSize / 100*(.8+(i%5)*.15) } as CSSProperties} />)}</div>}
+    {!reduced && !value.focus && effect !== "off" && <div className={`ambient-particles ${effect}`} aria-hidden="true">{Array.from({ length: 24 }, (_, i) => <i key={i} style={{ left: `${(i * 37 + 9) % 100}%`, animationDelay: `${-i * 2.7}s`, animationDuration: `${(22 + i % 5 * 4)}s`, "--drift": `${(i % 2 ? 65 : -55)*value.particleWind/100}px`, "--sway":`${(i%3+1)*9}px`,"--leaf-color":["#dca14a","#e0b358","#c97938"][i%3],opacity: value.particleOpacity / 100 * (.75 + (i % 4) * .08), "--particle-scale": value.particleSize / 100*(.8+(i%5)*.15) } as CSSProperties} />)}</div>}
   <DesktopBehavior />
   </Context.Provider>;
 }
@@ -150,10 +157,10 @@ export function WindowPreferencesPanel({russian}:{russian:boolean}){const {value
 export function EffectsPreferences({russian,children}:{russian:boolean;children?:ReactNode}){
  const {value,update}=useContext(Context);const text=appearanceMessages[russian?"ru":"en"];
  const preset=(p:string)=>{const settings={off:{ambient:"off" as const},low:{density:6,particleOpacity:25,particleSize:85,particleSpeed:75},medium:{density:12,particleOpacity:35,particleSize:110,particleSpeed:100},high:{density:24,particleOpacity:45,particleSize:125,particleSpeed:115},custom:{}};update({...settings[p as keyof typeof settings],effectPreset:p,...p!=="off"&&value.ambient==="off"?{ambient:"snow" as const}:{}});};
- const range=(name:string,n:number,min:number,max:number,change:(v:number)=>void)=><label className="visual-range"><span>{name}<output>{n}</output></span><input type="range" aria-label={name} min={min} max={max} value={n} onChange={e=>change(Number(e.target.value))}/></label>;
+ const range=(name:string,n:number,min:number,max:number,change:(v:number)=>void,previewKey?:string)=><SmoothRange label={name} value={n} min={min} max={max} onCommit={change} previewKey={previewKey}/>;
  return <section className="effects-preferences"><h3>{russian?"Эффекты":"Effects"}</h3><h4>{text["Ambient effects"]}</h4><div className="font-options">{(["off","automatic","sakura","snow","autumn"] as const).map(ambient=><button key={ambient} aria-pressed={value.ambient===ambient} className={value.ambient===ambient?"selected":""} onClick={()=>update({ambient,...value.particleOpacity<25?{particleOpacity:35}:{}})}>{ambient==="autumn"?(russian?"Осенние листья":"Autumn Leaves"):({off:text["Off"],automatic:text["Automatic"],sakura:text["Sakura"],snow:text["Snow"]})[ambient]}</button>)}</div>
  <label>{russian?"Пресет частиц":"Effect preset"}<GlassSelect aria-label={russian?"Пресет частиц":"Effect preset"} value={value.effectPreset} onChange={e=>preset(e.target.value)}>{["off","low","medium","high","custom"].map(p=><option key={p} value={p}>{russian?({off:"Выключено",low:"Низкий",medium:"Средний",high:"Высокий",custom:"Свой"})[p as "off"]:p[0].toUpperCase()+p.slice(1)}</option>)}</GlassSelect></label>
- <div className="polish-range-grid">{range(russian?"Количество частиц":"Particle count",value.density,4,24,density=>update({density,effectPreset:"custom"}))}{range(russian?"Размер частиц":"Particle size",value.particleSize,60,160,particleSize=>update({particleSize,effectPreset:"custom"}))}{range(russian?"Скорость частиц":"Particle speed",value.particleSpeed,50,150,particleSpeed=>update({particleSpeed,effectPreset:"custom"}))}{range(russian?"Непрозрачность частиц":"Particle opacity",value.particleOpacity,5,50,particleOpacity=>update({particleOpacity,effectPreset:"custom"}))}{range(russian?"Ветер":"Particle wind",value.particleWind,0,180,particleWind=>update({particleWind,effectPreset:"custom"}))}</div>
+ <div className="polish-range-grid">{range(russian?"Количество частиц":"Particle count",value.density,4,24,density=>update({density,effectPreset:"custom"}),"density")}{range(russian?"Размер частиц":"Particle size",value.particleSize,60,160,particleSize=>update({particleSize,effectPreset:"custom"}),"particleSize")}{range(russian?"Скорость частиц":"Particle speed",value.particleSpeed,50,150,particleSpeed=>update({particleSpeed,effectPreset:"custom"}),"particleSpeed")}{range(russian?"Непрозрачность частиц":"Particle opacity",value.particleOpacity,5,50,particleOpacity=>update({particleOpacity,effectPreset:"custom"}),"particleOpacity")}{range(russian?"Ветер":"Particle wind",value.particleWind,0,180,particleWind=>update({particleWind,effectPreset:"custom"}),"particleWind")}</div>
  <PolishControls russian={russian} value={value} update={update} group="effects"/>{children}</section>;
 }
 export function VisualQuality({ russian }: { russian: boolean }) {

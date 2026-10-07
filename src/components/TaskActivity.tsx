@@ -1,3 +1,4 @@
+import {useLiveTasks} from "../services/taskStore";
 import {EmptyState} from "./EmptyState";
 import { useState } from "react";
 import {
@@ -138,21 +139,21 @@ export function TaskRow({
     </article>
   );
 }
-export function ActivityTasks({ russian }: { russian: boolean }) {
-  const { tasks } = useBackend();
+export function ActivityTasks({ russian,showRecent=true }: { russian: boolean;showRecent?:boolean }) {
+  const tasks=useLiveTasks();
   const text = activityMessages[russian ? "ru" : "en"];
   const active = tasks.filter((t) => !isTerminal(t));
   const recent = tasks.filter(isTerminal).slice(-10).reverse();
   return (
     <section className="activity-downloads" aria-label={text.activity}>
-      <h2>{text.activity}</h2>
+      <h2>{russian?"Активные операции":"Active operations"}</h2>
       {!active.length && <EmptyState icon={ArrowDownToLine} title={text.empty}/>}
       <div className="activity-active">
         {active.map((task) => (
           <TaskRow key={task.id} task={task} russian={russian} />
         ))}
       </div>
-      {recent.length > 0 && (
+      {showRecent && recent.length > 0 && (
         <details className="activity-recent">
           <summary>{text.recent}</summary>
           {recent.map((task) => (

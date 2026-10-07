@@ -56,6 +56,8 @@ impl Job {
     }
     pub fn finish<T>(&self,result:&Result<T>) {
         let Some(b)=&self.activity else{return};let task={let mut records=b.tasks.lock().unwrap();let Some(record)=records.get_mut(&self.id)else{return};if terminal(&record.task.status){return;}let t=&mut record.task;t.revision+=1;t.status=match result{Ok(_)=>TaskStatus::Completed,Err(e) if e.code=="cancelled"=>TaskStatus::Cancelled,Err(_)=>TaskStatus::Failed};t.error=result.as_ref().err().cloned();t.cancellable=false;t.updated_at=now();t.current_file.clear();t.speed=0;if result.is_ok(){t.percent=100.;}t.clone()};
+        let kind=match task.status{TaskStatus::Failed=>"operation_failed".to_owned(),TaskStatus::Cancelled=>"install_cancelled".to_owned(),_=>match task.kind{TaskKind::Launch=>"game_launched",TaskKind::Repair=>"repair_completed",TaskKind::Update=>"content_updated",TaskKind::Install=>"instance_installed",TaskKind::Download=>"download_completed"}.to_owned()};
+        if !(result.is_ok()&&self.content_history.load(Ordering::Relaxed))&&result.as_ref().err().is_none_or(|e|e.code!="process_exit"){let _=b.record_activity(&kind,&task.title,task.instance_id.as_deref());}
         b.discord.changed();
         eprintln!("[task][{}][{}] {}",task.id,task.stage,format!("{:?}",task.status));
         if let Some(app)=&self.app{let _=app.emit("activity-task",task);let _=app.emit("instances-changed",());}
@@ -81,4 +83,21 @@ pub fn cancel(b:&Backend,id:&str,app:Option<&AppHandle>)->Result<bool> {
     }
     #[test]fn terminal_events_and_commit_cancel_race(){let root=std::env::temp_dir().join(format!("canary-activity-{}",uuid::Uuid::new_v4()));let _cleanup=super::super::storage::Staging(root.clone());let b=Arc::new(Backend::with_root(root).unwrap());let job=Job::tracked(b.clone(),"instance","install","Pack",None,None,Arc::new(AtomicBool::new(false)),None).unwrap();job.critical().unwrap();assert_eq!(cancel(&b,&job.id,None).unwrap_err().code,"finalizing");job.finish(&Err::<(),_>(BackendError::new("network","offline")));job.emit("downloads","running","late.jar");let records=b.tasks.lock().unwrap();let task=&records[&job.id].task;assert_eq!(task.status,TaskStatus::Failed);assert!(task.current_file.is_empty());}
     #[test]fn cancel_wins_before_commit(){let root=std::env::temp_dir().join(format!("canary-activity-{}",uuid::Uuid::new_v4()));let _cleanup=super::super::storage::Staging(root.clone());let b=Arc::new(Backend::with_root(root).unwrap());let job=Job::tracked(b.clone(),"instance","repair","Pack",None,None,Arc::new(AtomicBool::new(false)),None).unwrap();cancel(&b,&job.id,None).unwrap();assert_eq!(job.critical().unwrap_err().code,"cancelled");assert_eq!(b.tasks.lock().unwrap()[&job.id].task.status,TaskStatus::Cancelling);job.finish(&Err::<(),_>(BackendError::new("cancelled","Cancelled")));assert_eq!(b.tasks.lock().unwrap()[&job.id].task.status,TaskStatus::Cancelled);}
+}
+
+#[cfg(test)]mod cleanup_tests{
+ use super::*;
+ #[test]fn early_error_or_dropped_future_leaves_terminal_task_and_no_lease(){
+  let root=std::env::temp_dir().join(format!("canary-task-drop-{}",uuid::Uuid::new_v4()));let _cleanup=super::super::storage::Staging(root.clone());let b=Arc::new(Backend::with_root(root).unwrap());
+  for cancelled in [false,true]{let lease=b.lease("instance").unwrap();let job=Job::tracked(b.clone(),"instance","install","Pack",None,None,lease.cancel.clone(),None).unwrap();let id=job.id.clone();lease.cancel.store(cancelled,Ordering::Release);drop(job);drop(lease);assert!(terminal(&b.tasks.lock().unwrap()[&id].task.status));assert!(b.jobs.lock().unwrap().is_empty());}
+ }
+}
+
+#[cfg(test)]mod content_history_tests{
+ use super::*;
+ #[test]fn successful_content_task_does_not_duplicate_content_history(){
+  let root=std::env::temp_dir().join(format!("canary-content-history-{}",uuid::Uuid::new_v4()));let _cleanup=super::super::storage::Staging(root.clone());let b=Arc::new(Backend::with_root(root).unwrap());
+  let job=Job::tracked(b.clone(),"instance","install","Pack",Some("instance"),None,Arc::new(AtomicBool::new(false)),None).unwrap();job.content_history.store(true,Ordering::Relaxed);
+  b.record_activity("content_install","Sodium",Some("instance")).unwrap();job.finish(&Ok(()));assert_eq!(b.store.lock().unwrap().activity.len(),1);
+ }
 }

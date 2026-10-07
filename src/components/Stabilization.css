@@ -1,0 +1,73 @@
+/* Semantic surfaces inherit the current material and theme vocabulary. */
+.error-description{display:flex;gap:14px;align-items:flex-start;margin:16px 0}
+.error-description>svg{flex-shrink:0;margin-top:6px;color:var(--muted)}
+.error-description p{margin:0 0 10px}
+.error-details{margin:16px 0;color:var(--muted);font-size:.84rem}
+.error-details summary{cursor:pointer;color:var(--text)}
+.error-details dl>div{display:grid;grid-template-columns:90px minmax(0,1fr);gap:12px;padding:4px 0}
+.error-details dd{margin:0;overflow-wrap:anywhere}
+.error-technical-message{white-space:pre-wrap;overflow-wrap:anywhere;max-height:150px;overflow:auto}
+:root .runtime-dialog{max-width:min(540px,calc(100vw - 40px));border-color:var(--border-subtle)}
+.memory-settings{margin:20px 0;min-width:0}.memory-warning{font-size:.82rem;color:var(--warning,#ad9159)}
+.activity-page{max-width:1100px}.activity-page h2{font-size:1.2rem}.activity-page>.font-options{margin-bottom:24px}
+.activity-page .activity-downloads{margin-bottom:32px}.activity-filters{display:flex;gap:6px;flex-wrap:wrap}
+:root .activity-filters button{border:0;box-shadow:none;background:transparent}
+:root .activity-filters button[aria-pressed="true"]{background:var(--surface-selected)}
+.activity-date-group h4{font-size:.8rem;color:var(--muted);margin:24px 0 10px;font-weight:500}
+.recent-event{display:flex;gap:12px;align-items:center;min-height:52px;padding:9px 4px;border-bottom:1px solid var(--border-subtle)}
+.recent-event>svg{flex-shrink:0;color:var(--muted)}.recent-event.errors>svg{color:var(--danger,#c78080)}
+.recent-event>div{min-width:0;flex:1}.recent-event b{font-size:.85rem;font-weight:600}
+.recent-event small{display:block;font-size:.77rem;color:var(--muted);overflow:hidden;text-overflow:ellipsis;white-space:nowrap;margin-top:3px}
+.recent-event time{font-size:.77rem;color:var(--muted);font-variant-numeric:tabular-nums}
+.game-logs{min-width:0}.game-log-toolbar{display:flex;gap:10px;margin:14px 0}.game-log-toolbar>.glass-select{flex:0 0 150px}
+.log-search{display:flex;align-items:center;gap:8px;flex:1;min-width:0}.log-search input{width:100%;min-width:0}
+.game-log-actions{display:flex;align-items:center;gap:10px;flex-wrap:wrap;margin:10px 0}
+.game-log-actions label{display:flex;align-items:center;gap:6px;font-size:.8rem}
+.game-crash-summary{padding:14px;background:color-mix(in srgb,var(--danger,#c78080) 9%,transparent);border-radius:10px}
+.game-log-viewport{position:relative;height:380px;min-width:0;max-width:100%;overflow:auto;background:color-mix(in srgb,var(--surface-input) 88%,transparent);border:0;border-radius:12px;font:12px/20px var(--font-mono);contain:strict;overscroll-behavior:contain}
+.game-log-spacer{position:relative;min-width:100%}.game-log-window{position:absolute;inset:0 0 auto;min-width:100%;width:max-content}
+.game-log-line{display:grid;grid-template-columns:82px 54px minmax(0,1fr);gap:6px;min-height:28px;height:28px;padding:4px 12px;box-sizing:border-box;white-space:pre}
+.game-log-line time,.log-level{color:var(--muted)}.level-warn .log-level{color:var(--warning,#ae9560)}.level-error .log-level{color:var(--danger,#c78080)}
+.game-log-line mark{background:color-mix(in srgb,var(--accent) 25%,transparent);color:inherit;border-radius:2px}
+.wrap .game-log-window{width:100%}.wrap .game-log-line{height:auto;white-space:pre-wrap}.wrap .log-message{overflow-wrap:anywhere}
+.game-log-empty{padding:20px;color:var(--muted);font:14px var(--ui-font)}.log-new-messages{margin-top:8px}
+:root input[type="range"]{border:0;outline:0;box-shadow:none;background:transparent;transition:none}
+:root input[type="range"]::-webkit-slider-thumb{box-shadow:none;border:0;transition:none}
+:root input[type="range"]:focus-visible{outline:2px solid var(--focus-ring);outline-offset:4px}
+:root :is(.activity-card,.activity-task,.recent-event,.game-logs){box-shadow:none;backdrop-filter:none}
+:root .activity-card{border:0;background:transparent}
+:root[data-material-sidebar="vibrancy"] .sidebar{border-color:transparent;box-shadow:var(--mat-sidebar-shadow)}
+:root[data-material-sidebar="vibrancy"] .sidebar :is(.sidebar-logo,.sidebar-footer,.nav-capsule,.segment-capsule){border-color:transparent;box-shadow:none;backdrop-filter:none}
+:root[data-material-sidebar="vibrancy"] .sidebar .nav-capsule{background:var(--surface-selected)}
+:root[data-material-cards="vibrancy"] :is(.settings-modal,.runtime-dialog,.instance-surface) :is(.runtime-panel,.runtime-account,.polish-disclosure,.material-disclosure){border-color:transparent;box-shadow:none;backdrop-filter:none}
+:root[data-material-dialogs="vibrancy"] :is(.runtime-dialog,.settings-modal,.instance-surface){border-color:transparent}
+:root[data-material-buttons="vibrancy"] button{border-color:transparent;box-shadow:none}
+:root[data-material-inputs="vibrancy"] :is(input,textarea,.glass-select-trigger){border-color:var(--border-subtle);box-shadow:none}
+.startup-app{display:contents}
+.startup-splash{position:fixed;inset:0;z-index:2000;display:grid;place-items:center;background:rgb(30 30 34 / .12);backdrop-filter:blur(26px) saturate(.85);animation:startup-overlay 2.15s cubic-bezier(.22,.61,.36,1) forwards}
+.startup-brand{display:flex;align-items:center;justify-content:center;gap:20px;max-width:90vw;--logo-start-offset:100px}
+.startup-logo{position:relative;z-index:2;width:104px;height:104px;object-fit:contain;animation:startup-logo 2.15s cubic-bezier(.22,.61,.36,1) both}
+.startup-word-mask{overflow:hidden;clip-path:inset(-10px 0 -10px 0)}
+.startup-wordmark{display:block;color:var(--text);font:700 34px/1.2 var(--ui-font,Nunito);letter-spacing:.17em;animation:startup-wordmark 2.15s cubic-bezier(.22,.61,.36,1) both}
+:root[data-mode="light"] .startup-logo{filter:brightness(.22)}
+@keyframes startup-logo{0%{opacity:0;transform:translateX(var(--logo-start-offset)) translateY(6px) scale(.92)}18%,25%{opacity:1;transform:translateX(var(--logo-start-offset)) scale(1)}48%,80%{opacity:1;transform:translateX(0) scale(1)}96%,100%{opacity:0;transform:translateX(0) scale(.98)}}
+@keyframes startup-wordmark{0%,25%{opacity:0;transform:translateX(-110%);filter:blur(3px)}48%,77%{opacity:1;transform:translateX(0);filter:blur(0)}92%,100%{opacity:0;transform:translateX(0);filter:blur(0)}}
+@keyframes startup-overlay{0%,77%{backdrop-filter:blur(26px) saturate(.85);background:rgb(30 30 34 / .12)}100%{backdrop-filter:blur(0) saturate(1);background:transparent}}
+.startup-splash.reduced{animation-duration:.55s}.reduced .startup-logo{animation:startup-reduced .5s both;transform:translateX(var(--logo-start-offset))}.reduced .startup-wordmark{display:none}
+@keyframes startup-reduced{0%{opacity:0}30%,65%{opacity:1}100%{opacity:0}}
+@media(max-width:700px){.startup-logo{width:88px;height:88px}.startup-wordmark{font-size:28px}.startup-brand{gap:16px}.game-log-toolbar{flex-wrap:wrap}.game-log-line{grid-template-columns:70px 48px minmax(0,1fr)}}
+@media(prefers-reduced-motion:reduce){.startup-splash{animation-duration:.55s}.startup-logo{animation:startup-reduced .5s both;transform:translateX(var(--logo-start-offset))}.startup-wordmark{display:none}}
+
+/* Selection is expressed through fill; keyboard focus retains the shared ring. */
+:root .nav-capsule{border-color:transparent;box-shadow:none;backdrop-filter:none}
+:root .activity-page>.font-options button{border:0;box-shadow:none}
+:root :is(.sidebar-logo,.sidebar-bottom,.sidebar-footer){border-color:transparent}
+:root :is(.project-card,.mini-card,.runtime-account,.runtime-panel,.settings-modal,.runtime-dialog,.glass-select-trigger,.quiet-button,.compact-action){border-color:var(--border-subtle)}
+
+:root :is(.sidebar,.settings-modal) .nav-capsule{border:0;box-shadow:none;backdrop-filter:none}
+:root .settings-modal .settings-nav button.active{border-color:transparent;box-shadow:none}
+:root input[type="range"]{appearance:none;-webkit-appearance:none;height:22px}
+:root input[type="range"]::-webkit-slider-runnable-track{height:4px;background:color-mix(in srgb,var(--muted) 28%,transparent);border:0;border-radius:3px}
+:root input[type="range"]::-webkit-slider-thumb{-webkit-appearance:none;width:14px;height:14px;margin-top:-5px;border:0;border-radius:50%;background:var(--accent);box-shadow:none}
+:root input[type="range"]::-moz-range-track{height:4px;background:color-mix(in srgb,var(--muted) 28%,transparent);border:0;border-radius:3px}
+:root input[type="range"]::-moz-range-thumb{width:14px;height:14px;border:0;border-radius:50%;background:var(--accent);box-shadow:none}

@@ -46,7 +46,7 @@ pub async fn select(backend:Arc<Backend>,instance:&Instance,required:u32,job:Arc
     let checked=test(&executable.ok_or_else(||BackendError::new("java","Runtime archive has no Java executable"))?,true).await?;
     if checked.major!=required{return Err(BackendError::new("java","Downloaded runtime version mismatch"));}job.check()?;
     if !target.exists(){std::fs::rename(&staging,&target)?;}else{std::fs::remove_dir_all(&staging)?;}
-    let runtimes=detect(&backend.root).await?;runtimes.into_iter().find(|j|Path::new(&j.path).starts_with(std::fs::canonicalize(&target).unwrap_or(target.clone()))).ok_or_else(||BackendError::new("java","Installed Java validation failed"))
+    let runtimes=detect(&backend.root).await?;let _=backend.record_activity("java_installed",&format!("Java {required}"),Some(&instance.id));runtimes.into_iter().find(|j|Path::new(&j.path).starts_with(std::fs::canonicalize(&target).unwrap_or(target.clone()))).ok_or_else(||BackendError::new("java","Installed Java validation failed"))
 }
 fn compatible_arch(arch:&str)->bool{if cfg!(target_arch="aarch64"){matches!(arch,"aarch64"|"arm64")}else{matches!(arch,"amd64"|"x86_64")}}
 #[cfg(test)]mod tests{use super::*;#[test]fn java_versions(){assert_eq!(major("1.8.0_412"),Some(8));assert_eq!(major("21.0.4+7"),Some(21));assert_eq!(major("25-ea"),Some(25));assert_eq!(major("bad"),None);}}

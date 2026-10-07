@@ -1,3 +1,4 @@
+import {SmoothRange} from "./SmoothRange";
 import { useState } from "react";
 import { polishMessages } from "../locales/polish";
 
@@ -16,7 +17,7 @@ export function QualityControls({ russian, value, update }: Props) {
 export function PolishControls({ russian, value, update, group="all" }: Props & {group?:"all"|"layout"|"background"|"effects"}) {
   const text = polishMessages[russian ? "ru" : "en"];
   const [target, setTarget] = useState<"globalTreatment" | "sidebarTreatment">("globalTreatment");
-  const range = (label: string, number: number, min: number, max: number, change: (n: number) => void, unit = "%") => <label className="visual-range"><span>{label}<output>{number}{unit}</output></span><input type="range" aria-label={label} min={min} max={max} value={number} onChange={e => change(Number(e.target.value))} /></label>;
+  const range = (label:string,number:number,min:number,max:number,change:(n:number)=>void,unit="%") => <SmoothRange label={label} value={number} min={min} max={max} onCommit={change} unit={unit}/>;
   const treatment = value[target];
   const patch = (key: string, n: number | string) => update({ [target]: { ...treatment, [key]: n } });
   return <>

@@ -5,15 +5,20 @@ use tauri::{AppHandle,Emitter};
 use tokio::io::AsyncWriteExt;
 #[derive(Clone,Debug)]
 pub struct Artifact {pub url:String,pub path:PathBuf,pub hash:Option<String>,pub algorithm:&'static str,pub size:Option<u64>}
-pub struct Job {pub activity:Option<Arc<Backend>>,pub activity_tick:std::sync::Mutex<(String,Instant)>,pub id:String,pub app:Option<AppHandle>,pub cancel:Arc<AtomicBool>,pub downloaded:AtomicU64,pub total:AtomicU64,pub completed:AtomicU64,pub files:AtomicU64,pub network:AtomicU64,start:Instant,diagnostic:std::sync::Mutex<(String,u8)>}
+pub struct Job {pub content_history:AtomicBool,pub activity:Option<Arc<Backend>>,pub activity_tick:std::sync::Mutex<(String,Instant)>,pub id:String,pub app:Option<AppHandle>,pub cancel:Arc<AtomicBool>,pub downloaded:AtomicU64,pub total:AtomicU64,pub completed:AtomicU64,pub files:AtomicU64,pub network:AtomicU64,start:Instant,diagnostic:std::sync::Mutex<(String,u8)>}
 impl Job {
-    pub fn new(id:&str,app:Option<AppHandle>,cancel:Arc<AtomicBool>)->Self {Self{activity:None,activity_tick:std::sync::Mutex::new((String::new(),Instant::now())),id:id.into(),app,cancel,downloaded:AtomicU64::new(0),total:AtomicU64::new(0),completed:AtomicU64::new(0),files:AtomicU64::new(0),network:AtomicU64::new(0),start:Instant::now(),diagnostic:std::sync::Mutex::new((String::new(),255))}}
+    pub fn new(id:&str,app:Option<AppHandle>,cancel:Arc<AtomicBool>)->Self {Self{content_history:AtomicBool::new(false),activity:None,activity_tick:std::sync::Mutex::new((String::new(),Instant::now())),id:id.into(),app,cancel,downloaded:AtomicU64::new(0),total:AtomicU64::new(0),completed:AtomicU64::new(0),files:AtomicU64::new(0),network:AtomicU64::new(0),start:Instant::now(),diagnostic:std::sync::Mutex::new((String::new(),255))}}
     pub fn operation_id(&self)->String {self.activity.as_ref().and_then(|b|b.tasks.lock().unwrap().get(&self.id).map(|r|r.task.operation_id.clone())).unwrap_or_else(||self.id.clone())}
     pub fn elapsed(&self)->std::time::Duration{self.start.elapsed()}
     pub fn check(&self)->Result<()> {if self.cancel.load(Ordering::Relaxed){Err(BackendError::new("cancelled","Operation cancelled"))}else{Ok(())}}
     pub fn emit(&self,stage:&str,status:&str,file:&str){self.activity_progress(stage,file,status!="running");let downloaded=self.downloaded.load(Ordering::Relaxed);let total=self.total.load(Ordering::Relaxed);let elapsed=self.start.elapsed().as_secs().max(1);
         if self.app.is_none(){let bucket=if total>0{((downloaded as f64/total as f64)*5.).min(5.) as u8}else{0};let mut prior=self.diagnostic.lock().unwrap();if prior.0!=stage||prior.1!=bucket||status!="running"{eprintln!("[{stage}][{status}] {}/{} files, {downloaded}/{total} bytes",self.completed.load(Ordering::Relaxed),self.files.load(Ordering::Relaxed));*prior=(stage.into(),bucket);}}
         if let Some(app)=&self.app {let _=app.emit("backend-progress",Event{id:self.operation_id(),stage:stage.into(),status:status.into(),file:file.into(),completed:self.completed.load(Ordering::Relaxed),total:self.files.load(Ordering::Relaxed),downloaded,bytes_total:total,percent:if total>0{(downloaded as f64/total as f64*100.).min(100.)}else if self.files.load(Ordering::Relaxed)>0{self.completed.load(Ordering::Relaxed) as f64/self.files.load(Ordering::Relaxed) as f64*100.}else{0.},speed:self.network.load(Ordering::Relaxed)/elapsed});}
+    }
+}
+impl Drop for Job {
+    fn drop(&mut self){
+        if self.activity.is_some(){self.finish(&Err::<(),_>(BackendError::new(if self.cancel.load(Ordering::Acquire){"cancelled"}else{"task_interrupted"},"The operation ended before completion")));}
     }
 }
 pub fn hash(path:&Path,algorithm:&str)->Result<String>{hash_cancellable(path,algorithm,None)}

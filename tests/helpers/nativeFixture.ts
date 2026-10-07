@@ -17,12 +17,16 @@ import {mockIPC,mockWindows,mockConvertFileSrc} from '/node_modules/@tauri-apps/
 import {emit} from '/node_modules/@tauri-apps/api/event.js';
 globalThis.isTauri=true;mockWindows('main');mockConvertFileSrc('windows');
 const settings={backup_before_changes:true,backup_retention:8,log_retention_days:30,update_checks:false,automatic_java:true,min_memory:512,max_memory:4096,jvm_args:[],game_args:[],width:1280,height:720,concurrency:4,fullscreen:false,snapshots:false};
-const state={instances:Array.from({length:9},(_,i)=>({id:'instance-'+i,name:i===0?'Fabulously Optimized':'Canary world '+i,provider:'modrinth',version_name:'1.21.1',minecraft:'1.21.1',loader:'fabric',icon:location.origin+'/branding/canary-bird-white.png',directory:'C:/Canary/instances/'+i,installed:9-i,playtime:30,favorite:false,status:i===1?'running':i===2?'failed':'ready',error:i===2?{code:'java_missing',message:'Java required'}:undefined,overrides:{}})),accounts:[{id:'local',uuid:'local',username:'CanaryPlayer',provider:'local',status:'local'},{id:'ms',uuid:'ms',username:'LicensedPlayer',provider:'microsoft',status:'authenticated'}],settings,activity:[],providers:{},data_folder:'C:/Canary'};
+const state={instances:Array.from({length:9},(_,i)=>({id:'instance-'+i,name:i===0?'Fabulously Optimized':'Canary world '+i,provider:'modrinth',version_name:'1.21.1',minecraft:'1.21.1',loader:'fabric',icon:location.origin+'/branding/canary-bird-white.png',directory:'C:/Canary/instances/'+i,installed:9-i,playtime:30,favorite:false,status:i===1?'running':i===2?'failed':'ready',error:i===2?{code:'java_missing',message:'Java required'}:undefined,overrides:{}})),accounts:[{id:'local',uuid:'local',username:'CanaryPlayer',provider:'local',status:'local'},{id:'ms',uuid:'ms',username:'LicensedPlayer',provider:'microsoft',status:'authenticated'}],settings,activity:[],providers:{},physical_memory_mb:65536,data_folder:'C:/Canary'};
 globalThis.__materialQA={state,calls:[]};
 mockIPC((command,args)=>{
  globalThis.__materialQA.calls.push({command,args});
  if(command==='backend_snapshot')return structuredClone(state);
  if(command==='list_wallpapers')return globalThis.__customWallpapers||[];
+ if(command==='game_log_sessions')return [];
+ if(command==='read_game_log')return '';
+ if(command==='clear_activity'){state.activity=[];return;}
+ if(command==='save_backend_settings'){Object.assign(state.settings,args.settings);return;}
  if(command==='scan_screenshots')return [];
  if(command==='content_inventory')return {items:[],history:[],snapshots:[]};
  if(command==='content_worlds')return [];

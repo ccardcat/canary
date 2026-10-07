@@ -21,12 +21,14 @@ pub async fn install_curseforge_pack(backend:State<'_,B>,app:AppHandle,project_i
 pub async fn check_modpack_updates(backend:State<'_,B>,allowed_providers:Option<Vec<String>>)->Result<serde_json::Value>{super::modpacks::updates_for_providers(backend.inner().clone(),allowed_providers.as_deref()).await}
 #[tauri::command]
 pub fn backend_snapshot(backend:State<'_,B>)->Result<serde_json::Value>{
-    let store=backend.store.lock().unwrap().clone();let mut instances=backend.instances()?;
+    let mut instances=backend.instances()?;let store=backend.store.lock().unwrap().clone();
     let processes:std::collections::HashMap<_,_>=backend.processes.lock().unwrap().iter().map(|(id,p)|(id.clone(),p.stopping.load(Ordering::Relaxed))).collect();let preparing:std::collections::HashSet<_>=backend.jobs.lock().unwrap().keys().cloned().collect();for instance in &mut instances{if let Some(process)=processes.get(&instance.id){instance.status=if *process{"stopping"}else{"running"}.into();}else if preparing.contains(&instance.id){instance.status="preparing".into();}}
     Ok(serde_json::json!({"instances":instances,"accounts":store.accounts,"settings":store.settings,"providers":accounts::providers(),"activity":store.activity,"data_folder":backend.root,"physical_memory_mb":super::system::memory_mb(),"tasks":backend.tasks.lock().unwrap().values().map(|r|r.task.clone()).collect::<Vec<_>>()}))
 }
 #[tauri::command]
-pub fn save_backend_settings(backend:State<'_,B>,settings:Settings)->Result<()> {
+pub fn save_backend_settings(backend:State<'_,B>,mut settings:Settings)->Result<()> {
+    if let Some(total)=super::system::memory_mb(){settings.max_memory=settings.max_memory.min(super::memory::maximum(total).max(256));settings.min_memory=settings.min_memory.min(settings.max_memory.saturating_sub(128)).max(128);}
+    if !matches!(settings.memory_mode.as_str(),"auto"|"manual"){return Err(BackendError::new("memory","Unknown memory mode"));}
     super::system::validate_memory(settings.min_memory,settings.max_memory)?;
     if settings.min_memory<128||settings.max_memory<=settings.min_memory||settings.max_memory>1_048_576||!(1..=8).contains(&settings.concurrency)||settings.width<320||settings.height<240{return Err(BackendError::new("settings","Invalid memory, resolution or concurrency"));}
     if settings.instances_path!=backend.settings().instances_path{return Err(BackendError::new("storage_path","Use the storage migration dialog to change instance folders"));}
@@ -46,11 +48,11 @@ pub fn switch_account(backend:State<'_,B>,id:String)->Result<()> {
 }
 #[tauri::command]
 pub async fn remove_account(backend:State<'_,B>,id:String)->Result<()>{
- let _auth=backend.auth.lock().await;
- if backend.processes.lock().unwrap().values().any(|p|p.account==id)||!backend.jobs.lock().unwrap().is_empty(){return Err(BackendError::new("busy","Stop running operations before removing an account"));}
+ let _resource=super::account_resources::removal(&backend,&id)?;
  let account=backend.store.lock().unwrap().accounts.iter().find(|a|a.id==id).cloned();
+ let _auth=if account.as_ref().is_some_and(|a|a.provider!="local"){Some(backend.auth.lock().await)}else{None};
  if let Some(a)=account.filter(|a|a.provider=="elyby") {let _=super::elyby::invalidate(&backend,&a).await;}
- accounts::remove(&backend,&id)
+ accounts::remove_reserved(&backend,&id)
 }
 #[tauri::command]
 pub fn rename_local_account(backend:State<'_,B>,id:String,username:String)->Result<()> {
@@ -143,17 +145,18 @@ pub fn cancel_operation(backend:State<'_,B>,app:AppHandle,id:String)->Result<()>
     let job=backend.jobs.lock().unwrap().get(&id).cloned().or_else(||backend.provider_requests.lock().unwrap().get(&id).cloned()).ok_or_else(||BackendError::new("operation","Operation not found"))?;job.store(true,Ordering::Relaxed);Ok(())
 }
 #[tauri::command]
-pub fn update_instance(backend:State<'_,B>,instance:Instance)->Result<Instance>{
+pub fn update_instance(backend:State<'_,B>,mut instance:Instance)->Result<Instance>{
     let _lease=backend.inner().lease(&instance.id)?;let mut old=backend.instance(&instance.id)?;
     if instance.name.trim().is_empty(){return Err(BackendError::new("instance","Instance name required"));}
-    let settings=backend.settings();super::system::validate_memory(instance.overrides.min_memory.unwrap_or(settings.min_memory),instance.overrides.max_memory.unwrap_or(settings.max_memory))?;if instance.overrides.width.is_some_and(|n|n<320)||instance.overrides.height.is_some_and(|n|n<240){return Err(BackendError::new("settings","Resolution is too small"));}
-    old.name=instance.name;old.icon=instance.icon;old.favorite=instance.favorite;old.overrides=instance.overrides;backend.save_instance(&old)?;Ok(old)
+    if instance.overrides.memory_mode.as_deref().is_some_and(|mode|!matches!(mode,"auto"|"manual")){return Err(BackendError::new("memory","Unknown memory mode"));}
+    let settings=backend.settings();if let (Some(total),Some(saved))=(super::system::memory_mb(),instance.overrides.max_memory){instance.overrides.max_memory=Some(saved.min(super::memory::maximum(total).max(256)));}let (min,max,_)=super::memory::resolve(&settings,&instance,super::system::memory_mb());super::system::validate_memory(min,max)?;if instance.overrides.width.is_some_and(|n|n<320)||instance.overrides.height.is_some_and(|n|n<240){return Err(BackendError::new("settings","Resolution is too small"));}
+    old.name=instance.name;old.icon=instance.icon;old.favorite=instance.favorite;old.overrides=instance.overrides;backend.normalize_account(&mut old);backend.save_instance(&old)?;Ok(old)
 }
 #[tauri::command]
 pub fn delete_instance(backend:State<'_,B>,id:String,confirmed:bool)->Result<()> {
     if !confirmed{return Err(BackendError::new("confirmation","Confirm deletion of this instance and its worlds"));}let path=backend.instance_path(&id)?;
-    let _lease=backend.inner().lease(&id)?;
-    let managed=std::fs::canonicalize(path.parent().unwrap())?;let real=std::fs::canonicalize(&path)?;if real.parent()!=Some(managed.as_path()){return Err(BackendError::new("unsafe_path","Instance is outside the managed root"));}std::fs::remove_dir_all(real)?;backend.store.lock().unwrap().instance_catalog.retain(|i|i.id!=id);backend.persist()?;Ok(())
+    let _lease=backend.inner().lease(&id)?;let name=backend.instance(&id)?.name;
+    let managed=std::fs::canonicalize(path.parent().unwrap())?;let real=std::fs::canonicalize(&path)?;if real.parent()!=Some(managed.as_path()){return Err(BackendError::new("unsafe_path","Instance is outside the managed root"));}std::fs::remove_dir_all(real)?;backend.store.lock().unwrap().instance_catalog.retain(|i|i.id!=id);backend.record_activity("instance_removed",&name,Some(&id))?;Ok(())
 }
 #[tauri::command]
 pub fn open_instance_folder(backend:State<'_,B>,app:AppHandle,id:String,folder:String)->Result<()> {
@@ -219,7 +222,7 @@ pub async fn content_versions(backend:State<'_,B>,id:String,project:String,kind:
 pub async fn content_preview(backend:State<'_,B>,id:String,project:String,version:Option<String>,kind:String,world:Option<String>,beta:bool,provider:Option<String>)->Result<super::content_provider::Plan>{let _lease=backend.inner().lease(&id)?;super::content_provider::identify(&backend,&id).await?;super::content_provider::provider_preview(&backend,provider.as_deref().unwrap_or("modrinth"),&backend.instance(&id)?,&project,version.as_deref(),&kind,world,beta).await}
 #[tauri::command]
 pub async fn install_content(backend:State<'_,B>,app:AppHandle,id:String,project:String,version:Option<String>,kind:String,world:Option<String>,beta:bool,fingerprint:String,provider:Option<String>,task_id:Option<String>)->Result<super::content::State>{
- let lease=backend.inner().lease(&id)?;let job=Job::tracked(backend.inner().clone(),&id,"install",&backend.instance(&id)?.name,Some(&id),Some(app.clone()),lease.cancel.clone(),task_id)?;
+ let lease=backend.inner().lease(&id)?;let job=Job::tracked(backend.inner().clone(),&id,"install",&backend.instance(&id)?.name,Some(&id),Some(app.clone()),lease.cancel.clone(),task_id)?;job.content_history.store(true,Ordering::Relaxed);
  let result=async {let instance=backend.instance(&id)?;job.emit("content_resolve","running",&project);let plan=super::download::cancellable(&job,super::content_provider::provider_preview(&backend,provider.as_deref().unwrap_or("modrinth"),&instance,&project,version.as_deref(),&kind,world,beta)).await?;if plan.fingerprint!=fingerprint{return Err(BackendError::new("content_plan_changed","Install plan changed; review it again"));}super::content_provider::install(backend.inner().clone(),&id,plan,job.clone()).await}.await;
  job.finish(&result);let _=app.emit("content-changed",serde_json::json!({"id":id}));result
 }
@@ -236,13 +239,13 @@ pub async fn choose_content_files(app:AppHandle)->Result<Vec<String>>{
 #[tauri::command]
 pub async fn inspect_content_files(backend:State<'_,B>,id:String,paths:Vec<String>)->Result<Vec<super::content::Inspection>>{let b=backend.inner().clone();tokio::task::spawn_blocking(move||{let i=b.instance(&id)?;paths.iter().map(|p|super::content::inspect(std::path::Path::new(p),&i)).collect()}).await.map_err(|e|BackendError::new("content_file",e.to_string()))?}
 #[tauri::command]
-pub async fn import_content_files(backend:State<'_,B>,app:AppHandle,id:String,paths:Vec<String>,world:Option<String>,task_id:Option<String>)->Result<super::content::State>{let b=backend.inner().clone();let lease=b.lease(&id)?;let job=Job::tracked(backend.inner().clone(),&id,"install",&backend.instance(&id)?.name,Some(&id),Some(app.clone()),lease.cancel.clone(),task_id)?;let worker_job=job.clone();let event_id=id.clone();let result=tokio::task::spawn_blocking(move||{let _lease=lease;super::content_provider::import_with_job(&b,&id,paths,world,Some(&worker_job))}).await.unwrap_or_else(|e|Err(BackendError::new("content_file",e.to_string())));job.finish(&result);let _=app.emit("content-changed",serde_json::json!({"id":event_id}));result}
+pub async fn import_content_files(backend:State<'_,B>,app:AppHandle,id:String,paths:Vec<String>,world:Option<String>,task_id:Option<String>)->Result<super::content::State>{let b=backend.inner().clone();let lease=b.lease(&id)?;let job=Job::tracked(backend.inner().clone(),&id,"install",&backend.instance(&id)?.name,Some(&id),Some(app.clone()),lease.cancel.clone(),task_id)?;job.content_history.store(true,Ordering::Relaxed);let worker_job=job.clone();let event_id=id.clone();let result=tokio::task::spawn_blocking(move||{let _lease=lease;super::content_provider::import_with_job(&b,&id,paths,world,Some(&worker_job))}).await.unwrap_or_else(|e|Err(BackendError::new("content_file",e.to_string())));job.finish(&result);let _=app.emit("content-changed",serde_json::json!({"id":event_id}));result}
 
 #[derive(serde::Deserialize)]
 pub struct ContentRequest {#[serde(default="super::content::default_provider")]provider:String,project:String,version:Option<String>,kind:String,world:Option<String>,beta:bool,fingerprint:String}
 #[tauri::command]
 pub async fn bulk_install_content(backend:State<'_,B>,app:AppHandle,id:String,requests:Vec<ContentRequest>,task_id:Option<String>)->Result<super::content::State>{
- let lease=backend.inner().lease(&id)?;let job=Job::tracked(backend.inner().clone(),&id,"install",&backend.instance(&id)?.name,Some(&id),Some(app.clone()),lease.cancel.clone(),task_id)?;
+ let lease=backend.inner().lease(&id)?;let job=Job::tracked(backend.inner().clone(),&id,"install",&backend.instance(&id)?.name,Some(&id),Some(app.clone()),lease.cancel.clone(),task_id)?;job.content_history.store(true,Ordering::Relaxed);
  let result=async{let instance=backend.instance(&id)?;let mut plans=vec![];if requests.len()>100{return Err(BackendError::new("dependency","Too many projects"));}for r in requests{job.check()?;job.emit("content_resolve","running",&r.project);let p=super::download::cancellable(&job,super::content_provider::provider_preview(&backend,&r.provider,&instance,&r.project,r.version.as_deref(),&r.kind,r.world,r.beta)).await?;if p.fingerprint!=r.fingerprint{return Err(BackendError::new("content_plan_changed","Install plan changed"));}plans.push(p);}super::content_provider::install_many(backend.inner().clone(),&id,plans,job.clone()).await}.await;
  job.finish(&result);let _=app.emit("content-changed",serde_json::json!({"id":id}));result
 }

@@ -72,10 +72,10 @@ test("native account, Play/Stop and human error details connect to the backend",
   await page.getByRole("button",{name:"Stop game",exact:true}).click();
   await expect(page.locator(".library-grid")).toContainText("Less than a minute");
   await page.getByRole("button",{name:"Check / repair",exact:true}).click();
-  const error=page.getByRole("alert");await expect(error).toContainText("failed verification");
-  await expect(error).not.toContainText("Technical checksum");
-  await error.getByRole("button",{name:"Details",exact:true}).click();
-  await expect(error.locator("pre")).toContainText("Technical checksum contract details");
+  const error=page.getByRole("dialog",{name:"File verification failed"});await expect(error).toContainText("integrity check");
+  await expect(error.locator(".error-technical-message")).not.toBeVisible();
+  await error.locator("summary").click();
+  await expect(error.locator(".error-technical-message")).toContainText("Technical checksum contract details");
   const calls=await page.evaluate(()=> (globalThis as unknown as {__backendTest:{calls:{command:string;args:{id?:string}}[]}}).__backendTest.calls);
   expect(calls.find(call=>call.command==="launch_instance")?.args.id).toBe("contract-instance");
 });
@@ -84,7 +84,7 @@ test("existing Settings saves real runtime settings and Java selection",async({p
   await page.locator(".settings-nav").getByRole("button",{name:"Canary",exact:true}).click();
   await page.getByRole("button",{name:"Find Java",exact:true}).click();
   await page.getByRole("combobox",{name:"Java executable",exact:true}).click();await page.getByRole("option",{name:"Test vendor · 21.0.1 · amd64 · C:/Java/bin/java.exe",exact:true}).click();
-  await page.getByLabel("Maximum RAM (MB)",{exact:true}).fill("6144");
+  await page.getByRole("slider",{name:"Maximum memory",exact:true}).fill("6"); await page.getByRole("slider",{name:"Maximum memory",exact:true}).press("Tab");
   await page.getByRole("button",{name:"Save",exact:true}).click();
   const settings=await page.evaluate(()=> (globalThis as unknown as {__backendTest:{state:{settings:{max_memory:number;java_path:string}}}}).__backendTest.state.settings);
   expect(settings.max_memory).toBe(6144);expect(settings.java_path).toBe("C:/Java/bin/java.exe");
@@ -201,6 +201,7 @@ test("pending Stop waits for an explicit Force choice",async({page})=>{
   calls=await page.evaluate(()=>(globalThis as any).__backendTest.calls.filter((c:any)=>c.command==="stop_instance"));
   expect(calls.map((c:any)=>c.args.force)).toEqual([false,false]);
   await dialog.getByRole("button",{name:"Force stop",exact:true}).click();
+  await page.getByRole("dialog",{name:"Force stop Minecraft?"}).getByRole("button",{name:"Stop",exact:true}).click();
   await expect(dialog).toHaveCount(0);
   calls=await page.evaluate(()=>(globalThis as any).__backendTest.calls.filter((c:any)=>c.command==="stop_instance"));
   expect(calls.map((c:any)=>c.args.force)).toEqual([false,false,true]);
@@ -235,7 +236,7 @@ test("storage cleanup requires confirmation and RAM warning leaves account defau
  await dialog.getByRole("button",{name:"Cancel",exact:true}).click();await expect(dialog).toHaveCount(0);
  await storage.getByRole("button",{name:"Clear cache",exact:true}).click();await dialog.getByRole("button",{name:"Clear",exact:true}).click();await expect(dialog).toHaveCount(0);
  expect(await page.evaluate(()=> (globalThis as any).__backendTest.calls.filter((c:any)=>c.command==="clear_download_cache").length)).toBe(1);
- const max=page.locator("label").filter({hasText:"Maximum RAM"}).getByRole("spinbutton");await max.fill("7000");await expect(page.getByText("You are allocating most of your RAM.",{exact:false})).toBeVisible();
+ const max=page.getByRole("slider",{name:"Maximum memory",exact:true});await max.fill("7");await max.press("Tab");await expect(page.getByText("You are allocating almost all system memory.",{exact:false})).toBeVisible();
  await page.getByRole("combobox",{name:"Default account",exact:true}).click();await page.getByRole("option",{name:"Last used account",exact:true}).click();await expect(page.getByRole("combobox",{name:"Default account",exact:true})).toContainText("Last used account");
  await page.evaluate(()=>{const state=(globalThis as any).__backendTest.state;state.accounts=[{id:"older",provider:"local",username:"OlderQA",last_used:100,status:"local"},{id:"recent",provider:"local",username:"RecentQA",last_used:200,status:"local"}];});
  await page.getByRole("button",{name:"Save",exact:true}).click();await expect(page.locator(".account-button")).toContainText("RecentQA");

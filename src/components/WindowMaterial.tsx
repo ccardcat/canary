@@ -1,3 +1,4 @@
+import {SmoothRange} from "./SmoothRange";
 import GlassSelect from "./GlassSelect";
 import {useEffect,useRef,useState} from "react";
 import {invoke,isTauri} from "@tauri-apps/api/core";
@@ -49,7 +50,7 @@ export function useNativeMaterial(value:WindowPreferences) {
 type Props={russian:boolean;value:WindowPreferences;update:(patch:Partial<WindowPreferences>)=>void;caps:Capabilities;applied:Applied};
 export function WindowMaterialSettings({russian,value,update,caps,applied}:Props){
   const label=(en:string,ru:string)=>russian?ru:en;
-  const range=(name:string,number:number,min:number,max:number,change:(v:number)=>void,unit="%",disabled=false)=><label className="visual-range"><span>{name}<output>{number}{unit}</output></span><input type="range" disabled={disabled} aria-label={name} min={min} max={max} value={number} onChange={e=>change(Number(e.target.value))}/></label>;
+  const range=(name:string,number:number,min:number,max:number,change:(v:number)=>void,unit="%",disabled=false)=><SmoothRange label={name} value={number} min={min} max={max} onCommit={change} unit={unit} disabled={disabled}/>;
   const preset=(p:string)=>{const patches:Record<string,Partial<WindowPreferences>>={off:{backgroundSource:"canary",material:"solid",windowTransparency:0,surfaceOpacity:94,glassIntensity:15},subtle:{backgroundSource:"desktop",material:"mica",windowTransparency:25,surfaceOpacity:90,glassIntensity:20},balanced:{backgroundSource:"desktop",material:"acrylic",windowTransparency:50,surfaceOpacity:82,glassIntensity:35},glass:{backgroundSource:"desktop",material:"acrylic",windowTransparency:75,surfaceOpacity:68,glassIntensity:55},custom:{}};update({...patches[p],vibrancyPreset:p});};
   return <section className="visual-preferences window-material-settings">
     <h3>{label("Window Material / Vibrancy","Материал окна / Vibrancy")}</h3>
