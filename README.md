@@ -1,6 +1,6 @@
 # Canary
 
-A Tauri 2 Windows/Linux desktop Minecraft launcher with Modrinth and CurseForge discovery, isolated instances, Java management and real Local-profile game launching. React, TypeScript, Rust and Vite; local typography and Canary artwork.
+A Tauri 2 Windows/Linux desktop Minecraft launcher with Modrinth discovery, isolated instances, Java management and real Local-profile game launching. React, TypeScript, Rust and Vite; local typography and Canary artwork.
 
 Discord Rich Presence uses the local desktop client, real Minecraft process sessions and the existing task registry. **Settings → Discord** controls sharing, names, downloads and page visibility. No Discord sign-in/token is required. See [Discord setup, assets and QA](docs/DISCORD_RICH_PRESENCE_QA.md) for Developer Portal configuration and verified/remaining checks.
 
@@ -19,7 +19,7 @@ In the desktop app, create a **Local account** in the account menu, then use **L
 
 Runtime settings are grouped under **Settings → Minecraft / Downloads / Advanced**, with the existing **Canary** overview retained. Settings search also finds Window, Background, Effects, Typography, Storage and Account. Global and per-instance Java, RAM, arguments and resolution are supported. Profiles and settings persist in the platform app-data folder. Instance storage can be selected on another drive; Settings offers verified migration or keeping existing instances in their original folders.
 
-Ely.by sign-in is available through **Account → Sign in to Ely.by**, including the documented two-factor retry. Passwords are used once; session tokens go into Windows Credential Manager rather than JSON/localStorage. Microsoft uses browser Authorization Code + PKCE, Xbox/XSTS and Minecraft entitlement/profile checks, with refresh tokens in OS secure storage. `CANARY_MICROSOFT_CLIENT_ID` overrides the registered public client. A licensed account and Minecraft-services permission for the application are required. CurseForge uses the same Discover/Content interface and needs your own official `CANARY_CURSEFORGE_API_KEY` in the native process environment.
+Ely.by sign-in is available through **Account → Sign in to Ely.by**, including the documented two-factor retry. Passwords are used once; session tokens go into Windows Credential Manager rather than JSON/localStorage. Microsoft uses browser Authorization Code + PKCE, Xbox/XSTS and Minecraft entitlement/profile checks, with refresh tokens in OS secure storage. `CANARY_MICROSOFT_CLIENT_ID` overrides the registered public client. A licensed account and Minecraft-services permission for the application are required. CurseForge is currently Coming Soon in Discover and Content. Selecting it shows a neutral unavailable state; remote search, installation, repair and update actions are unavailable. The underlying integration is retained for a future update.
 
 Use **Library → + Content** to manage an instance’s mods, shaders, resource packs and world-specific datapacks. Provider browsing prefills the Minecraft version/loader, resolves required dependencies and verifies downloads. Local JAR/ZIP import, scoped file drop, enable/disable, bulk actions, compatible updates, snapshots, rollback and recent changes are supported. Modpack updates reuse the existing installer in isolated staging, preserve user additions/worlds/configuration and block conflicting user files.
 
@@ -59,7 +59,7 @@ The prepared cloud environment has native dependencies under `/workspace/.toolch
 
 In this headless machine, WebKit's GPU compositing crashed its web process during animated navigation. `WEBKIT_DISABLE_COMPOSITING_MODE=1` selects software rendering for Xvfb. Cargo's target runner can map the extracted WebKit helpers while `npm run tauri dev` remains outside PRoot. Keep TLS verification enabled.
 
-See [validation notes](docs/QA.md) for the verified scenario and remaining platform limits.
+See [validation notes](docs/QA.md) for the verified scenario and remaining platform limits. The current [visual stabilization report](docs/VISUAL_STABILIZATION_QA.md) records renderer and native CI coverage; use the [visual regression checklist](docs/VISUAL_REGRESSION_CHECKLIST.md) before adding themes.
 
 ## Releases
 

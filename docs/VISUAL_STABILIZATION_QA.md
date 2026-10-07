@@ -23,7 +23,7 @@ The actual React UI was loaded and interacted with in headless Chromium 153 with
 The fixture tests verify frontend behavior and IPC contracts. They do not execute native downloads, external authentication, real WebView2/WebKit rendering, the Windows compositor or physical native drag/drop.
 
 - Frontend production build: passes; existing Vite warning remains for the main JavaScript chunk exceeding 500 kB.
-- Frontend suite: 88/89 passed in the full run. The remaining nested-popup cancellation bug was fixed; all six related tests passed on rerun. The ten stabilization scenarios then passed together, and the additional Screenshots/Activity scenario was checked separately. This covers 91 distinct scenarios across the full run and targeted reruns; it is not a claim that one final 91-test run was executed.
+- Frontend suite: 88/89 passed in the full run. The remaining nested-popup cancellation bug was fixed; all six related tests passed on rerun. The ten stabilization scenarios then passed together, and the additional Screenshots/Activity scenario passed separately (1/1). This covers 91 distinct scenarios across the full run and targeted reruns; it is not a claim that one final 91-test run was executed.
 - Local `cargo check`: attempted; unavailable because Cargo/Rust are not installed.
 - Local `npm run tauri dev`: attempted; blocked by missing Cargo (`cargo metadata` could not execute).
 - Native Windows/Linux build, Rust checks/tests and Windows window QA: existing `Desktop verification` workflow runs after the main update; results belong to that exact commit and must be checked independently.
@@ -31,3 +31,7 @@ The fixture tests verify frontend behavior and IPC contracts. They do not execut
 ## Follow-up boundary
 
 Before calling native visual QA complete, confirm the current commit's Windows/Linux workflow and inspect real native low-height resize, maximize/fullscreen, tooltip behavior and physical drag/drop. Perform real Ely.by/Microsoft authentication and Modrinth downloads only with appropriate test accounts/data. Windows XP theme is deliberately outside this pass.
+
+## Native CI evidence
+
+Code commit: `0ca4cac73776ff82feea753d0595d000d0cf3d0d`, [Desktop verification run 37616797063](https://github.com/ccardcat/canary/actions/runs/37616797063). Both Windows and Linux frontend builds, `cargo check` and `cargo test` passed. Linux completed the entire workflow and produced its desktop installer. Linux Rust results: 74 passed, 0 failed, 6 intentionally ignored external-service/download tests; the new unavailable-provider update-filter test passed. The documentation follow-up changes no application code.
