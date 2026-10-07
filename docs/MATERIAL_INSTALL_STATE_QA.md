@@ -73,10 +73,33 @@ Representative material/contact-sheet, Discover and previous regression screensh
 - Local `cargo check --locked --manifest-path src-tauri/Cargo.toml`: unavailable, exit 127 because Cargo is absent.
 - Local `npm run tauri dev`: unavailable, exit 1 because `cargo metadata` cannot run.
 - A Rust regression verifies task identity serialization, progress/terminal retention and rejection of late identity/progress changes.
-- Existing GitHub Windows/Linux verification runs frontend build, Cargo check/test and desktop installers for the pushed code.
-- Windows QA now additionally applies all seven presets through actual packaged WebView2 controls, verifies 56 layout/material combinations and persistence on renderer reload, and captures all presets across Light/Dark/AMOLED at native widths 1200 and 960. It then sets Right + Floating + Compact + Clear Glass, closes the actual process, launches a new process with the same WebView2 profile and compares the full persisted Appearance configuration and rendered sidebar/material state. Its material matrix harness first passed in Chromium; native CI outcomes are recorded separately when available.
-- Live Discover QA uses the actual public Modrinth results and native IPC: at least five cards, one real installation, matching UUID/provider/project/version identity, Downloads cancellation/terminal state, return navigation and no ghost instance. Network prerequisites that cannot complete are explicitly recorded as `blocked`, not a successful live installation. The adapter harness validates its controls/logic separately with fixtures.
+- GitHub Windows/Linux verification passed frontend build, Cargo check/test and desktop installers for the pushed code.
+- Windows QA passed all seven presets through actual packaged WebView2 controls, 56 layout/material combinations and persistence on renderer reload, plus all presets across Light/Dark/AMOLED at native widths 1200 and 960. It then set Right + Floating + Compact + Clear Glass, closed the actual process, launched a new process with the same WebView2 profile and verified the full persisted Appearance configuration and rendered sidebar/material state.
+- Live Discover QA passed using actual public Modrinth results and native IPC: 12 cards, one real installation, matching UUID/provider/project/version identity, Downloads cancellation, return navigation and no ghost instance. The adapter harness validates its controls/logic separately with fixtures; the live CI run used no network or IPC fixtures.
+
+## Verified CI evidence
+
+Verified code commit: `61143226dd4bb5fbc038276bc10c45b7d451c2c1`.
+Run: [Desktop verification 37628414777](https://github.com/ccardcat/canary/actions/runs/37628414777).
+
+| Check | Windows | Linux |
+| --- | --- | --- |
+| Frontend build | Passed | Passed |
+| Cargo check, locked | Passed | Passed |
+| Cargo test, locked | 72 passed, 0 failed, 6 ignored | 75 passed, 0 failed, 6 ignored |
+| Production installers | NSIS + MSI passed | DEB passed |
+| Real native GUI | Passed; release executable with supported inspector feature | Not exercised |
+
+The first code CI run caught an old Discord test fixture missing the three new optional Task identity fields. Commit `f4f79e2` updated the fixture with `None`; subsequent Windows/Linux test suites passed, including the new identity/terminal regression. No tests were disabled to resolve the failure.
+
+The final native report contains 98 material entries, 36 window/material/restart cases and 82 captures. **81 captures used native desktop capture**. The initial `fullscreen` capture used the explicit WebView-only fallback because PowerShell timed out; its fullscreen state and geometry assertions still used real native IPC. Earlier run [37627362005](https://github.com/ccardcat/canary/actions/runs/37627362005) passed with all 79 captures using native desktop capture. Representative native Light/Dark/fullscreen thumbnails were visually inspected in addition to the renderer material/contact sheets.
+
+Full process restart changed PID **8300 → 3008**, with `sidebarSide=right`, `sidebarMode=floating`, `compact=true`, `preset=clear` and the entire saved Appearance configuration unchanged.
+
+Live installation evidence: provider/project **`modrinth:1KVo5zza`**, version **`MKDr2HvF`**, task UUID **`198f3e3f-2a7f-4e01-95b6-04c9f95a7e46`**. Exactly **1 of 12 cards** displayed Installing. Rust task identity was confirmed through `backend_snapshot`; cancellation from Downloads finished with **`cancelled`**, all Discover Installing states cleared after return navigation and the backend instance list contained no ghost instance.
+
+The actual runner compositor samples recorded 258 frames per four-second high/low quality sample, median about 15.6 ms and no intervals over 50 ms. Low quality disabled sidebar backdrop blur. These bounded runner measurements are not a physical scrolling or hardware FPS guarantee.
 
 ## Limits
 
-Local native GUI/compositor testing is unavailable. Interactive Microsoft/Ely.by sign-in and an actual public Modrinth pack download were not performed locally. Full process close/relaunch requires the Windows CI result. Network-dependent Rust integration tests retain their existing ignored status. Browser/IPC fixtures and native Window QA must not be described as successful live account authentication or a real Modrinth network installation. No new claim of physical drag/drop or hardware scroll frame rate is made.
+Local native GUI/compositor testing and `tauri dev` remain unavailable because Cargo is absent. Real process restart and an actual Modrinth installation start/cancellation passed in Windows CI. A complete successful public pack download and interactive Microsoft/Ely.by sign-in were not performed. Their UI/contracts and success/failure/cleanup paths have renderer/Rust regression coverage. Network-dependent Rust integration tests retain their six existing ignored tests. Browser/IPC fixtures must not be described as successful live account authentication or a complete real Modrinth installation. No new claim of physical drag/drop or hardware scroll frame rate is made. The existing frontend >500 kB chunk warning and legacy Rust unused-code warnings remain.
