@@ -27,6 +27,17 @@ See the [implementation and QA report](docs/FOLLOWUP_INTEGRATION_QA.md) for curr
 
 Appearance includes Dark, Light, AMOLED and live System mode, seven independent surface materials (Solid, Soft, Vibrancy, Glass, Clear Glass, Liquid Glass, Transparent), native Windows Acrylic/Mica/Mica Alt with supported fallbacks, titlebar branding/control styles, glass dropdowns, rotating application artwork in Home, snow/sakura/autumn effects and persisted typography sizing. Low quality disables UI backdrop blur/frost and limits particles; reduced motion and focus mode stop ambient motion. Linux reports a Solid fallback for Windows-only materials. Project descriptions/changelogs use safe Markdown or sanitized CurseForge HTML. Custom backgrounds use a native image picker and managed copies. F11 toggles real launcher fullscreen and restores previous geometry/maximized state, independently of Minecraft fullscreen.
 
+## After moving or renaming the checkout
+
+Cargo build output can retain absolute paths to the old directory, including Tauri-generated plugin permissions and native dependency libraries. If a build references the old path, regenerate the local build cache from the repository root:
+
+~~~powershell
+cargo clean --manifest-path src-tauri/Cargo.toml
+npm run tauri build
+~~~
+
+This removes generated Rust build artifacts; launcher profiles, accounts and installed Minecraft instances are stored separately. For a release-only failure, add `--release` to the clean command. The first rebuild will take longer.
+
 ## Checks
 
 ```sh
