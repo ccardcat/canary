@@ -10,15 +10,16 @@ if(process.platform!=='win32')throw Error('This check requires a Windows desktop
 const folder=resolve('qa/windows-window-smoke');await mkdir(folder,{recursive:true});
 const report={platform:process.platform,cases:[],captures:[],thumbnails:[]};const port=9384;
 const stdout=openSync(resolve(folder,'app-stdout.log'),'w'),stderr=openSync(resolve(folder,'app-stderr.log'),'w');
-const app=spawn(resolve(process.argv[2]||'src-tauri/target/release/scaffold.exe'),[],{env:{...process.env,CANARY_STARTUP_LOG:resolve(folder,'app-startup.log'),WEBVIEW2_USER_DATA_FOLDER:resolve(folder,'webview-data'),WEBVIEW2_ADDITIONAL_BROWSER_ARGUMENTS:`--remote-debugging-port=${port} --remote-debugging-address=127.0.0.1`},stdio:['ignore',stdout,stderr]});
-let launchError;app.once('error',error=>{launchError=error;});
+const launch=()=>spawn(resolve(process.argv[2]||'src-tauri/target/release/scaffold.exe'),[],{env:{...process.env,CANARY_STARTUP_LOG:resolve(folder,'app-startup.log'),WEBVIEW2_USER_DATA_FOLDER:resolve(folder,'webview-data'),WEBVIEW2_ADDITIONAL_BROWSER_ARGUMENTS:`--remote-debugging-port=${port} --remote-debugging-address=127.0.0.1`},stdio:['ignore',stdout,stderr]});
+let app=launch(),launchError;app.once('error',error=>{launchError=error;});
 const delay=ms=>new Promise(r=>setTimeout(r,ms));let socket;
 async function until(test,label,timeout=15000){const start=Date.now();while(Date.now()-start<timeout){if(launchError)throw launchError;if(app.exitCode!==null)throw Error(`Canary exited (${app.exitCode}) during ${label}`);try{if(await test())return;}catch(error){if(Date.now()-start>timeout-500)throw error;}await delay(100);}throw Error(`Timed out: ${label}`);}
 try{
  let target;await until(async()=>{const targets=await(await fetch(`http://127.0.0.1:${port}/json/list`)).json();target=targets.find(t=>t.type==='page'&&t.url.includes('tauri.localhost'));return !!target?.webSocketDebuggerUrl;},'WebView2 inspector',45000);
  socket=new WebSocket(target.webSocketDebuggerUrl);await new Promise((r,j)=>{socket.addEventListener('open',r,{once:true});socket.addEventListener('error',j,{once:true});});
  let next=0;const pending=new Map();
- socket.addEventListener('message',event=>{const result=JSON.parse(event.data);const waiter=pending.get(result.id);if(waiter){pending.delete(result.id);result.error?waiter.reject(Error(JSON.stringify(result.error))):waiter.resolve(result.result);}});
+ const receive=event=>{const result=JSON.parse(event.data);const waiter=pending.get(result.id);if(waiter){pending.delete(result.id);result.error?waiter.reject(Error(JSON.stringify(result.error))):waiter.resolve(result.result);}};
+ socket.addEventListener('message',receive);
  const call=(method,params={})=>new Promise((resolve,reject)=>{const id=++next;const timer=setTimeout(()=>{pending.delete(id);reject(Error(`Inspector timeout: ${method}`));},20000);pending.set(id,{resolve:r=>{clearTimeout(timer);resolve(r);},reject:e=>{clearTimeout(timer);reject(e);}});socket.send(JSON.stringify({id,method,params}));});
  const evaluate=async expression=>{const result=await call('Runtime.evaluate',{expression,awaitPromise:true,returnByValue:true});if(result.exceptionDetails)throw Error(JSON.stringify(result.exceptionDetails));return result.result?.value;};
  const invoke=(command,args={})=>evaluate(`window.__TAURI_INTERNALS__.invoke(${JSON.stringify(command)},${JSON.stringify(args)})`);
@@ -87,6 +88,22 @@ try{
   assert.ok(timing.frames>0,'Real WebView2 must paint frames');if(quality==='low'){assert.ok(timing.particles<=6);assert.equal(timing.sidebarBlur,'none');}report.performance.push(timing);await screenshot(`performance-${quality}-fullscreen`);
   await key('Escape',27);await until(async()=>!await win('is_fullscreen'),'performance restore');await finished();
  }
+ // Close the actual process, reopen with the same WebView2 profile and verify
+ // the exact persisted layout/material combination through fresh startup.
+ await click(textButton('.sidebar button','Settings'));await until(()=>evaluate(`!!document.querySelector('.material-settings')&&getComputedStyle(document.querySelector('.settings-modal')).opacity==='1'`),'restart Settings');
+ await click(textButton('[role=group][aria-label="Sidebar position"] button','Right'));await choose('Sidebar layout','Floating');
+ if(!await evaluate(`document.querySelector('.sidebar').classList.contains('compact')`))await click(`document.querySelector('.sidebar button[aria-label="Collapse sidebar"]')`);
+ await choose('Material preset','Clear Glass');
+ const persistence=()=>evaluate(`({visual:JSON.parse(localStorage.getItem('canary-visual')),compact:localStorage.getItem('canary-compact'),cards:document.documentElement.dataset.materialCards,sidebarCompact:document.querySelector('.sidebar').classList.contains('compact')})`);
+ const saved=await persistence();assert.equal(saved.visual.sidebarSide,'right');assert.equal(saved.visual.sidebarMode,'floating');assert.equal(saved.compact,'true');assert.equal(saved.cards,'clear');
+ const previousPid=app.pid;const exited=new Promise((resolve,reject)=>{const timer=setTimeout(()=>reject(Error('Canary process did not close')),15000);app.once('exit',()=>{clearTimeout(timer);resolve();});});
+ // The close IPC can lose its response when the WebView is destroyed.
+ void win('close').catch(()=>{});await exited;socket.close();await delay(500);launchError=undefined;app=launch();app.once('error',error=>{launchError=error;});
+ await until(async()=>{const targets=await(await fetch(`http://127.0.0.1:${port}/json/list`)).json();target=targets.find(t=>t.type==='page'&&t.url.includes('tauri.localhost'));return !!target?.webSocketDebuggerUrl;},'restarted WebView2 inspector',45000);
+ socket=new WebSocket(target.webSocketDebuggerUrl);await new Promise((resolve,reject)=>{socket.addEventListener('open',resolve,{once:true});socket.addEventListener('error',reject,{once:true});});socket.addEventListener('message',receive);
+ await call('Runtime.enable');await call('Page.enable');await until(()=>evaluate(`!!document.querySelector('.home-hero')&&document.documentElement.dataset.windowTransition==='false'`),'restarted Canary Home');
+ const reopened=await persistence();assert.deepEqual(reopened,saved);assert.notEqual(app.pid,previousPid);await screenshot('right-floating-compact-clear-process-restart');
+ report.cases.push({name:'material-layout-full-process-restart',previousPid,restartedPid:app.pid,sidebarSide:reopened.visual.sidebarSide,sidebarMode:reopened.visual.sidebarMode,compact:reopened.compact,preset:reopened.cards,configurationPreserved:true});
  report.status='success';console.log('WINDOWS_NATIVE_FULLSCREEN_GEOMETRY_MATERIAL_THEMES_DROPDOWNS_VERIFIED');
 }catch(error){
  report.status='failure';report.error=String(error);
