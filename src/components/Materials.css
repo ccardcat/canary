@@ -134,7 +134,7 @@
 :root .sidebar::after { background:var(--m-sheen),linear-gradient(var(--m-tint),var(--m-tint)),var(--m-fill); }
 :root .sidebar-art { opacity:calc(var(--sidebar-opacity,.85) * var(--mat-sidebar-background-influence)); filter:blur(var(--sidebar-blur,12px)) brightness(var(--sidebar-brightness,1)) saturate(calc(var(--sidebar-saturation,.75) * var(--mat-sidebar-saturation))); }
 :root .sidebar-art::after { content:""; position:absolute; inset:0; pointer-events:none; background:linear-gradient(color-mix(in srgb,var(--surface) calc(var(--sidebar-overlay,80%) * .35),transparent),color-mix(in srgb,var(--surface) calc(var(--sidebar-overlay,80%) * .35),transparent)),radial-gradient(ellipse,transparent 35%,color-mix(in srgb,var(--surface) calc(var(--sidebar-vignette,55%) * .35),transparent)); }
-:root .sidebar :is(.brand,nav,.sidebar-bottom) { background:var(--mat-sidebar-readable-fill); border-radius:var(--mat-buttons-radius); }
+:root .sidebar :is(.brand,nav,.sidebar-bottom) { background:transparent; border-radius:var(--mat-buttons-radius); }
 
 :root[data-sidebar-mode="floating"] .sidebar { margin:12px; height:calc(100dvh - 60px); border-radius:var(--m-radius); padding-top:20px; }
 :root[data-window-fullscreen="true"][data-sidebar-mode="floating"] .sidebar { height:calc(100dvh - 24px); }
@@ -429,8 +429,26 @@
   height:20px;
 }
 :root .sidebar .sidebar-icon svg { display:block;width:20px;height:20px;flex:none; }
-:root .sidebar .sidebar-bottom { gap:7px;min-width:0;grid-template-columns:minmax(0,1fr);padding-inline-end:var(--scrollbar-width); }
+:root .sidebar .sidebar-bottom { gap:7px;min-width:0;grid-template-columns:minmax(0,1fr);padding-inline-end:0; }
 @media(max-height:620px) { :root .sidebar .sidebar-bottom { gap:5px; } }
-/* Below this height the shared content scroller reserves the gutter instead. */
-@media(max-height:340px) { :root .sidebar .sidebar-bottom { padding-inline-end:0; } }
+/* Let the scrollbar use the existing outer padding instead of shifting the icon rail. */
+:root .sidebar nav { margin-inline-end:calc(-1 * var(--scrollbar-width)); }
+@media(max-width:600px) { :root .sidebar.compact { padding-inline:8px; } }
+/* Below this height the shared scroller owns the gutter instead of nav. */
+@media(max-height:340px) {
+  :root .sidebar nav { margin-inline-end:0; }
+  :root .sidebar .sidebar-content { margin-inline-end:calc(-1 * var(--scrollbar-width)); }
+}
 @media(forced-colors:active) { :root .sidebar .sidebar-content button:focus-visible { outline-color:Highlight; } }
+
+/* One translucent sidebar sheet; no dark inner capsules or framed silhouette. */
+:root .canary-app>.sidebar {
+  border-color:transparent;
+  box-shadow:0 8px 28px rgb(0 0 0 / .10);
+}
+:root .canary-app>.sidebar::after {
+  background:color-mix(in srgb,var(--surface-sidebar) 38%,transparent);
+}
+:root:is([data-reduce-transparency="true"],[data-focus="true"],[data-quality="low"]) .canary-app>.sidebar::after {
+  background:var(--surface-sidebar);
+}

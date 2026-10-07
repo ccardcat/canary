@@ -69,9 +69,17 @@ for(const [mode,system] of [["dark","dark"],["light","light"],["amoled","dark"],
 for(const side of ["left","right"])for(const layout of ["attached","floating"])for(const compact of [false,true]){
  test("Sidebar icon geometry "+side+"/"+layout+"/"+(compact?"compact":"expanded"),async({page})=>{
   await start(page,"dark",side,layout,compact);await expect(page.locator("html")).toHaveAttribute("data-sidebar-side",side);await expect(page.locator("html")).toHaveAttribute("data-sidebar-mode",layout);
+  await expect(page.locator(".sidebar .brand")).toHaveCSS("background-color","rgba(0, 0, 0, 0)");
+  await expect(page.locator(".sidebar nav")).toHaveCSS("background-color","rgba(0, 0, 0, 0)");
+  await expect(page.locator(".sidebar-bottom")).toHaveCSS("background-color","rgba(0, 0, 0, 0)");
+  if(compact){
+   const centers=await page.locator(".sidebar").evaluate(sidebar=>{const r=sidebar.getBoundingClientRect();return Array.from(sidebar.querySelectorAll(".sidebar-icon")).map(icon=>{const b=icon.getBoundingClientRect();return Math.abs(b.x+b.width/2-r.x-r.width/2);});});
+   for(const delta of centers)expect(delta).toBeLessThan(.6);
+  }
   const before=await geometry(page,compact);await nav(page,"Library").click();await expect(nav(page,"Library")).toHaveAttribute("aria-current","page");await controls(page);
   expect(await geometry(page,compact)).toEqual(before);await nav(page,"Library").hover();expect(await geometry(page,compact)).toEqual(before);
   await page.screenshot({path:".qa/sidebar-preview/"+side+"-"+layout+"-"+(compact?"compact":"expanded")+".png"});
+  if(compact&&side==="left"&&layout==="attached"){await page.mouse.move(800,400);await page.locator(".sidebar").screenshot({path:".qa/sidebar-preview/sidebar-fixed.png"});}
  });
 }
 test.beforeAll(()=>mkdirSync(".qa/sidebar-preview",{recursive:true}));
