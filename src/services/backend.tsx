@@ -126,6 +126,10 @@ export interface Java {
   architecture: string;
   managed: boolean;
 }
+export interface RunOptions {
+  reportError?: boolean;
+  prepare?: (signal:AbortSignal)=>Promise<Record<string,unknown>>;
+}
 interface ContextValue {
   sessions: GameSession[];
   tasks: ActivityTask[];
@@ -138,7 +142,7 @@ interface ContextValue {
   run: <T>(
     command: string,
     args?: Record<string, unknown>,
-    options?: { reportError?: boolean },
+    options?: RunOptions,
   ) => Promise<T>;
   logs: string[];
 }
@@ -160,6 +164,7 @@ export function BackendProvider({ children }: { children: ReactNode }) {
   const [snapshot, setSnapshot] = useState<Snapshot | null>(null);
   const [tasks, setTasks] = useState<ActivityTask[]>([]);
   const taskRef = useRef<ActivityTask[]>([]);
+  const preparing = useRef(new Map<string,AbortController>());
   const updateTask = useCallback((task: ActivityTask) => {
     const next = mergeTask(taskRef.current, task);
     if (next !== taskRef.current) {
@@ -220,7 +225,9 @@ export function BackendProvider({ children }: { children: ReactNode }) {
         return;
       updateTask({ ...task, status: "cancelling", cancelRequested: true });
       try {
-        await invoke("cancel_operation", { id });
+        const controller=preparing.current.get(id);
+        if(controller)controller.abort();
+        else await invoke("cancel_operation", { id });
       } catch (error) {
         const current = taskRef.current.find((t) => t.id === id);
         if (current && !isTerminal(current)) {
@@ -244,7 +251,7 @@ export function BackendProvider({ children }: { children: ReactNode }) {
     async <T,>(
       command: string,
       args?: Record<string, unknown>,
-      options?: { reportError?: boolean },
+      options?: RunOptions,
     ) => {
       if (command === "cancel_operation") {
         const task = [...taskRef.current]
@@ -272,6 +279,8 @@ export function BackendProvider({ children }: { children: ReactNode }) {
             ),
           )
         : null;
+      if(task?.projectId && taskRef.current.some(current=>current.projectId&&!isTerminal(current)&&current.kind==='install'))
+        throw {code:'operation_active',message:'A modpack installation is already active'};
       if (task) updateTask(task);
       const finish = (error?: unknown) => {
         if (!task) return;
@@ -297,7 +306,17 @@ export function BackendProvider({ children }: { children: ReactNode }) {
             : undefined,
         });
       };
+      const controller=task&&options?.prepare?new AbortController():null;
+      if(task&&controller)preparing.current.set(task.id,controller);
       try {
+        if(options?.prepare&&controller&&task){
+          const prepared=await options.prepare(controller.signal);
+          if(controller.signal.aborted)throw {code:'cancelled',message:'Operation cancelled'};
+          args={...args,...prepared};
+          const resolved=startingTask(command,args,task.title);
+          updateTask({...task,operationId:resolved.operationId,instanceId:resolved.instanceId,versionId:resolved.versionId});
+        }
+        if(task)preparing.current.delete(task.id);
         const result = await invoke<T>(
           command,
           task ? { ...args, taskId: task.id } : args,
@@ -330,7 +349,9 @@ export function BackendProvider({ children }: { children: ReactNode }) {
         )
           await refresh();
         return result;
-      } catch (error) {
+      } catch (caught) {
+        if(task)preparing.current.delete(task.id);
+        const error=controller?.signal.aborted?{code:'cancelled',message:'Operation cancelled'}:caught;
         finish(error);
         const code =
           (error as { code?: string; stage?: string })?.code ??

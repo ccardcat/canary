@@ -13,6 +13,7 @@ pub async fn install_curseforge_pack(backend:State<'_,B>,app:AppHandle,project_i
     let b=backend.inner().clone();let id=format!("curseforge-{project_id}-{file_id}");let lease=b.lease(&id)?;
     let existed=b.instance_path(&id)?.exists();
     let job=Job::tracked(b.clone(),&id,"install","CurseForge",Some(&id),Some(app.clone()),lease.cancel.clone(),task_id)?;
+    job.project_identity("curseforge",&project_id.to_string(),&file_id.to_string());
     let result=staged_work(b.clone(),&id,job.clone(),existed,async {if !existed{super::curseforge::install(b.clone(),project_id,file_id,job.clone()).await?;}prepare_leased(b.clone(),id.clone(),Some(app),false,job.clone()).await?;Ok(())}).await;
     job.finish(&result);result
 }

@@ -3,6 +3,7 @@ import {mkdir,writeFile,readFile} from 'node:fs/promises';
 import {resolve} from 'node:path';
 import {openSync,closeSync} from 'node:fs';
 import assert from 'node:assert/strict';
+import {materialPresetQA} from './material-preset-qa.mjs';
 
 // Connect to the real WebView2 of the packaged executable. No mocked IPC.
 if(process.platform!=='win32')throw Error('This check requires a Windows desktop runner');
@@ -74,6 +75,7 @@ try{
  await click(textButton('.settings-nav button','Window'));await choose('Window controls style','Traffic Lights');await choose('Control position','Left');await screenshot('left-traffic-controls');
  await choose('Titlebar branding','Text');assert.equal(await evaluate(`document.querySelectorAll('.window-brand img').length`),0);await screenshot('centered-text-brand');
  await click(`[...document.querySelectorAll('button[role="combobox"]')].find(b=>b.getAttribute('aria-label')==='Titlebar branding')`);await screenshot('glass-dropdown');await key('Escape',27);assert.equal(await evaluate(`!!document.querySelector('.settings-modal')`),true);
+ await materialPresetQA({evaluate,choose,click,textButton,call,win,until,delay,screenshot,report});
  // Sample the real compositor with desktop material, glass, ambient motion and
  // Hero enabled. Record runner timings, without inventing a hardware FPS result.
  report.performance=[];

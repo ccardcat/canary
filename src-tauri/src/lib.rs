@@ -12,6 +12,7 @@ async fn install_modpack(app:AppHandle,backend:State<'_,Arc<backend::Backend>>,p
     let b=backend.inner().clone();let _serial=b.lease("modpack-install")?;let id=format!("{project_id}-{version_id}");let lease=b.lease(&id)?;
     let existed=b.instance_path(&id)?.exists();
     let job=Job::tracked(b.clone(),&id,"install",&name,Some(&id),Some(app.clone()),lease.cancel.clone(),task_id)?;
+    job.project_identity("modrinth",&project_id,&version_id);
     let result=backend::commands::staged_work(b.clone(),&id,job.clone(),existed,async {
         if !existed{let instances=b.instance_path(&id)?.parent().unwrap().to_owned();
             installer::install_at_job(&project_id,&version_id,&name,&instances,Some(&job),|p|{

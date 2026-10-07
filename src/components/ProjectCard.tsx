@@ -1,31 +1,35 @@
+import {memo,useCallback,useRef} from "react";
+import {useBackend} from "../services/backend";
+import {projectInstallTask,isTerminal} from "../services/activity";
 import {Download,SquareArrowOutUpRight,Plus} from "lucide-react";
 import {categories,type T} from "../locales";
 import {artwork,type Project,type ContentType} from "../services/modrinth";
 import {providerName,providerAvailable} from "../services/providers";
 import RemoteImage from "./RemoteImage";
 import {cardSpotlight} from "./DesktopBehavior";
-export default function ProjectCard({
-  p,
-  t,
-  type,
-  installed,
-  busy = false,
-  onOpen,
-  onInstall,
-  compatibility,
-}: {
+type ProjectCardProps = {
   compatibility?:string;
   p: Project;
   t: T;
   type: ContentType;
   installed: boolean;
-  busy?: boolean;
+  installationDisabled?:boolean;
   onOpen: () => void;
   onInstall: () => void;
-}) {
+};
+function ProjectCard(props:ProjectCardProps) {
+  const {tasks}=useBackend();
+  const task=projectInstallTask(tasks,props.p.provider||'modrinth',props.p.project_id);
+  const blocked=!!props.installationDisabled||tasks.some(current=>current.projectId&&!isTerminal(current));
+  const handlers=useRef(props);handlers.current=props;
+  const onOpen=useCallback(()=>handlers.current.onOpen(),[]);
+  const onInstall=useCallback(()=>handlers.current.onInstall(),[]);
+  return <CardView {...props} onOpen={onOpen} onInstall={onInstall} busy={!!task} taskId={task?.id} percent={task&&task.total>0?Math.round(task.percent):undefined} blocked={blocked}/>;
+}
+const CardView=memo(function CardView({p,t,type,installed,onOpen,onInstall,compatibility,busy,blocked,taskId,percent}:ProjectCardProps & {busy:boolean;blocked:boolean;taskId?:string;percent?:number}) {
   const art = artwork(p) || p.icon_url;
   return (
-    <article className="project-card" onPointerMove={cardSpotlight}>
+    <article data-project-id={`${p.provider||"modrinth"}:${p.project_id}`} data-task-id={taskId} className="project-card" onPointerMove={cardSpotlight}>
       <button
         className="card-visual"
         onClick={onOpen}
@@ -74,8 +78,9 @@ export default function ProjectCard({
                   ? "compact-action installed"
                   : "compact-action install-action"
               }
-              disabled={installed || busy || !providerAvailable(p.provider)}
+              disabled={installed || blocked || !providerAvailable(p.provider)}
               onClick={onInstall}
+              aria-label={busy&&percent!==undefined?`${t("installing")} · ${percent}%`:undefined}
             >
               {installed
                 ? t("installed")
@@ -85,9 +90,12 @@ export default function ProjectCard({
               {!installed && <Plus size={13} />}
             </button>
           )}
+          {busy&&percent!==undefined&&<span className="card-install-progress" aria-hidden="true">{percent}%</span>}
         </div>
         <span className="card-provider">{providerName(p.provider)}</span>
       </div>
     </article>
   );
-}
+});
+
+export default memo(ProjectCard);

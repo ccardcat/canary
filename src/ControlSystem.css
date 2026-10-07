@@ -143,3 +143,10 @@
   :root .about-card { min-height:0; }
   :root .account-logins>button { flex-basis:100%; }
 }
+
+/* Metadata and actions keep their slots when Install becomes Installing. A
+   second pointer click must land on the same disabled action, never View. */
+:root .card-foot:has(.install-action,.installed) { display:grid; grid-template-columns:repeat(2,minmax(0,1fr)); grid-template-rows:minmax(20px,auto) auto; }
+:root .card-foot:has(.install-action,.installed) .downloads { grid-column:1; grid-row:1; }
+:root .card-foot:has(.install-action,.installed) .compact-action { grid-row:2; width:100%; min-width:0; }
+:root .card-foot .card-install-progress { grid-column:2; grid-row:1; justify-self:end; color:var(--text-secondary); font-size:.75rem; line-height:1.5; font-variant-numeric:tabular-nums; }

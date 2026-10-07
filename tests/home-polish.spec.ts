@@ -403,6 +403,7 @@ test("Project details lighten Back/tabs and widen metadata with themes and every
     "Soft",
     "Vibrancy",
     "Glass",
+    "Clear Glass",
     "Liquid Glass",
     "Transparent",
   ]) {
@@ -413,7 +414,7 @@ test("Project details lighten Back/tabs and widen metadata with themes and every
     const filter = await page
       .locator(".detail-side")
       .evaluate((el) => getComputedStyle(el).backdropFilter);
-    expect(style === "Solid" ? filter === "none" : filter !== "none").toBe(
+    expect(["Solid","Transparent"].includes(style) ? filter === "none" : filter !== "none").toBe(
       true,
     );
     await expect(page.locator(".detail-tabs")).toHaveCSS(

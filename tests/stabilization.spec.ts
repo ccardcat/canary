@@ -117,7 +117,7 @@ test("shared controls keep size, baseline and soft focus through interaction",as
 test("every Settings section and main page is contained across materials and modes",async({page})=>{
   test.setTimeout(180000);await page.goto("/");
   const results=[];
-  for(const material of ["Solid","Soft","Vibrancy","Glass","Liquid Glass","Transparent"]) {
+  for(const material of ["Solid","Soft","Vibrancy","Glass","Clear Glass","Liquid Glass","Transparent"]) {
     await nav(page,"Settings").click();await choose(page,"Material preset","Vibrancy");await choose(page,"Shared material",material);
     for(const mode of ["Light","Dark","AMOLED"]) {
       await page.locator(".mode-grid").getByRole("button",{name:mode,exact:true}).click();await page.waitForTimeout(300);

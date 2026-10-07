@@ -1,36 +1,63 @@
-export const materialStyles = ['solid', 'soft', 'vibrancy', 'glass', 'liquid', 'transparent'] as const;
+export const materialStyles = ['solid', 'soft', 'vibrancy', 'glass', 'clear', 'liquid', 'transparent'] as const;
 export type SurfaceMaterial = typeof materialStyles[number];
 export const materialCategories = ['cards', 'buttons', 'sidebar', 'popovers', 'dialogs', 'inputs', 'titlebar', 'floating'] as const;
 export type MaterialCategory = typeof materialCategories[number];
 export type MaterialPreferences = {
-  materialPreset: string; materialLinked: boolean; materialStyle: SurfaceMaterial;
+  materialPreset: MaterialPreset | 'custom'; materialLinked: boolean; materialStyle: SurfaceMaterial;
   materialCategories: Record<MaterialCategory, SurfaceMaterial>;
   materialIntensity: number; materialSaturation: number; materialBrightness: number;
   materialContrast: number; materialHighlight: number; materialBorder: number;
-  materialShadow: number; materialRadius: number; materialAccent: boolean;
+  materialShadow: number; materialAccent: boolean;
   sidebarMaterialIntensity: number; titlebarMaterialIntensity: number;
-  reduceTransparency: boolean; sidebarMode: 'attached' | 'floating';
+  reduceTransparency: boolean;
+};
+// Layout is persisted beside materials for compatibility, but never applied by a preset.
+export type LayoutPreferences = {
+  sidebarMode: 'attached' | 'floating'; materialRadius: number;
   instanceLayout: 'comfortable' | 'compact'; instanceArtwork: 'full' | 'ambient' | 'off';
   buttonDensity: 'comfortable' | 'compact';
+};
+export const layoutDefaults: LayoutPreferences = {
+  sidebarMode:'attached', materialRadius:19, instanceLayout:'comfortable', instanceArtwork:'full', buttonDensity:'comfortable',
 };
 const categories: MaterialPreferences['materialCategories'] = {cards:'glass', buttons:'soft', sidebar:'vibrancy', popovers:'glass', dialogs:'glass', inputs:'soft', titlebar:'transparent', floating:'glass'};
 export const materialDefaults: MaterialPreferences = {
   materialPreset:'canary', materialLinked:false, materialStyle:'glass', materialCategories:categories,
   materialIntensity:50, materialSaturation:100, materialBrightness:100, materialContrast:100,
-  materialHighlight:100, materialBorder:100, materialShadow:100, materialRadius:19,
-  materialAccent:false, sidebarMaterialIntensity:100, titlebarMaterialIntensity:100,
-  reduceTransparency:false, sidebarMode:'attached', instanceLayout:'comfortable', instanceArtwork:'full', buttonDensity:'comfortable',
+  materialHighlight:100, materialBorder:100, materialShadow:100,
+  materialAccent:false, sidebarMaterialIntensity:100, titlebarMaterialIntensity:100, reduceTransparency:false,
 };
-export const materialPresets: Record<string, Partial<MaterialPreferences> & {surfaceOpacity:number; surfaceBlur:number}> = {
-  canary:{...materialDefaults, materialCategories:{...categories}, surfaceOpacity:82, surfaceBlur:16},
-  graphite:{materialStyle:'soft', materialLinked:true, materialIntensity:40, surfaceOpacity:90, surfaceBlur:10},
-  vibrancy:{materialStyle:'vibrancy', materialLinked:true, materialIntensity:60, surfaceOpacity:82, surfaceBlur:20},
-  clear:{materialStyle:'glass', materialLinked:true, materialIntensity:55, surfaceOpacity:72, surfaceBlur:20},
-  liquid:{materialStyle:'liquid', materialLinked:true, materialIntensity:55, sidebarMode:'floating', surfaceOpacity:82, surfaceBlur:18},
-  minimal:{materialStyle:'solid', materialLinked:true, materialIntensity:25, surfaceOpacity:100, surfaceBlur:0},
-  transparent:{materialStyle:'transparent', materialLinked:true, materialIntensity:40, sidebarMode:'floating', surfaceOpacity:82, surfaceBlur:4},
-  amoled:{materialStyle:'liquid', materialLinked:true, materialIntensity:55, materialHighlight:80, materialBorder:90, surfaceOpacity:90, surfaceBlur:18},
-};
+export type MaterialValues = MaterialPreferences & {surfaceOpacity:number; surfaceBlur:number};
+export const materialPresets = {
+  canary:{materialCategories:{...categories}, surfaceOpacity:82, surfaceBlur:16},
+  solid:{materialStyle:'solid',materialLinked:true,materialIntensity:40,surfaceOpacity:100,surfaceBlur:0},
+  soft:{materialStyle:'soft',materialLinked:true,materialIntensity:40,surfaceOpacity:82,surfaceBlur:8},
+  vibrancy:{materialStyle:'vibrancy',materialLinked:true,materialIntensity:60,surfaceOpacity:82,surfaceBlur:16},
+  glass:{materialStyle:'glass',materialLinked:true,materialIntensity:50,surfaceOpacity:82,surfaceBlur:18},
+  clear:{materialStyle:'clear',materialLinked:true,materialIntensity:50,surfaceOpacity:72,surfaceBlur:18},
+  liquid:{materialStyle:'liquid',materialLinked:true,materialIntensity:55,surfaceOpacity:82,surfaceBlur:18},
+  transparent:{materialStyle:'transparent',materialLinked:true,materialIntensity:40,surfaceOpacity:60,surfaceBlur:0},
+  // Old preset IDs remain valid; loading never reapplies them over a user's settings.
+  graphite:{materialStyle:'soft',materialLinked:true,materialIntensity:40,surfaceOpacity:82,surfaceBlur:8},
+  minimal:{materialStyle:'solid',materialLinked:true,materialIntensity:40,surfaceOpacity:100,surfaceBlur:0},
+  amoled:{materialStyle:'liquid',materialLinked:true,materialIntensity:55,materialHighlight:80,materialBorder:90,surfaceOpacity:90,surfaceBlur:18},
+} satisfies Record<string,Partial<MaterialValues>>;
+export type MaterialPreset = keyof typeof materialPresets;
+export const primaryMaterialPresets = ['solid','soft','vibrancy','glass','clear','liquid','transparent'] as const;
+export function materialPresetPatch(preset: MaterialPreset = 'canary'): MaterialValues {
+  // Only this typed material object crosses into Appearance; no defaults from layout/background/theme.
+  return {...materialDefaults, materialCategories:{...categories},
+    ...materialPresets[preset], materialPreset:preset};
+}
+export function normalizeLayout(saved:Record<string,unknown>):LayoutPreferences {
+  const result={...layoutDefaults};
+  for (const key of ['sidebarMode','instanceLayout','instanceArtwork','buttonDensity'] as const) {
+    const allowed={sidebarMode:['attached','floating'],instanceLayout:['comfortable','compact'],instanceArtwork:['full','ambient','off'],buttonDensity:['comfortable','compact']}[key];
+    if (allowed.includes(String(saved[key]))) (result as unknown as Record<string,unknown>)[key]=saved[key];
+  }
+  if(typeof saved.materialRadius==='number'&&Number.isFinite(saved.materialRadius))result.materialRadius=Math.min(28,Math.max(8,saved.materialRadius));
+  return result;
+}
 const clamp=(n:number,min:number,max:number)=>Math.min(max,Math.max(min,n));
 export function normalizeMaterials(saved:Record<string,unknown>):MaterialPreferences {
   const result={...materialDefaults,materialCategories:{...categories}};
@@ -40,57 +67,71 @@ export function normalizeMaterials(saved:Record<string,unknown>):MaterialPrefere
   if(!valid(result.materialStyle))result.materialStyle='glass';
   const input=saved.materialCategories&&typeof saved.materialCategories==='object'?saved.materialCategories as Record<string,unknown>:{};
   for(const key of materialCategories)if(valid(input[key]))result.materialCategories[key]=input[key];
-  for(const [key,allowed] of Object.entries({sidebarMode:['attached','floating'],instanceLayout:['comfortable','compact'],instanceArtwork:['full','ambient','off'],buttonDensity:['comfortable','compact']}))if(!allowed.includes(String(fields[key])))fields[key]=(materialDefaults as unknown as Record<string,unknown>)[key];
-  for(const [key,[min,max]] of Object.entries({materialIntensity:[0,100],materialSaturation:[50,160],materialBrightness:[80,120],materialContrast:[80,120],materialHighlight:[0,160],materialBorder:[30,160],materialShadow:[0,160],materialRadius:[8,28],sidebarMaterialIntensity:[0,150],titlebarMaterialIntensity:[0,150]})){
+  for(const [key,[min,max]] of Object.entries({materialIntensity:[0,100],materialSaturation:[50,160],materialBrightness:[80,120],materialContrast:[80,120],materialHighlight:[0,160],materialBorder:[30,160],materialShadow:[0,160],sidebarMaterialIntensity:[0,150],titlebarMaterialIntensity:[0,150]})){
     const n=fields[key];fields[key]=typeof n==='number'&&Number.isFinite(n)?clamp(n,min,max):(materialDefaults as unknown as Record<string,unknown>)[key];
   }
-  if(result.materialPreset!=='custom'&&!materialPresets[result.materialPreset])result.materialPreset='canary';
+  if(result.materialPreset!=='custom'&&!(result.materialPreset in materialPresets))result.materialPreset='canary';
+  // Clear Glass used to be a lower-opacity Glass preset. Preserve explicit layout and artwork.
+  if(result.materialPreset==='clear'&&result.materialLinked&&result.materialStyle==='glass')result.materialStyle='clear';
   return result;
 }
-type TokenPreferences=MaterialPreferences & {surfaceOpacity:number;surfaceBlur:number;glassIntensity:number;quality:string;focus:boolean};
+export type TokenPreferences=MaterialPreferences & {surfaceOpacity:number;surfaceBlur:number;glassIntensity:number;quality:string;focus:boolean};
 // Profiles share one token pipeline. Depth belongs to the semantic category,
 // not the page. Controls use a foreground variant to avoid nested backdrop work.
-const profiles:Record<SurfaceMaterial,{opacity:number;blur:number;saturation:number;light:number;edge:number;shadow:number}>={
-  solid:{opacity:100,blur:0,saturation:1,light:.02,edge:.12,shadow:.04},
-  soft:{opacity:92,blur:.15,saturation:1.05,light:.045,edge:.12,shadow:.08},
-  vibrancy:{opacity:65,blur:.75,saturation:1.45,light:.075,edge:.15,shadow:.13},
-  glass:{opacity:55,blur:1,saturation:1.2,light:.13,edge:.2,shadow:.18},
-  liquid:{opacity:58,blur:.9,saturation:1.12,light:.085,edge:.13,shadow:.1},
-  transparent:{opacity:24,blur:.08,saturation:1,light:.07,edge:.13,shadow:.08},
+export const materialProfiles:Record<SurfaceMaterial,{opacity:number;blur:number;saturation:number;light:number;edge:number;shadow:number;influence:number}>={
+  solid:{opacity:100,blur:0,saturation:1,light:0,edge:.16,shadow:.035,influence:0},
+  soft:{opacity:90,blur:.12,saturation:1,light:.012,edge:.08,shadow:.055,influence:.16},
+  vibrancy:{opacity:72,blur:.8,saturation:1.32,light:.025,edge:.1,shadow:.085,influence:.85},
+  glass:{opacity:76,blur:1,saturation:1,light:.045,edge:.15,shadow:.09,influence:.55},
+  clear:{opacity:48,blur:1,saturation:1,light:.018,edge:.075,shadow:.055,influence:.92},
+  liquid:{opacity:58,blur:.9,saturation:1.08,light:.075,edge:.13,shadow:.1,influence:.72},
+  transparent:{opacity:8,blur:0,saturation:1,light:0,edge:.025,shadow:0,influence:1},
 };
-const depth:Record<MaterialCategory,number>={cards:1,buttons:.55,sidebar:1.1,popovers:1.35,dialogs:1.6,inputs:.35,titlebar:.4,floating:1.15};
+const depth:Record<MaterialCategory,number>={cards:1,buttons:.55,sidebar:1.1,popovers:1.25,dialogs:1.3,inputs:.35,titlebar:.4,floating:1.15};
 export function applyMaterialTokens(root:HTMLElement,value:TokenPreferences){
   root.dataset.materialPreset=value.materialPreset;
-  root.dataset.sidebarMode=value.sidebarMode;root.dataset.instanceLayout=value.instanceLayout;
-  root.dataset.instanceArtwork=value.instanceArtwork;root.dataset.buttonDensity=value.buttonDensity;
   root.dataset.reduceTransparency=String(value.reduceTransparency);
   for(const category of materialCategories){
     const style=value.materialLinked?value.materialStyle:value.materialCategories[category];
     root.dataset[`material${category[0].toUpperCase()}${category.slice(1)}`]=style;
-    const p=profiles[style],d=depth[category];
+    const p=materialProfiles[style],d=depth[category];
     const multiplier=category==='sidebar'?value.sidebarMaterialIntensity/100:category==='titlebar'?value.titlebarMaterialIntensity/100:1;
     const strength=clamp(value.materialIntensity/100*multiplier,0,1.5);
     const fallback=value.quality==='low'||value.reduceTransparency||value.focus;
     const foreground=category==='buttons'||category==='inputs';
-    const opacity=fallback?100:style==='solid'?100:clamp(p.opacity*value.surfaceOpacity/82+(0.5-strength)*14+(category==='inputs'?5:0),18,98);
-    const blur=fallback||foreground?0:clamp(value.surfaceBlur*p.blur*d*(.65+strength*.7),0,48);
-    const light=p.light*(.55+strength)*(value.materialHighlight/100)*(0.7+value.glassIntensity/70);
-    const restrained=style==='liquid';
-    const safeLight=clamp(light,0,restrained ? .16 : .65);
-    const shadow=p.shadow*(.4+strength)*d*value.materialShadow/100;
-    const edge=p.edge*(.7+strength*.4)*value.materialBorder/100;
+    const opacity=fallback?100:style==='solid'?100:clamp(p.opacity*value.surfaceOpacity/82+(0.5-strength)*8,4,98);
+    const blur=fallback||foreground?0:clamp(value.surfaceBlur*p.blur*d*(.75+strength*.5),0,32);
+    const light=clamp(p.light*(.65+strength)*value.materialHighlight/100*(.7+value.glassIntensity/70),0,.14);
+    const shadow=clamp(p.shadow*(.4+strength)*d*value.materialShadow/100,0,.18);
+    const edge=clamp(p.edge*(.7+strength*.4)*value.materialBorder/100,0,.22);
     const prefix=`--mat-${category}-`;
     const token=(key:string,v:string)=>root.style.setProperty(prefix+key,v);
-    token('opacity',`max(${opacity.toFixed(1)}%, var(--surface-floor-${category}))`);
+    // Overlay/control floors protect text independently of open surface translucency.
+    const protectedSurface=['dialogs','popovers','inputs','buttons','floating'].includes(category);
+    token('opacity',protectedSurface?`max(${opacity.toFixed(1)}%, var(--surface-floor-${category}))`:`${opacity.toFixed(1)}%`);
     const base=category==='inputs'?'input':category==='sidebar'?'sidebar':category==='dialogs'?'modal':category==='popovers'?'elevated':'primary';
     token('fill',`color-mix(in srgb, var(--surface-${base}) var(${prefix}opacity), transparent)`);
-    token('filter',blur===0?'none':`blur(${blur.toFixed(1)}px) saturate(${(p.saturation*value.materialSaturation/100*(.7+strength*.6)).toFixed(2)}) brightness(${value.materialBrightness/100}) contrast(${value.materialContrast/100})`);
-    token('glow',`color-mix(in srgb, var(--highlight) ${(safeLight*50).toFixed(1)}%, transparent)`);
-    token('light',`rgb(255 255 255 / ${safeLight.toFixed(3)})`);
-    token('edge',`color-mix(in srgb, var(--border-default) 65%, color-mix(in srgb, var(--text) ${(edge*100).toFixed(1)}%, transparent))`);
-    token('shadow',restrained ? `inset 0 1px 0 var(${prefix}light), 0 ${Math.round(8*d)}px ${Math.round(28*d)}px rgb(0 0 0 / calc(${clamp(shadow,0,.18).toFixed(3)} * var(--material-shadow-strength)))` : `inset 0 1px 0 var(${prefix}light), inset 1px 0 0 rgb(255 255 255 / ${(safeLight*.3).toFixed(3)}), 0 ${Math.round(4*d)}px ${Math.round(10*d)}px rgb(0 0 0 / ${(shadow*.7).toFixed(3)}), 0 ${Math.round(15*d)}px ${Math.round(34*d)}px rgb(0 0 0 / ${shadow.toFixed(3)})`);
-    token('radius',`${foreground?clamp(value.materialRadius*.55,8,16):category==='titlebar'?0:clamp(value.materialRadius*d,8,32)}px`);
-    token('tint',value.materialAccent?'color-mix(in srgb, var(--accent) 6%, transparent)':'transparent');
-    token('sheen',style==='liquid'?`linear-gradient(155deg, var(${prefix}glow), transparent 48%)`:`linear-gradient(145deg, var(${prefix}glow), transparent 42%)`);
+    token('readable-fill',`color-mix(in srgb, var(--surface-${base}) ${Math.max(0,(90-opacity)/(100-opacity||1)*100).toFixed(1)}%, transparent)`);
+    token('blur',`${blur.toFixed(1)}px`);
+    token('saturation',`${(p.saturation*value.materialSaturation/100*(.85+strength*.3)).toFixed(2)}`);
+    token('filter',blur===0?'none':`blur(var(${prefix}blur)) saturate(var(${prefix}saturation)) brightness(${value.materialBrightness/100}) contrast(${value.materialContrast/100})`);
+    token('background-influence',String(fallback?0:p.influence));
+    token('glow',`rgb(255 255 255 / ${(light*.45).toFixed(3)})`);
+    token('light',`rgb(255 255 255 / ${light.toFixed(3)})`);
+    token('edge',`color-mix(in srgb, var(--text) ${(edge*100).toFixed(1)}%, transparent)`);
+    const outer=`0 ${Math.round((style==='soft'?4:8)*d)}px ${Math.round((style==='soft'?20:28)*d)}px rgb(0 0 0 / calc(${shadow.toFixed(3)} * var(--material-shadow-strength)))`;
+    token('shadow',style==='transparent'?'none':style==='liquid'?`inset 0 1px 0 var(${prefix}light), ${outer}`:outer);
+    token('tint',value.materialAccent?'color-mix(in srgb, var(--accent) 6%, transparent)':style==='vibrancy'?'color-mix(in srgb, var(--surface-secondary) 8%, transparent)':'transparent');
+    token('sheen',style==='liquid'?`linear-gradient(155deg, var(${prefix}glow), transparent 38%, rgb(255 255 255 / ${(light*.16).toFixed(3)}) 76%, transparent)`:
+      style==='glass'||style==='clear'?`linear-gradient(180deg, var(${prefix}glow), transparent 28%)`:'linear-gradient(transparent,transparent)');
+  }
+}
+
+export function applyLayoutTokens(root:HTMLElement,value:LayoutPreferences) {
+  root.dataset.sidebarMode=value.sidebarMode;root.dataset.instanceLayout=value.instanceLayout;
+  root.dataset.instanceArtwork=value.instanceArtwork;root.dataset.buttonDensity=value.buttonDensity;
+  for(const category of materialCategories){
+    const foreground=category==='buttons'||category==='inputs';
+    root.style.setProperty(`--mat-${category}-radius`,`${foreground?clamp(value.materialRadius*.55,8,16):category==='titlebar'?0:clamp(value.materialRadius*depth[category],8,32)}px`);
   }
 }

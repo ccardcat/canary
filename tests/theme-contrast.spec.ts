@@ -6,7 +6,7 @@ const nav=(page:Page,name:string)=>page.locator('.sidebar nav').getByRole('butto
 async function choose(page:Page,label:string,name:string){await page.getByRole('combobox',{name:label,exact:true}).click();await page.getByRole('option',{name,exact:true}).click();}
 const palettes=[['light','white'],['light','softLight'],['light','frost'],['light','warm'],['dark','graphite'],['dark','black'],['dark','softDark'],['dark','midnight'],['amoled','graphite']];
 const accents=['monochrome','white','gray','mint','emerald','aqua','blue','purple','rose','orange'];
-const materials=['Solid','Soft','Vibrancy','Glass','Liquid Glass','Transparent'];
+const materials=['Solid','Soft','Vibrancy','Glass','Clear Glass','Liquid Glass','Transparent'];
 test.beforeEach(async({page})=>{mkdirSync('.qa/theme-contrast',{recursive:true});await nativeFixture(page);await page.emulateMedia({reducedMotion:'reduce'});});
 
 test('rendered foreground contrast across every palette, accent and material on extreme underlays',async({page})=>{

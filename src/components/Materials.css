@@ -131,7 +131,11 @@
 :root .canary-app { background:transparent; }
 :root .sidebar { border:1px solid var(--m-edge); border-radius:0 var(--m-radius) var(--m-radius) 0; }
 :root[data-sidebar-side="right"] .sidebar { border-radius:var(--m-radius) 0 0 var(--m-radius); }
-:root .sidebar::after { background:var(--m-sheen),linear-gradient(var(--m-tint),var(--m-tint)),linear-gradient(180deg,color-mix(in srgb,var(--surface) calc(var(--sidebar-overlay,80%) * .45),transparent),color-mix(in srgb,var(--surface) min(82%,var(--mat-sidebar-opacity)),transparent)),radial-gradient(ellipse,transparent 40%,color-mix(in srgb,var(--surface) calc(var(--sidebar-vignette,55%) * .45),transparent)); }
+:root .sidebar::after { background:var(--m-sheen),linear-gradient(var(--m-tint),var(--m-tint)),var(--m-fill); }
+:root .sidebar-art { opacity:calc(var(--sidebar-opacity,.85) * var(--mat-sidebar-background-influence)); filter:blur(var(--sidebar-blur,12px)) brightness(var(--sidebar-brightness,1)) saturate(calc(var(--sidebar-saturation,.75) * var(--mat-sidebar-saturation))); }
+:root .sidebar-art::after { content:""; position:absolute; inset:0; pointer-events:none; background:linear-gradient(color-mix(in srgb,var(--surface) calc(var(--sidebar-overlay,80%) * .35),transparent),color-mix(in srgb,var(--surface) calc(var(--sidebar-overlay,80%) * .35),transparent)),radial-gradient(ellipse,transparent 35%,color-mix(in srgb,var(--surface) calc(var(--sidebar-vignette,55%) * .35),transparent)); }
+:root .sidebar :is(.brand,nav,.sidebar-bottom) { background:var(--mat-sidebar-readable-fill); border-radius:var(--mat-buttons-radius); }
+
 :root[data-sidebar-mode="floating"] .sidebar { margin:12px; height:calc(100dvh - 60px); border-radius:var(--m-radius); padding-top:20px; }
 :root[data-window-fullscreen="true"][data-sidebar-mode="floating"] .sidebar { height:calc(100dvh - 24px); }
 :root[data-sidebar-mode="floating"] .content-shell { padding-inline:clamp(12px,2vw,36px); }
@@ -355,3 +359,18 @@
 :root :is(.settings-nav,.sidebar nav) button:active .nav-capsule { background:var(--surface-pressed); }
 /* Carousel controls sit over artwork, with the same protected floating tint. */
 :root .hero-carousel-controls .hero-arrow { background:var(--mat-floating-fill); color:var(--icon-primary); border-color:var(--border-default); box-shadow:none; }
+
+/* The miniature is an isolated artwork scene using the same semantic tokens. */
+.material-preset-grid { display:grid; grid-template-columns:repeat(auto-fit,minmax(min(100%,170px),1fr)); gap:12px; margin:16px 0; }
+:root .material-preset-control { display:grid; align-content:start; gap:6px; padding:10px; min-width:0; text-align:left; border:1px solid var(--border-default); height:auto; }
+:root .material-preset-control[aria-pressed="true"] { border-color:var(--border-selected); box-shadow:inset 0 0 0 1px var(--border-selected); }
+.material-preset-control small { color:var(--text-secondary); font-size:.7rem; line-height:1.5; }
+.material-swatch { display:block; position:relative; overflow:hidden; width:100%; height:60px; border-radius:8px; background:linear-gradient(125deg,#728f98 0 25%,#a17e87 25% 50%,#626e80 50% 75%,#869781 75%); }
+.material-swatch-sheet { display:grid; gap:4px; position:absolute; inset:9px 12px; padding:8px; border:1px solid var(--mat-cards-edge); border-radius:8px; background:var(--mat-cards-sheen),var(--mat-cards-fill); backdrop-filter:var(--mat-cards-filter); box-shadow:var(--mat-cards-shadow); }
+.material-swatch-sheet i { display:block; height:3px; width:65%; background:color-mix(in srgb,var(--text) 50%,transparent); border-radius:2px; }
+.material-swatch-sheet i:nth-child(2) { width:85%; }.material-swatch-sheet i:nth-child(3) { width:45%; }
+:root .sidebar { background:transparent; }
+
+/* The live sample has no page veil: back only its text, leaving the sheet visible. */
+.material-preview-card>b,.material-preview-card>p,.material-preview-sidebar>span { background:var(--mat-cards-readable-fill); border-radius:4px; width:fit-content; }
+.material-preview-sidebar>span { background:var(--mat-sidebar-readable-fill); }

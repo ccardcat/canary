@@ -25,7 +25,7 @@ Use **Library → + Content** to manage an instance’s mods, shaders, resource 
 
 See the [implementation and QA report](docs/FOLLOWUP_INTEGRATION_QA.md) for current changes, executed tests, native screenshots and remaining account/platform checks. The [earlier integration report](docs/FINAL_INTEGRATION_QA.md), [account/content report](docs/CONTENT_ACCOUNTS_PHASE.md) and [runtime backend report](docs/BACKEND_PHASE.md) document the preserved pipeline. Successful Ely.by account/game authentication requires an owner-driven credential test; it is not inferred from the negative API and storage tests.
 
-Appearance includes Dark, Light, AMOLED and live System mode, Liquid Glass surfaces, native Windows Acrylic/Mica/Mica Alt with supported fallbacks, titlebar branding/control styles, glass dropdowns, rotating application artwork in Home, snow/sakura/autumn effects and persisted typography sizing. Low quality disables UI backdrop blur/frost and limits particles; reduced motion and focus mode stop ambient motion. Linux reports a Solid fallback for Windows-only materials. Project descriptions/changelogs use safe Markdown or sanitized CurseForge HTML. Custom backgrounds use a native image picker and managed copies. F11 toggles real launcher fullscreen and restores previous geometry/maximized state, independently of Minecraft fullscreen.
+Appearance includes Dark, Light, AMOLED and live System mode, seven independent surface materials (Solid, Soft, Vibrancy, Glass, Clear Glass, Liquid Glass, Transparent), native Windows Acrylic/Mica/Mica Alt with supported fallbacks, titlebar branding/control styles, glass dropdowns, rotating application artwork in Home, snow/sakura/autumn effects and persisted typography sizing. Low quality disables UI backdrop blur/frost and limits particles; reduced motion and focus mode stop ambient motion. Linux reports a Solid fallback for Windows-only materials. Project descriptions/changelogs use safe Markdown or sanitized CurseForge HTML. Custom backgrounds use a native image picker and managed copies. F11 toggles real launcher fullscreen and restores previous geometry/maximized state, independently of Minecraft fullscreen.
 
 ## Checks
 
@@ -59,7 +59,7 @@ The prepared cloud environment has native dependencies under `/workspace/.toolch
 
 In this headless machine, WebKit's GPU compositing crashed its web process during animated navigation. `WEBKIT_DISABLE_COMPOSITING_MODE=1` selects software rendering for Xvfb. Cargo's target runner can map the extracted WebKit helpers while `npm run tauri dev` remains outside PRoot. Keep TLS verification enabled.
 
-See [validation notes](docs/QA.md) for the verified scenario and remaining platform limits. The current [visual stabilization report](docs/VISUAL_STABILIZATION_QA.md) records renderer and native CI coverage; use the [visual regression checklist](docs/VISUAL_REGRESSION_CHECKLIST.md) before adding themes.
+See [validation notes](docs/QA.md) for the verified scenario and remaining platform limits. The [material ownership and install-state report](docs/MATERIAL_INSTALL_STATE_QA.md) covers independent sidebar layout, preset identities and project-scoped task state. The earlier [visual stabilization report](docs/VISUAL_STABILIZATION_QA.md) records renderer and native CI coverage; use the [visual regression checklist](docs/VISUAL_REGRESSION_CHECKLIST.md) before adding themes.
 
 ## Releases
 

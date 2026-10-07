@@ -39,13 +39,21 @@ mockIPC((command,args)=>{
  if(command==='remove_account'){state.accounts=state.accounts.filter(a=>a.id!==args.id);return;}
  if(command==='launch_instance'){state.instances.find(i=>i.id===args.id).status='running';return 1;}
  if(command==='stop_instance'){state.instances.find(i=>i.id===args.id).status='ready';return;}
+ if(command==='install_modpack')return new Promise((resolve,reject)=>{
+  const task={id:args.taskId,operationId:args.projectId+'-'+args.versionId,kind:'install',title:args.name,status:'running',stage:'libraries',startedAt:100,updatedAt:100,revision:1,cancellable:true,cancelRequested:false,completed:42,total:100,downloaded:42,bytesTotal:100,percent:42,speed:1,currentFile:'library.jar'};
+  (globalThis.__materialQA.installs ||= []).push({args,task,resolve,reject});
+  globalThis.__materialQA.emitInstall=async(index,patch)=>{const install=globalThis.__materialQA.installs[index];Object.assign(install.task,patch);await emit('activity-task',structuredClone(install.task));};
+  globalThis.__materialQA.completeInstall=index=>{const install=globalThis.__materialQA.installs[index];state.instances.push({...structuredClone(state.instances[0]),id:install.task.operationId,project_id:install.args.projectId,version_id:install.args.versionId,name:install.args.name,status:'ready'});install.resolve('C:/Canary/instances/'+install.task.operationId);};
+  globalThis.__materialQA.failInstall=index=>globalThis.__materialQA.installs[index].reject({code:'network',message:'Safe install failure'});
+  setTimeout(()=>void emit('activity-task',task),50);
+ });
  if(command==='create_instance')return new Promise((resolve,reject)=>{
   globalThis.__materialQA.failCreate=()=>reject({code:'network',message:'Safe QA failure before finalize'});
   globalThis.__materialQA.completeCreate=()=>{const instance={...structuredClone(state.instances[0]),id:args.requestId,name:args.name,status:'ready',error:undefined,directory:'C:/Canary/instances/'+args.requestId};state.instances.push(instance);resolve(instance);};
   globalThis.__materialQA.cancelCreate=()=>{if(globalThis.__materialQA.deferCancel)setTimeout(()=>reject({code:'cancelled',message:'Operation cancelled'}),400);else reject({code:'cancelled',message:'Operation cancelled'});};
   setTimeout(()=>void emit('backend-progress',{id:args.requestId,stage:'libraries',status:'running',completed:43,total:97,downloaded:1048576,bytes_total:2097152,percent:44.3,speed:1024,file:'libraries/minecraft/very-long-library-name-1.21.1.jar'}),50);
  });
- if(command==='cancel_operation'){globalThis.__materialQA.cancelCreate?.();return;}
+ if(command==='cancel_operation'){const install=globalThis.__materialQA.installs?.find(i=>i.args.taskId===args.id);if(install)install.reject({code:'cancelled',message:'Operation cancelled'});else globalThis.__materialQA.cancelCreate?.();return;}
  if(command==='plugin:window|is_maximized'||command==='plugin:window|is_fullscreen')return false;
  return null;
 },{shouldMockEvents:true});

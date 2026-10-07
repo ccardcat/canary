@@ -13,6 +13,7 @@ import {
   useState,
 } from "react";
 import { AnimatePresence, MotionConfig, motion } from "motion/react";
+import {isTerminal,projectInstallTask} from "./services/activity";
 import ProjectCard from "./components/ProjectCard";
 import {providerAvailable,providerDetail,providerVersions,providerName,providerSite,type Provider} from "./services/providers";
 import { useDiscovery } from "./hooks/useDiscovery";
@@ -153,8 +154,7 @@ function App() {
   );
   const homeLibrary:Project[]=isTauri()?(backend.snapshot?.instances||[]).filter(i=>!i.internal).sort((a,b)=>(b.last_played??b.installed)-(a.last_played??a.installed)).map(i=>({native_instance_id:i.id,project_id:i.project_id||i.id,provider:i.provider==="curseforge"?"curseforge":"modrinth",title:i.name,description:`Minecraft ${i.minecraft} · ${i.loader}`,icon_url:i.icon&&!/^https?:|^asset:/i.test(i.icon)?convertFileSrc(i.icon):i.icon,downloads:0,versions:[i.minecraft],categories:[i.loader],project_type:"modpack",version_name:i.version_name,instance_path:i.directory})):lib;
   const progress=backend.progress;
-  const [busy, setBusy] = useState(false);
-  const installing = useRef(false);
+  const busy = backend.tasks.some(task=>task.projectId && !isTerminal(task));
   const [error, setError] = useState<{
     message: string;
     details?: string;
@@ -314,25 +314,26 @@ function App() {
   }
   async function install(p: Project, versionId?: string) {
     if (!providerAvailable(p.provider)) return;
-    if (installing.current || backend.snapshot?.instances.some(x=>x.project_id===p.project_id&&x.provider===(p.provider||"modrinth")) || lib.some((x) => x.project_id === p.project_id&&(x.provider||"modrinth")===(p.provider||"modrinth")))
+    if (backend.tasks.some(task=>task.projectId&&!isTerminal(task)) || backend.snapshot?.instances.some(x=>x.project_id===p.project_id&&x.provider===(p.provider||"modrinth")) || lib.some((x) => x.project_id === p.project_id&&(x.provider||"modrinth")===(p.provider||"modrinth")))
       return;
     if (!isTauri()) {
       setError({ title: t("installError"), message: t("nativeRequired") });
       return;
     }
-    installing.current = true;
-    setBusy(true);
     setError(null);
     setSuccess(false);
     let stage = "fetch_version";
     try {
-      // Never reuse versions from a different open project.
-      const list = await providerVersions(p);
-      const version = versionId
-        ? list.find((v) => v.id === versionId)
-        : p.provider==="curseforge"?list[0]:list.find((v) => v.files.some((f) => f.filename.endsWith(".mrpack")));
-      if (!version) throw Error("No compatible modpack version");
-      const instancePath = p.provider==="curseforge" ? (await backend.run<{directory:string}>("install_curseforge_pack",{projectId:Number(p.project_id),fileId:Number(version.id)},{reportError:false})).directory : await backend.run<string>("install_modpack", {projectId:p.project_id,versionId:version.id,name:p.title},{reportError:false});
+      let version:Version|undefined;
+      const command=p.provider==='curseforge'?'install_curseforge_pack':'install_modpack';
+      const result=await backend.run<string|{directory:string}>(command,{projectId:p.provider==='curseforge'?Number(p.project_id):p.project_id,versionId,name:p.title},{reportError:false,prepare:async signal=>{
+        const list=await providerVersions(p,signal);
+        version=versionId?list.find(v=>v.id===versionId):p.provider==='curseforge'?list[0]:list.find(v=>v.files.some(f=>f.filename.endsWith('.mrpack')));
+        if(!version)throw Error('No compatible modpack version');
+        return p.provider==='curseforge'?{fileId:Number(version.id)}:{versionId:version.id};
+      }});
+      const instancePath=typeof result==='string'?result:result.directory;
+      if(!version)throw Error('Missing resolved modpack version');
       stage = "add_to_library";
       console.info("[install][add_to_library] starting", p.project_id);
       const next = [
@@ -358,16 +359,13 @@ function App() {
         `[install][${typeof e === "object" && e && "stage" in e ? e.stage : stage}] failure`,
         e,
       );
-      if((e as {code?:string})?.code==="cancelled")return;
+      if(["cancelled","operation_active"].includes((e as {code?:string})?.code||""))return;
       setError({
         title: t("installError"),
         message: t("installErrorSub"),
         details: diagnostics(e, stage),
         retry: () => void install(p, versionId),
       });
-    } finally {
-      installing.current = false;
-      setBusy(false);
     }
   }
   const isInstalled = (id: string,provider:Provider=discovery.provider) => backend.snapshot?.instances.some(x=>x.project_id===id&&x.provider===provider)||lib.some((x) => x.project_id === id&&(x.provider||"modrinth")===provider);
@@ -539,7 +537,8 @@ function App() {
                     )
                   }
                   installed={isInstalled(detail.id,detail.provider||"modrinth")}
-                  busy={busy}
+                  busy={!!projectInstallTask(backend.tasks,detail.provider||'modrinth',detail.id)}
+                  blocked={busy}
                   t={t}
                 />
               ) : page === "Home" ? (
@@ -553,7 +552,6 @@ function App() {
                   onOpen={p=>{if(p.native_instance_id){setLibrarySelectionId(p.native_instance_id);navigation("Library");}else void openProject(p);}}
                   onInstall={install}
                   installed={id=>isInstalled(id,"modrinth")}
-                  busy={busy}
                 />
               ) : page === "Discover" ? (
                 <DiscoverPage
@@ -565,7 +563,6 @@ function App() {
                   onOpen={openProject}
                   onInstall={install}
                   installed={isInstalled}
-                  busy={busy}
                 />
               ) : page === "Library" ? (
                 isTauri() ? <RuntimeLibrary russian={lang === "ru"} initialInstanceId={librarySelectionId} onInitialOpened={()=>setLibrarySelectionId(null)}/> : <LibraryPage
@@ -693,7 +690,6 @@ function HomePage({
   onOpen,
   onInstall,
   installed,
-  busy,
 }: {
   t: T;
   russian: boolean;
@@ -704,7 +700,6 @@ function HomePage({
   onOpen: (p: Project) => void;
   onInstall: (p: Project) => void;
   installed: (id: string) => boolean;
-  busy: boolean;
 }) {
   const { value } = useVisualAppearance();
   // Background navigation changes artwork only; copy stays stable for this visit.
@@ -795,7 +790,6 @@ function HomePage({
                   t={t}
                   type="modpack"
                   installed={installed(p.project_id)}
-                  busy={busy}
                   onOpen={() => onOpen(p)}
                   onInstall={() => onInstall(p)}
                 />
@@ -931,7 +925,6 @@ function DiscoverPage({
   onOpen,
   onInstall,
   installed,
-  busy,
 }: {
   provider:Provider;setProvider:(value:Provider)=>void;
   t: T;
@@ -966,7 +959,6 @@ function DiscoverPage({
   onOpen: (p: Project) => void;
   onInstall: (p: Project) => void;
   installed: (id: string) => boolean;
-  busy: boolean;
 }) {
   const pages = Math.max(1, Math.ceil(total / 12));
   return (
@@ -1085,7 +1077,6 @@ function DiscoverPage({
                     t={t}
                     type={type}
                     installed={installed(p.project_id)}
-                    busy={busy}
                     onOpen={() => onOpen(p)}
                     onInstall={() => onInstall(p)}
                   />
@@ -1326,6 +1317,7 @@ function DetailPage({
   onInstall,
   installed,
   busy,
+  blocked,
   t,
 }: {
   detail: Detail;
@@ -1337,6 +1329,7 @@ function DetailPage({
   onInstall: () => void;
   installed: boolean;
   busy: boolean;
+  blocked: boolean;
   t: T;
 }) {
   const [tab, setTab] = useState("description");
@@ -1407,7 +1400,7 @@ function DetailPage({
                     aria-label={t("selectedVersion")}
                     value={selected}
                     onChange={(e) => setSelected(e.target.value)}
-                    disabled={busy}
+                    disabled={blocked}
                   >
                     <option value="">{t("selection")}</option>
                     {available.map((v) => (
@@ -1422,7 +1415,7 @@ function DetailPage({
                   className="primary-button"
                   onClick={onInstall}
                   disabled={
-                    busy ||
+                    blocked ||
                     !providerAvailable(detail.provider) ||
                     !selected ||
                     !available.some((v) => v.id === selected)

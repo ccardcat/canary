@@ -15,6 +15,9 @@ export type TaskStatus =
 export interface ActivityTask {
   id: string;
   operationId: string;
+  provider?: string;
+  projectId?: string;
+  versionId?: string;
   instanceId?: string;
   kind: TaskKind;
   title: string;
@@ -44,6 +47,9 @@ export function mergeTask(
   if (old && (isTerminal(old) || old.revision > task.revision)) return tasks;
   const next = {
     ...task,
+    provider: task.provider ?? old?.provider,
+    projectId: task.projectId ?? old?.projectId,
+    versionId: task.versionId ?? old?.versionId,
     percent: Math.min(
       100,
       Math.max(0, Number.isFinite(task.percent) ? task.percent : 0),
@@ -85,6 +91,11 @@ export function startingTask(
   return {
     id,
     operationId,
+    ...(command==='install_modpack'||command==='install_curseforge_pack'?{
+      provider:command==='install_curseforge_pack'?'curseforge':'modrinth',
+      projectId:String(args.projectId),
+      versionId:args.versionId||args.fileId?String(args.versionId??args.fileId):undefined,
+    }:{}),
     instanceId: operationId,
     kind: taskCommands[command],
     title,
@@ -112,4 +123,8 @@ export interface GameSession {
   loader: string;
   startedAt: number;
   status: "playing" | "stopping";
+}
+
+export function projectInstallTask(tasks: ActivityTask[], provider: string, projectId: string) {
+  return tasks.find(task=>task.kind==='install'&&!isTerminal(task)&&task.provider===provider&&task.projectId===projectId);
 }
