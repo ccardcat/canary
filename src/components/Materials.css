@@ -452,3 +452,19 @@
 :root:is([data-reduce-transparency="true"],[data-focus="true"],[data-quality="low"]) .canary-app>.sidebar::after {
   background:var(--surface-sidebar);
 }
+
+/* Keep the four layout choices balanced, with controls aligned within each row. */
+:root .material-layout-controls {
+  grid-template-columns:repeat(2,minmax(0,1fr));
+  gap:20px 16px;
+  margin-block:20px;
+}
+:root .settings-content .material-layout-controls>label {
+  grid-template-rows:1fr auto;
+  margin:0;
+  align-self:stretch;
+}
+.material-layout-controls .material-control-label { min-width:0; }
+@media(max-width:600px) {
+  :root .material-layout-controls { grid-template-columns:minmax(0,1fr); }
+}

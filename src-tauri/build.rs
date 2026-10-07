@@ -11,6 +11,12 @@ fn main() {
         tauri_build::Attributes::new()
     };
     tauri_build::try_build(attributes).expect("Failed to generate Tauri resources");
+    // Tauri links the icon resource to binaries, but the hidden native icon
+    // regression check is a Cargo example and needs the same resource explicitly.
+    if windows && std::env::var("CARGO_CFG_TARGET_ENV").as_deref() == Ok("msvc") {
+        let resource = std::path::PathBuf::from(std::env::var_os("OUT_DIR").unwrap()).join("resource.lib");
+        println!("cargo:rustc-link-arg-examples={}", resource.display());
+    }
     // Native file dialogs import TaskDialogIndirect. Test/utility executables
     // also need Common Controls v6, not just Tauri's resource-bearing main EXE.
     if windows {

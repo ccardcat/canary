@@ -55,9 +55,9 @@ export function MaterialLayoutSettings({
   const label = (en: string, ru: string) => (russian ? ru : en);
   const change = (patch: Partial<Values>) => update(patch);
   return (
-    <div className="material-controls">
+    <div className="material-controls material-layout-controls">
       <label>
-        {label("Sidebar layout", "Расположение боковой панели")}
+        <span className="material-control-label">{label("Sidebar layout", "Расположение боковой панели")}</span>
         <GlassSelect
           aria-label={label("Sidebar layout", "Расположение боковой панели")}
           value={value.sidebarMode}
@@ -70,7 +70,7 @@ export function MaterialLayoutSettings({
         </GlassSelect>
       </label>
       <label>
-        {label("Instance card layout", "Карточки экземпляров")}
+        <span className="material-control-label">{label("Instance card layout", "Карточки экземпляров")}</span>
         <GlassSelect
           aria-label={label("Instance card layout", "Карточки экземпляров")}
           value={value.instanceLayout}
@@ -85,7 +85,7 @@ export function MaterialLayoutSettings({
         </GlassSelect>
       </label>
       <label>
-        {label("Card artwork", "Изображение карточки")}
+        <span className="material-control-label">{label("Card artwork", "Изображение карточки")}</span>
         <GlassSelect
           aria-label={label("Card artwork", "Изображение карточки")}
           value={value.instanceArtwork}
@@ -101,7 +101,7 @@ export function MaterialLayoutSettings({
         </GlassSelect>
       </label>
       <label>
-        {label("Button density", "Плотность кнопок")}
+        <span className="material-control-label">{label("Button density", "Плотность кнопок")}</span>
         <GlassSelect
           aria-label={label("Button density", "Плотность кнопок")}
           value={value.buttonDensity}

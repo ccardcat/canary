@@ -1,5 +1,6 @@
 mod installer;
 mod window_material;
+mod window_icon;
 use window_material::{apply_window_material,window_material_capabilities};
 pub mod backend;
 use backend::commands::*;
@@ -32,7 +33,28 @@ pub fn run() {
         .manage(Arc::new(backend::Backend::new().expect("Cannot initialize Canary data storage")))
         .plugin(tauri_plugin_opener::init())
         .plugin(tauri_plugin_dialog::init())
-        .setup(|app|{backend::startup_phase("Tauri setup entered");use tauri::Manager;let backend=app.state::<Arc<backend::Backend>>();backend::discord::Manager::start(backend.inner(),app.handle().clone());if let Ok(instances)=backend.instances(){for instance in instances{if instance.status!="unavailable"{let _=app.asset_protocol_scope().allow_directory(std::path::Path::new(&instance.directory).join("screenshots"),true);}}}backend::startup_phase("Tauri setup complete");Ok(())})
+        .setup(|app| {
+            backend::startup_phase("Tauri setup entered");
+            use tauri::Manager;
+            if let Some(window) = app.get_webview_window("main") {
+                if let Err(error) = window_icon::apply(&window) {
+                    eprintln!("Cannot apply Canary taskbar icon: {error}");
+                }
+            }
+            let backend = app.state::<Arc<backend::Backend>>();
+            backend::discord::Manager::start(backend.inner(), app.handle().clone());
+            if let Ok(instances) = backend.instances() {
+                for instance in instances {
+                    if instance.status != "unavailable" {
+                        let _ = app.asset_protocol_scope().allow_directory(
+                            std::path::Path::new(&instance.directory).join("screenshots"), true,
+                        );
+                    }
+                }
+            }
+            backend::startup_phase("Tauri setup complete");
+            Ok(())
+        })
         .on_window_event(|window,event| {
             if let tauri::WindowEvent::CloseRequested{api,..}=event {
                 use tauri::Manager;
