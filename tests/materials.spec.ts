@@ -10,6 +10,7 @@ async function settings(page:Page){await page.getByRole('button',{name:'Settings
 test('legacy preferences migrate without losing artwork, typography, cursor or independent categories',async({page})=>{
  await page.addInitScript(()=>localStorage.setItem('canary-visual',JSON.stringify({app:'sakura1',sidebar:'green',font:'Monocraft',cursor:'system',surfaceBlur:12,materialCategories:{cards:'liquid',buttons:'bogus'},materialIntensity:Infinity})));
  await page.route('https://api.modrinth.com/**',r=>r.fulfill({json:{hits:[],total_hits:0}}));await page.goto('/');
+ await expect.poll(()=>page.evaluate(()=>JSON.parse(localStorage.getItem('canary-visual')!).materialCategories?.buttons)).toBe('soft');
  const saved=await page.evaluate(()=>JSON.parse(localStorage.getItem('canary-visual')!));
  expect(saved).toMatchObject({app:'sakura1',sidebar:'green',font:'Monocraft',cursor:'system',surfaceBlur:12,materialCategories:{cards:'liquid',buttons:'soft'},materialIntensity:50});
  await expect(page.locator('html')).toHaveAttribute('data-material-cards','liquid');
@@ -19,6 +20,7 @@ test('all seven materials switch real card, button, sidebar and modal surfaces; 
  await nativeFixture(page);await page.goto('/');await settings(page);
  await choose(page,'Material preset','Liquid Glass');
  await expect(page.locator('html')).toHaveAttribute('data-sidebar-mode','attached');
+ await page.getByText('Advanced materials',{exact:true}).click();
  const styles=['Solid','Soft','Vibrancy','Glass','Clear Glass','Liquid Glass','Transparent'];const filters:string[]=[];
  for(const name of styles){
   await choose(page,'Shared material',name);
@@ -34,12 +36,12 @@ test('all seven materials switch real card, button, sidebar and modal surfaces; 
  expect(new Set(filters).size).toBeGreaterThan(4);
  await choose(page,'Material preset','Liquid Glass');
  const intensity=page.getByRole('slider',{name:'Material intensity',exact:true});
- await intensity.fill('0');const lowIntensity=await page.locator('.material-preview-card').evaluate(el=>getComputedStyle(el).backdropFilter);
- await intensity.fill('100');const highIntensity=await page.locator('.material-preview-card').evaluate(el=>getComputedStyle(el).backdropFilter);
+ await intensity.fill('0');await intensity.press('Tab');const lowIntensity=await page.locator('.material-preview-card').evaluate(el=>getComputedStyle(el).backdropFilter);
+ await intensity.fill('100');await intensity.press('Tab');const highIntensity=await page.locator('.material-preview-card').evaluate(el=>getComputedStyle(el).backdropFilter);
  expect(Number(highIntensity.match(/saturate\(([^)]+)\)/)![1])).toBeGreaterThan(Number(lowIntensity.match(/saturate\(([^)]+)\)/)![1]));
  await choose(page,'Material preset','Liquid Glass');
  await page.reload();await settings(page);await expect(page.getByRole('combobox',{name:'Material preset',exact:true})).toContainText('Liquid Glass');
- await page.getByRole('checkbox',{name:'Use one style everywhere',exact:true}).uncheck();
+ await page.getByText('Advanced materials',{exact:true}).click();await page.getByRole('checkbox',{name:'Use one style everywhere',exact:true}).uncheck();
  await choose(page,'Button style','Solid');
  await expect(page.locator('html')).toHaveAttribute('data-material-buttons','solid');await expect(page.locator('html')).toHaveAttribute('data-material-cards','liquid');
  await expect(page.getByRole('combobox',{name:'Material preset',exact:true})).toContainText('Custom');
@@ -101,7 +103,7 @@ test('RU/EN Monocraft settings, both sidebar sides, themes and scaled viewports 
  }
  await page.keyboard.press('Escape');await page.setViewportSize({width:760,height:540});
  for(const side of ['left','right']){
-  await page.evaluate(side=>{const prefs=JSON.parse(localStorage.getItem('canary-visual')!);prefs.sidebarSide=side;localStorage.setItem('canary-visual',JSON.stringify(prefs));},side);await page.reload();
+  await page.locator('.sidebar nav').getByRole('button',{name:'Настройки',exact:true}).click();await page.locator('.settings-nav').getByRole('button',{name:'Оформление',exact:true}).click();await page.getByRole('group',{name:'Расположение боковой панели',exact:true}).getByRole('button',{name:side==='left'?'Слева':'Справа',exact:true}).click();await page.keyboard.press('Escape');await page.reload();
   await expect(page.locator('html')).toHaveAttribute('data-sidebar-side',side);expect(await page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth)).toBe(true);
  }
 });

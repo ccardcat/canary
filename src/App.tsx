@@ -1957,7 +1957,7 @@ function Appearance({
           <i />
         </button>
       </div>
-      <VisualPreferences russian={t("home") == "Главная"} effectsControls={<MotionPreference t={t} reduceMotion={reduceMotion} setReduceMotion={setReduceMotion}/>}/>
+      <VisualPreferences group="layout" russian={t("home") == "Главная"} effectsControls={<MotionPreference t={t} reduceMotion={reduceMotion} setReduceMotion={setReduceMotion}/>}/>
       <InterfaceVisibilityPanel russian={t("home")==="Главная"}/>
       <p className="settings-note">{t("storedLocally")}</p>
     </div>

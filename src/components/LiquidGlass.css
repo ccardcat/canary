@@ -27,9 +27,9 @@
 :root .window-titlebar[data-controls="traffic-lights"][data-controls-position="left"] .window-close { order:-1; }
 :root[data-window-transition="true"] .window-controls { pointer-events:none; }
 :root[data-background-source="desktop"] .visual-backdrop,:root[data-background-source="solid"] .visual-backdrop { display:none; }
-:root:not([data-background-source="canary"]) .sidebar::after { display:none; }
+
 :root:not([data-background-source="canary"]) :is(.canary-app,.content-shell) { background:transparent; }
-.native-window-veil { position:fixed; inset:0; z-index:-1; pointer-events:none; background:color-mix(in srgb,var(--bg) max(var(--window-veil-opacity,45%),var(--scene-overlay-floor)),transparent); }
+.native-window-veil { position:fixed; inset:0; z-index:-1; pointer-events:none; background:color-mix(in srgb,var(--bg) var(--window-veil-opacity,45%),transparent); }
 :root[data-window-material="solid"] .native-window-veil,:root[data-background-source="solid"] .native-window-veil { background:var(--bg); }
 :root[data-mode="amoled"] { --material-highlight:color-mix(in srgb,#fff calc(1% + var(--glass-strength,.35) * 8%),transparent); }
 :root[data-quality="low"] :is(.sidebar,.window-titlebar,.project-card,.runtime-panel,.settings-modal,.runtime-dialog,.instance-surface,.popover,.glass-select-popup,.canary-tooltip,.text-context-menu,.account-button,.type-tabs,.nav-capsule) { -webkit-backdrop-filter:none; backdrop-filter:none; background-color:color-mix(in srgb,var(--surface) 96%,transparent); }
@@ -59,7 +59,7 @@
 .settings-results button { text-align:left; padding:14px; background:var(--material-fill); border:1px solid var(--line); color:var(--text); }
 .settings-results small { display:block; color:var(--muted); margin-top:4px; }
 .settings-nav { overflow-y:auto; }
-[data-visual-group="background"] > :not(.visual-background-group),[data-visual-group="typography"] > :not(.visual-typography-group) { display:none; }
+[data-visual-group="typography"] > :not(.visual-typography-group) { display:none; }
 @media(prefers-reduced-motion:reduce) { .hero-art .artwork-current { animation:none; } }
 :root[data-motion="reduced"] .hero-art .artwork-current { animation:none; }
 

@@ -132,8 +132,8 @@
 :root .sidebar { border:1px solid var(--m-edge); border-radius:0 var(--m-radius) var(--m-radius) 0; }
 :root[data-sidebar-side="right"] .sidebar { border-radius:var(--m-radius) 0 0 var(--m-radius); }
 :root .sidebar::after { background:var(--m-sheen),linear-gradient(var(--m-tint),var(--m-tint)),var(--m-fill); }
-:root .sidebar-art { opacity:calc(var(--sidebar-opacity,.85) * var(--mat-sidebar-background-influence)); filter:blur(var(--sidebar-blur,12px)) brightness(var(--sidebar-brightness,1)) saturate(calc(var(--sidebar-saturation,.75) * var(--mat-sidebar-saturation))); }
-:root .sidebar-art::after { content:""; position:absolute; inset:0; pointer-events:none; background:linear-gradient(color-mix(in srgb,var(--surface) calc(var(--sidebar-overlay,80%) * .35),transparent),color-mix(in srgb,var(--surface) calc(var(--sidebar-overlay,80%) * .35),transparent)),radial-gradient(ellipse,transparent 35%,color-mix(in srgb,var(--surface) calc(var(--sidebar-vignette,55%) * .35),transparent)); }
+:root .sidebar-art { opacity:var(--sidebar-opacity,.85); filter:blur(var(--sidebar-blur,12px)) brightness(var(--sidebar-brightness,1)) saturate(calc(var(--sidebar-saturation,.75) * var(--mat-sidebar-saturation))); }
+:root .sidebar-art::after { content:none; }
 :root .sidebar :is(.brand,nav,.sidebar-bottom) { background:transparent; border-radius:var(--mat-buttons-radius); }
 
 :root[data-sidebar-mode="floating"] .sidebar { margin:12px; height:calc(100dvh - 60px); border-radius:var(--m-radius); padding-top:20px; }
@@ -447,7 +447,7 @@
   box-shadow:0 8px 28px rgb(0 0 0 / .10);
 }
 :root .canary-app>.sidebar::after {
-  background:color-mix(in srgb,var(--surface-sidebar) 38%,transparent);
+  background:linear-gradient(color-mix(in srgb,var(--surface-sidebar) var(--sidebar-overlay,38%),transparent),color-mix(in srgb,var(--surface-sidebar) var(--sidebar-overlay,38%),transparent)),radial-gradient(ellipse,transparent 30%,color-mix(in srgb,var(--surface-sidebar) var(--sidebar-vignette,30%),transparent));
 }
 :root:is([data-reduce-transparency="true"],[data-focus="true"],[data-quality="low"]) .canary-app>.sidebar::after {
   background:var(--surface-sidebar);

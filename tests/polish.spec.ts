@@ -67,19 +67,20 @@ test("custom cursors preserve editing; ordinary right click is suppressed", asyn
 });
 test("advanced backgrounds reset, crossfade and effect budgets persist", async ({ page }) => {
   await page.getByRole("button", { name:"Settings",exact:true }).click();
-  await page.getByText("Advanced background controls",{exact:true}).click();
+  await page.locator(".settings-nav").getByRole("button",{name:"Background",exact:true}).click();await page.getByText("Color and framing",{exact:true}).click();
   const brightness = page.getByRole("slider",{name:"Brightness",exact:true});
   await brightness.focus(); await page.keyboard.press("End");
   await expect(page.locator("html")).toHaveCSS("--wallpaper-brightness","1.3");
-  await page.getByRole("button",{name:"Right",exact:true}).last().click();
+  await page.getByRole("combobox",{name:"Wallpaper position",exact:true}).click();await page.getByRole("option",{name:"Right",exact:true}).click();
   await expect(page.locator("html")).toHaveCSS("--wallpaper-position","right");
-  await page.locator(".polish-disclosure").first().getByRole("button",{name:"Reset"}).click();
+  await page.getByRole("button",{name:"Reset background adjustments",exact:true}).click();
   await expect(brightness).toHaveValue("100");
   await page.locator(".background-options").first().getByRole("button",{name:"Green",exact:true}).click();
   await expect(page.locator(".global-wallpaper .artwork-current")).toHaveCSS("background-image",/green-bg.webp/);
   await page.locator(".background-options").first().getByRole("button",{name:"Gray"}).click();
   await expect(page.locator(".global-wallpaper .artwork-current")).toHaveCSS("background-image",/gray-bg.png/);
-  await page.getByRole("button",{name:"Snow",exact:true}).click();
+  await page.locator(".settings-nav").getByRole("button",{name:"Effects",exact:true}).click();await page.getByRole("button",{name:"Snow",exact:true}).click();
+  await page.locator(".settings-nav").getByRole("button",{name:"Appearance",exact:true}).click();
   await page.getByRole("switch",{name:"Focus mode",exact:true}).click();
   await expect(page.locator(".ambient-particles")).toHaveCount(0);
   await page.locator(".settings-nav").getByRole("button",{name:"Advanced",exact:true}).click();
@@ -90,7 +91,7 @@ test("advanced backgrounds reset, crossfade and effect budgets persist", async (
 });
 
 test("native cursor roles, hotspots and migration", async ({ page, request }) => {
-  await page.evaluate(() => localStorage.setItem("canary-visual", JSON.stringify({ cursor:"mono", sidebarSide:"right" })));
+  await page.addInitScript(() => localStorage.setItem("canary-visual", JSON.stringify({ cursor:"mono", sidebarSide:"right" })));
   await page.reload();
   await expect(page.locator("html")).toHaveAttribute("data-cursor", "custom");
   const roles = { help:"help", crosshair:"precision", "ew-resize":"horz", "ns-resize":"vert",

@@ -251,7 +251,7 @@ test("rapid F11 is locked and a maximized window restores without replacing geom
 });
 
 test("native material uses a transparent root and restores Mica after fullscreen fallback",async({page})=>{
- await page.getByRole("button",{name:"Settings",exact:true}).first().click();await page.getByText("Windows window material",{exact:true}).click();await page.getByRole("combobox",{name:"Window Material",exact:true}).click();await page.getByRole("option",{name:"Mica",exact:true}).click();
+ await page.getByRole("button",{name:"Settings",exact:true}).first().click();await page.locator(".settings-nav").getByRole("button",{name:"Background",exact:true}).click();await page.getByText("Windows window material",{exact:true}).click();await page.getByRole("combobox",{name:"Window Material",exact:true}).click();await page.getByRole("option",{name:"Mica",exact:true}).click();
  await expect(page.locator("html")).toHaveAttribute("data-window-material","mica");await expect(page.locator("html")).toHaveCSS("background-color","rgba(0, 0, 0, 0)");await expect(page.locator(".visual-backdrop")).toBeHidden();
  await page.keyboard.press("F11");await expect(page.locator("html")).toHaveAttribute("data-window-material","acrylic");await page.keyboard.press("F11");await expect(page.locator("html")).toHaveAttribute("data-window-material","mica");
  await page.reload();await expect(page.locator("html")).toHaveAttribute("data-window-material","mica");await expect(page.locator("html")).toHaveAttribute("data-window-fullscreen","false");
@@ -279,4 +279,25 @@ test("CurseForge unavailable has no pagination and Modrinth still restores",asyn
  await page.getByRole("combobox",{name:"Provider",exact:true}).click();await page.getByRole("option",{name:"Modrinth",exact:true}).click();
  await expect(page.locator(".pagination")).toBeVisible();
  expect(await page.evaluate(()=>(globalThis as any).__backendTest.calls.some((c:any)=>c.command==="catalog_search"))).toBe(false);
+});
+
+
+test("Desktop background enables Acrylic and window transparency previews live before native commit",async({page})=>{
+ await expect(page.locator(".startup-splash")).toHaveCount(0);
+ await page.getByRole("button",{name:"Settings",exact:true}).first().click();
+ await page.locator(".settings-nav").getByRole("button",{name:"Background",exact:true}).click();
+ await page.getByRole("button",{name:/^Desktop/}).click();
+ await expect(page.locator("html")).toHaveAttribute("data-window-material","acrylic");
+ const slider=page.getByRole("slider",{name:"Window transparency",exact:true});await slider.scrollIntoViewIfNeeded();
+ const before=await page.locator(".native-window-veil").evaluate(el=>getComputedStyle(el).backgroundColor);
+ const count=await page.evaluate(()=>(globalThis as any).__backendTest.calls.filter((c:any)=>c.command==="apply_window_material").length);
+ const box=(await slider.boundingBox())!;await page.mouse.move(box.x+box.width*.25,box.y+box.height/2);await page.mouse.down();
+ for(let i=0;i<20;i++)await page.mouse.move(box.x+box.width*(.25+i*.03),box.y+box.height/2);
+ await expect.poll(()=>page.locator(".native-window-veil").evaluate(el=>getComputedStyle(el).backgroundColor)).not.toBe(before);
+ expect(await page.evaluate(()=>(globalThis as any).__backendTest.calls.filter((c:any)=>c.command==="apply_window_material").length)).toBe(count);
+ const draft=Number(await slider.inputValue());await page.mouse.up();
+ await expect.poll(()=>page.evaluate(()=>(globalThis as any).__backendTest.calls.filter((c:any)=>c.command==="apply_window_material").at(-1)?.args.transparency)).toBe(draft);
+ await page.reload();await page.getByRole("button",{name:"Settings",exact:true}).first().click();await page.locator(".settings-nav").getByRole("button",{name:"Background",exact:true}).click();
+ await expect(page.getByRole("slider",{name:"Window transparency",exact:true})).toHaveValue(String(draft));
+ await page.getByRole("button",{name:/^Picture/}).click();await expect(page.locator(".visual-backdrop")).toBeVisible();await expect(page.locator("html")).toHaveAttribute("data-window-material","solid");
 });

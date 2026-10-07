@@ -1,6 +1,6 @@
 /* A single artwork layer sits below all existing application surfaces. */
 .visual-backdrop { position: fixed; inset: 0; z-index: -1; overflow: hidden; pointer-events: none; background: var(--bg); }
-.global-wallpaper { position: absolute; inset: -18px; background-position: center; background-size: cover; opacity: var(--wallpaper-opacity); filter: blur(var(--wallpaper-blur)) saturate(.72); }
+.global-wallpaper { position: absolute; inset: -48px; background-position: center; background-size: cover; opacity: var(--wallpaper-opacity); filter: blur(var(--wallpaper-blur)) saturate(.72); }
 .wallpaper-veil { position: absolute; inset: 0; background: linear-gradient(120deg, color-mix(in srgb,var(--bg) 50%,transparent),color-mix(in srgb,var(--bg) 72%,transparent)),radial-gradient(ellipse at center,transparent 20%,var(--bg)); }
 :root[data-mode="light"] .wallpaper-veil { background: linear-gradient(120deg,#fff9,#f7f8faaf),radial-gradient(ellipse,transparent,#f7f8fa99); }
 :root[data-mode="amoled"] .wallpaper-veil { background: linear-gradient(120deg,#0009,#000c),radial-gradient(ellipse,transparent,#000); }
@@ -36,8 +36,8 @@
 .global-wallpaper .artwork-layer { background-position:var(--wallpaper-position,center); transform:scale(var(--wallpaper-scale,1)); }
 .sidebar-art { opacity:var(--sidebar-opacity,.85); filter:blur(var(--sidebar-blur,12px)) brightness(var(--sidebar-brightness,1)) saturate(var(--sidebar-saturation,.75)); }
 .sidebar-art .artwork-layer { background-position:var(--sidebar-position,center); transform:scale(var(--sidebar-scale,1)); }
-.wallpaper-veil { background:linear-gradient(120deg,color-mix(in srgb,var(--bg) max(var(--wallpaper-overlay,65%),var(--scene-overlay-floor)),transparent),color-mix(in srgb,var(--bg) max(var(--wallpaper-overlay,65%),var(--scene-overlay-floor)),transparent)),radial-gradient(ellipse,transparent 30%,color-mix(in srgb,var(--bg) var(--wallpaper-vignette,55%),transparent)); }
-:root[data-mode="light"] .wallpaper-veil,:root[data-mode="amoled"] .wallpaper-veil { background:linear-gradient(120deg,color-mix(in srgb,var(--bg) max(calc(var(--wallpaper-overlay,65%) + 5%),var(--scene-overlay-floor)),transparent),color-mix(in srgb,var(--bg) max(calc(var(--wallpaper-overlay,65%) + 5%),var(--scene-overlay-floor)),transparent)),radial-gradient(ellipse,transparent 25%,color-mix(in srgb,var(--bg) var(--wallpaper-vignette,55%),transparent)); }
+.wallpaper-veil { background:linear-gradient(120deg,color-mix(in srgb,var(--bg) var(--wallpaper-overlay,28%),transparent),color-mix(in srgb,var(--bg) var(--wallpaper-overlay,28%),transparent)),radial-gradient(ellipse,transparent 30%,color-mix(in srgb,var(--bg) var(--wallpaper-vignette,55%),transparent)); }
+:root[data-mode="light"] .wallpaper-veil,:root[data-mode="amoled"] .wallpaper-veil { background:linear-gradient(120deg,color-mix(in srgb,var(--bg) var(--wallpaper-overlay,28%),transparent),color-mix(in srgb,var(--bg) var(--wallpaper-overlay,28%),transparent)),radial-gradient(ellipse,transparent 25%,color-mix(in srgb,var(--bg) var(--wallpaper-vignette,55%),transparent)); }
 .sidebar::after { background:linear-gradient(180deg,color-mix(in srgb,var(--surface) var(--sidebar-overlay,80%),transparent),color-mix(in srgb,var(--surface) var(--sidebar-overlay,80%),transparent)),radial-gradient(ellipse,transparent 30%,color-mix(in srgb,var(--surface) var(--sidebar-vignette,55%),transparent)); }
 :root[data-sidebar-side="right"] .canary-app { flex-direction:row-reverse; }
 :root[data-sidebar-side="right"] .sidebar { border-right:0; border-left:1px solid var(--line-strong); box-shadow:inset 1px 0 var(--highlight),-12px 0 40px #00000016; }
@@ -59,8 +59,6 @@
 :root[data-quality="low"] :is(.nav-capsule,.type-tabs,.popover,.account-button,.settings-modal,.sidebar) { -webkit-backdrop-filter:none; backdrop-filter:none; }
 :root[data-quality="low"] :is(.project-card,.home-hero,.popover) { box-shadow:inset 0 1px var(--highlight),0 3px 12px #00000012; }
 :root[data-quality="low"] :is(.global-wallpaper,.sidebar-art,.hero-art) { animation:none!important; }
-:root[data-quality="low"] .global-wallpaper { filter:blur(min(var(--wallpaper-blur),2px)) brightness(var(--wallpaper-brightness,1)) saturate(var(--wallpaper-saturation,.75)); }
-:root[data-quality="low"] .sidebar-art { filter:blur(min(var(--sidebar-blur),6px)) brightness(var(--sidebar-brightness,1)) saturate(var(--sidebar-saturation,.75)); }
 :root[data-quality="low"] .card-bg { filter:blur(6px); }
 :root[data-quality="low"] .card-bg.blurred-icon { filter:blur(12px); }
 .project-card { position:relative; isolation:isolate; }
@@ -85,3 +83,23 @@ button:disabled { opacity:.5; cursor:not-allowed!important; }
 :root[data-sidebar-side="right"] .content-shell { direction:rtl; }
 .content-shell > * { direction:ltr; }
 [draggable="true"] { -webkit-user-drag:element; }
+
+.background-settings .setting-intro p{color:var(--muted);font-size:.84rem;line-height:1.6}
+.background-source-options{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:8px;margin:18px 0}
+:root .background-source-options button{display:grid;gap:5px;padding:12px;text-align:left;height:auto;min-width:0}
+.background-source-options small{color:var(--muted);font-size:.72rem;line-height:1.5}
+.background-target{margin:16px 0}
+.background-live-preview{position:relative;isolation:isolate;overflow:hidden;height:165px;border-radius:16px;background:var(--bg);margin:18px 0}
+.background-live-art{position:absolute;inset:-42px;background-size:cover;background-position:var(--wallpaper-position,center);opacity:var(--wallpaper-opacity);filter:blur(var(--wallpaper-blur)) brightness(var(--wallpaper-brightness)) saturate(var(--wallpaper-saturation));transform:scale(var(--wallpaper-scale))}
+.background-live-veil{position:absolute;inset:0;background:linear-gradient(color-mix(in srgb,var(--bg) var(--wallpaper-overlay),transparent),color-mix(in srgb,var(--bg) var(--wallpaper-overlay),transparent)),radial-gradient(ellipse,transparent 30%,color-mix(in srgb,var(--bg) var(--wallpaper-vignette),transparent))}
+.sidebar-preview .background-live-art{opacity:var(--sidebar-opacity);filter:blur(var(--sidebar-blur)) brightness(var(--sidebar-brightness)) saturate(calc(var(--sidebar-saturation) * var(--mat-sidebar-saturation)));background-position:var(--sidebar-position);transform:scale(var(--sidebar-scale))}
+.sidebar-preview .background-live-veil{background:linear-gradient(color-mix(in srgb,var(--surface-sidebar) var(--sidebar-overlay),transparent),color-mix(in srgb,var(--surface-sidebar) var(--sidebar-overlay),transparent)),radial-gradient(ellipse,transparent 30%,color-mix(in srgb,var(--surface-sidebar) var(--sidebar-vignette),transparent))}
+.background-live-copy{position:absolute;inset:auto 18px 18px;display:flex;justify-content:space-between;align-items:center;padding:12px 16px;border-radius:12px;background:var(--mat-dialogs-fill);font-size:.85rem}
+.background-live-copy span{color:var(--muted);font-size:.75rem}
+.background-primary-controls{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));column-gap:20px}
+.background-primary-controls .visual-range{margin:10px 0}
+.background-primary-controls .visual-range:last-child{grid-column:1/-1}
+.background-custom-actions{display:flex;gap:8px;flex-wrap:wrap;margin:18px 0}
+@media(max-width:700px){.background-source-options{grid-template-columns:1fr}.background-primary-controls{grid-template-columns:1fr}.background-live-copy{gap:8px;flex-wrap:wrap}.background-settings .background-options{grid-template-columns:repeat(2,minmax(0,1fr))}}
+
+:root:is([data-reduce-transparency="true"],[data-focus="true"],[data-quality="low"]) .sidebar-preview .background-live-veil{background:var(--surface-sidebar)}

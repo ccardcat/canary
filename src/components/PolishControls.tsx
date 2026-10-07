@@ -2,10 +2,10 @@ import {SmoothRange} from "./SmoothRange";
 import { useState } from "react";
 import { polishMessages } from "../locales/polish";
 
-export const treatmentDefaults = { brightness: 100, saturation: 75, overlay: 65, vignette: 55, zoom: 100, position: "center" };
+export const treatmentDefaults = { brightness: 100, saturation: 90, overlay: 28, vignette: 30, zoom: 100, position: "center" };
 export const polishDefaults = {
   sidebarSide: "left", cursor: "custom", focus: false, quality: "balanced", glass: 22,
-  globalTreatment: { ...treatmentDefaults }, sidebarTreatment: { ...treatmentDefaults, overlay: 80 },
+  globalTreatment: { ...treatmentDefaults }, sidebarTreatment: { ...treatmentDefaults, overlay: 38 },
   sidebarIntensity: 85, density: 12, particleSpeed: 100, particleOpacity: 20, particleSize: 100,
 };
 export type PolishPreferences = typeof polishDefaults;

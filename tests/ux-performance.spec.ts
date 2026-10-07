@@ -90,7 +90,7 @@ test("Long lines wrap within a bounded buffer; crash summary, filters and copy u
 });
 test("Vibrancy is distinct, has no bright frame or nested blur, and fits three themes",async({page})=>{
  await page.addInitScript(()=>localStorage.setItem("canary-visual",JSON.stringify({materialStyle:"vibrancy",materialLinked:true,materialPreset:"vibrancy",surfaceOpacity:76,surfaceBlur:28,app:"sakura1",font:"Monocraft",minecraft:"headings"})));
- await setup(page);await nav(page,"Settings").click();
+ await setup(page);await nav(page,"Settings").click();await page.getByText("Advanced materials",{exact:true}).click();
  await expect(page.locator("html")).toHaveAttribute("data-material-sidebar","vibrancy");
  await expect(page.locator(".sidebar")).toHaveCSS("border-top-color","rgba(0, 0, 0, 0)");
  expect(await page.locator(".sidebar .nav-capsule").evaluateAll(nodes=>nodes.every(node=>getComputedStyle(node).backdropFilter==="none"))).toBe(true);
