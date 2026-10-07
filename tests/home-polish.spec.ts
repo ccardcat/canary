@@ -157,7 +157,7 @@ test("local-time greeting changes live, switches account and handles no account 
   await expect(heading).toContainText("Good morning");
 });
 
-test("Home hero copy follows slides and Continue has compact real Play/Stop and details", async ({
+test("Home hero copy stays stable through slides and Continue has compact real Play/Stop and details", async ({
   page,
 }) => {
   mkdirSync(".qa/home-polish", { recursive: true });
@@ -173,7 +173,7 @@ test("Home hero copy follows slides and Continue has compact real Play/Stop and 
   await page
     .getByRole("button", { name: "Next background", exact: true })
     .click();
-  await expect(page.locator(".hero-content h2")).not.toHaveText(title!);
+  await expect(page.locator(".hero-content h2")).toHaveText(title!);
   const card = page.locator(".continuation-card").first();
   expect((await card.boundingBox())!.height).toBeLessThan(110);
   await expect(card.locator(".continue-open")).toContainText(
@@ -350,7 +350,7 @@ test("Discover uses one search surface, separate categories, consistent provider
     "background-color",
     "rgba(0, 0, 0, 0)",
   );
-  await expect(page.locator(".type-tabs")).toHaveCSS("gap", "6px");
+  await expect(page.locator(".type-tabs")).toHaveCSS("gap", "8px");
   await expect(page.locator(".provider-dot")).toHaveCount(0);
   for (const tab of await page.locator(".type-tabs button").all()) {
     const before = await tab.boundingBox();
@@ -362,7 +362,7 @@ test("Discover uses one search surface, separate categories, consistent provider
     await expect(tab).toHaveCSS("outline-style", "none");
   }
   await page.getByRole("tab", { name: "Modpacks", exact: true }).click();
-  await choose(page, "Provider", "CurseForge");
+  await choose(page, "Provider", "CurseForge · coming soon");
   await expect(
     page.getByRole("combobox", { name: "Provider", exact: true }),
   ).toContainText("CurseForge");

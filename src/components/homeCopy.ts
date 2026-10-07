@@ -1,4 +1,4 @@
-// Copy follows the selected artwork's stable index, never a render-time random value.
+// Copy is selected once per Home visit; artwork navigation leaves it in place.
 export const heroCopy = {
   ru: [
     [

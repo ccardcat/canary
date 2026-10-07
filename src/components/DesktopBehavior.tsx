@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useLayoutEffect, useRef, useState } from "react";
 import { polishMessages } from "../locales/polish";
 
 export default function DesktopBehavior() {
@@ -6,6 +6,17 @@ export default function DesktopBehavior() {
   const [menu, setMenu] = useState<{ x: number; y: number; input?: HTMLInputElement | HTMLTextAreaElement; selectable?: Element; selection: string; russian: boolean } | null>(null);
   const [clipboardError, setClipboardError] = useState(false);
   const timer = useRef<ReturnType<typeof setTimeout> | undefined>(undefined);
+  const tooltipRef = useRef<HTMLDivElement>(null);
+  const menuRef = useRef<HTMLDivElement>(null);
+  useLayoutEffect(() => {
+    const element = menu ? menuRef.current : tooltipRef.current;
+    if (!element) return;
+    element.showPopover();
+    const rect = element.getBoundingClientRect();
+    element.style.left = `${Math.max(12, Math.min(rect.left, innerWidth - rect.width - 12))}px`;
+    element.style.top = `${Math.max(12, Math.min(rect.top, innerHeight - rect.height - 12))}px`;
+    return () => { element.hidePopover(); };
+  }, [tooltip, menu]);
   useEffect(() => {
     const hide = () => { clearTimeout(timer.current); setTooltip(null); };
     const show = (event: Event) => {
@@ -35,7 +46,8 @@ export default function DesktopBehavior() {
     document.addEventListener("contextmenu", context);
     document.addEventListener("pointerdown", dismiss); document.addEventListener("keydown", key);
     window.addEventListener("scroll", hide, true);
-    return () => { hide(); document.removeEventListener("pointerover", show); document.removeEventListener("pointerout", hide); document.removeEventListener("focusin", show); document.removeEventListener("focusout", hide); document.removeEventListener("contextmenu", context); document.removeEventListener("pointerdown", dismiss); document.removeEventListener("keydown", key); window.removeEventListener("scroll", hide, true); };
+    window.addEventListener("resize", hide);
+    return () => { hide(); document.removeEventListener("pointerover", show); document.removeEventListener("pointerout", hide); document.removeEventListener("focusin", show); document.removeEventListener("focusout", hide); document.removeEventListener("contextmenu", context); document.removeEventListener("pointerdown", dismiss); document.removeEventListener("keydown", key); window.removeEventListener("scroll", hide, true); window.removeEventListener("resize", hide); };
   }, []);
   const text = polishMessages[menu?.russian ? "ru" : "en"];
   const action = async (kind: "copy" | "paste" | "selectAll") => {
@@ -55,8 +67,8 @@ export default function DesktopBehavior() {
     } catch { setClipboardError(true); }
   };
   return <>
-    {tooltip && !menu && <div className="canary-tooltip" role="tooltip" style={{ left: tooltip.x, top: tooltip.y }}>{tooltip.text}</div>}
-    {menu && <div className="text-context-menu" role="menu" aria-label={text.copy} style={{ left: menu.x, top: menu.y }} onMouseDown={e => e.preventDefault()}>
+    {tooltip && !menu && <div ref={tooltipRef} popover="manual" className="canary-tooltip" role="tooltip" style={{ left: tooltip.x, top: tooltip.y }}>{tooltip.text}</div>}
+    {menu && <div ref={menuRef} popover="manual" className="text-context-menu" role="menu" aria-label={text.copy} style={{ left: menu.x, top: menu.y }} onMouseDown={e => e.preventDefault()}>
       <button role="menuitem" disabled={!menu.selection} onClick={() => void action("copy")}>{text.copy}</button>
       {menu.input && <button role="menuitem" disabled={menu.input.readOnly || menu.input.disabled} onClick={() => void action("paste")}>{text.paste}</button>}
       <button role="menuitem" onClick={() => void action("selectAll")}>{text.selectAll}</button>

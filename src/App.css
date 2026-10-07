@@ -2620,9 +2620,6 @@ img {
     padding: 6px;
     font-size:calc(11px * var(--ui-font-scale,1));
   }
-  .provider-badge {
-    display: none;
-  }
   .home-empty .quiet-button {
     margin-left: 0;
   }
@@ -2743,7 +2740,6 @@ img { -webkit-user-drag:none; }
 /* Keep floating Settings inside the client area, below window controls. */
 .modal-backdrop { top:36px; }
 .settings-modal { height:min(720px,calc(100dvh - 76px)); }
-:root:not([data-ambient="off"]) .hero-art { animation:wallpaper-drift 38s ease-in-out infinite alternate; }
 :root[data-motion="reduced"] .hero-art { animation:none!important; }
 @media(prefers-reduced-motion:reduce) { .hero-art { animation:none!important; } }
 

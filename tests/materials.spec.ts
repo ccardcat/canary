@@ -29,7 +29,7 @@ test('all six materials switch real card, button, sidebar and modal surfaces; pr
   const dialog=await page.locator('.settings-modal').evaluate(el=>getComputedStyle(el).backdropFilter);
   expect(name==='Solid'?dialog==='none':dialog!=='none').toBe(true);
   expect(await page.locator('.material-preview .primary-button').evaluate(el=>getComputedStyle(el).backdropFilter)).toBe('none');
-  if(name==='Liquid Glass'){expect(result.shadow).toContain('inset');expect(await page.locator('.settings-modal').evaluate(el=>(getComputedStyle(el).boxShadow.match(/(?:rgba?|color)\(/g)||[]).length)).toBeGreaterThan(4);}
+  if(name==='Liquid Glass'){expect(result.shadow).toContain('inset');expect(await page.locator('.settings-modal').evaluate(el=>(getComputedStyle(el).boxShadow.match(/(?:rgba?|color)\(/g)||[]).length)).toBe(2);}
  }
  expect(new Set(filters).size).toBeGreaterThan(4);
  await choose(page,'Material preset','Liquid Glass');
@@ -65,8 +65,9 @@ test('compact instances preserve primary actions, move favorite up and persist l
 test('account actions stay horizontal, destructive hover/focus resets, rename/delete keep confirmations',async({page})=>{
  await nativeFixture(page);await page.goto('/');await settings(page);await choose(page,'Material preset','Liquid Glass');await page.locator('.settings-nav').getByRole('button',{name:'Account',exact:true}).click();
  const account=page.locator('.runtime-account').first();const edit=account.getByRole('button',{name:'Rename',exact:true});const remove=account.getByRole('button',{name:'Remove',exact:true});
- await page.screenshot({path:'.qa/materials/accounts.png'});
- const a=(await edit.boundingBox())!,b=(await remove.boundingBox())!;expect(Math.abs(a.y-b.y)).toBeLessThan(2);
+ await expect(account).toBeVisible();
+ await expect.poll(async()=>{const a=(await edit.boundingBox())!,b=(await remove.boundingBox())!;return Math.abs(a.y-b.y);}).toBeLessThan(2);
+ await page.waitForTimeout(300);await page.screenshot({path:'.qa/materials/accounts.png'});
  await expect(account).not.toContainText('Local · Local');
  const normal=await remove.evaluate(el=>getComputedStyle(el).color);await remove.hover();await expect.poll(()=>remove.evaluate(el=>getComputedStyle(el).color)).not.toBe(normal);
  await edit.hover();await expect.poll(()=>remove.evaluate(el=>getComputedStyle(el).color)).toBe(normal);

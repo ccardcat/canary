@@ -100,3 +100,28 @@ fn staged_pack(b:&Backend,i:&Instance)->PathBuf {let path=b.root.join("new-pack"
 #[tokio::test]
 #[ignore="Downloads two real Modrinth pack versions and checks safe update/rollback in a disposable instance"]
 async fn real_pack_update_preserves_additions(){let(b,_cleanup,mut i)=setup();let data=download::json(&b,"https://api.modrinth.com/v2/project/1KVo5zza/version?game_versions=%5B%221.21.1%22%5D&loaders=%5B%22fabric%22%5D").await.unwrap();let releases=data.as_array().unwrap().iter().filter(|v|v["version_type"]=="release").collect::<Vec<_>>();assert!(releases.len()>=2);let older=releases[1]["id"].as_str().unwrap();let installed=crate::installer::install("1KVo5zza",older,"Pack update QA",&b.root.join("pack-source"),|_|{}).await.unwrap();let root=storage::instance_dir(&b.root,&i.id).unwrap();std::fs::rename(&root,b.root.join("initial-empty-instance-record")).unwrap();std::fs::rename(installed,&root).unwrap();let legacy:serde_json::Value=serde_json::from_slice(&std::fs::read(root.join("canary-instance.json")).unwrap()).unwrap();i.provider="modrinth".into();i.project_id=Some("1KVo5zza".into());i.version_id=Some(older.into());i.version_name=legacy["pack_version"].as_str().unwrap().into();i.loader_version=legacy["dependencies"]["fabric-loader"].as_str().map(str::to_owned);b.save_instance(&i).unwrap();archive(&root.join("mods/user-addon.jar"),&[("fabric.mod.json",br#"{"id":"canary_qa_user_addition","name":"QA user addition","version":"1"}"#)]);let user_hash=download::hash(&root.join("mods/user-addon.jar"),"sha512").unwrap();std::fs::create_dir_all(root.join("config")).unwrap();std::fs::write(root.join("config/user-check.txt"),b"user config preserved").unwrap();std::fs::create_dir_all(root.join("saves/QA World")).unwrap();std::fs::write(root.join("saves/QA World/level.dat"),b"isolated world marker").unwrap();let before=content::scan(&b,&i.id).unwrap();let hashes=before.items.iter().map(|x|(x.path.clone(),x.hash.clone())).collect::<Vec<_>>();let preview=super::pack_update::preview(&b,&i.id,false).await.unwrap();let job=Arc::new(download::Job::new(&i.id,None,Arc::new(AtomicBool::new(false))));super::pack_update::install(b.clone(),&i.id,false,&preview.fingerprint,job).await.unwrap();assert_eq!(b.instance(&i.id).unwrap().version_id.as_deref(),Some(preview.version.as_str()));assert_eq!(download::hash(&root.join("mods/user-addon.jar"),"sha512").unwrap(),user_hash);assert_eq!(std::fs::read(root.join("config/user-check.txt")).unwrap(),b"user config preserved");assert!(root.join("saves/QA World/level.dat").is_file());let reload=Backend::with_root(b.root.clone()).unwrap();content::rollback(&reload,&i.id).unwrap();assert_eq!(reload.instance(&i.id).unwrap().version_id.as_deref(),Some(older));for(path,hash)in hashes{assert_eq!(download::hash(&root.join(path),"sha512").unwrap(),hash);}println!("REAL_MODRINTH_PACK_UPDATE_USER_CONTENT_CONFIG_WORLD_PERSISTENCE_ROLLBACK_VERIFIED");}
+
+// UI availability filters must bypass providers before touching their API.
+#[tokio::test]
+async fn unavailable_provider_update_filter_preserves_content_without_api_access() {
+    let (b, _cleanup, mut instance) = setup();
+    instance.provider = "curseforge".into();
+    instance.project_id = Some("100".into());
+    b.save_instance(&instance).unwrap();
+    let allowed = vec!["modrinth".to_owned()];
+    let packs = super::modpacks::updates_for_providers(b.clone(), Some(&allowed)).await.unwrap();
+    assert!(packs.as_array().unwrap().is_empty());
+    let root = b.instance_path(&instance.id).unwrap();
+    fabric(&root.join("mods/sample.jar"));
+    let mut state = content::scan(&b, &instance.id).unwrap();
+    assert_eq!(state.items.len(), 1);
+    state.items[0].provider = "curseforge".into();
+    state.items[0].project = Some("300".into());
+    state.items[0].update = Some("400".into());
+    content::save(&root, &state).unwrap();
+    let result = content_provider::updates_for_providers(&b, &instance.id, false, Some(&allowed)).await.unwrap();
+    assert_eq!(result.items.len(), 1);
+    assert_eq!(result.items[0].provider, "curseforge");
+    assert!(result.items[0].update.is_none());
+    assert!(root.join("mods/sample.jar").exists());
+}

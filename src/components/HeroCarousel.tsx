@@ -16,7 +16,7 @@ export function HeroCarousel({children,russian}:{children:ReactNode|((index:numb
   <ArtworkFade source={images[index]?.app} className="hero-art" duration={880}/>{typeof children==="function"?children(index):children}
   <div className="hero-carousel-controls" role="group" aria-label={russian?"Фон главной страницы":"Home background"}>
    <button className="hero-arrow" aria-label={russian?"Предыдущий фон":"Previous background"} disabled={images.length<2} onClick={()=>move(-1)}><ChevronLeft size={15}/></button>
-   {images.map((image,n)=><button key={image.id} aria-label={`${russian?"Показать фон":"Show background"}: ${image.name}`} aria-pressed={index===n} onClick={()=>setSelected(image.id)}/>)}
+   <div className="hero-dots">{images.map((image,n)=><button key={image.id} aria-label={`${russian?"Показать фон":"Show background"}: ${image.name}`} aria-pressed={index===n} onClick={()=>setSelected(image.id)}/>)}</div>
    <button className="hero-arrow" aria-label={russian?"Следующий фон":"Next background"} disabled={images.length<2} onClick={()=>move(1)}><ChevronRight size={15}/></button>
   </div>
  </div>;

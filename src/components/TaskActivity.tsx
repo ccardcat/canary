@@ -1,3 +1,4 @@
+import {EmptyState} from "./EmptyState";
 import { useState } from "react";
 import {
   Activity,
@@ -145,7 +146,7 @@ export function ActivityTasks({ russian }: { russian: boolean }) {
   return (
     <section className="activity-downloads" aria-label={text.activity}>
       <h2>{text.activity}</h2>
-      {!active.length && <p>{text.empty}</p>}
+      {!active.length && <EmptyState icon={ArrowDownToLine} title={text.empty}/>}
       <div className="activity-active">
         {active.map((task) => (
           <TaskRow key={task.id} task={task} russian={russian} />

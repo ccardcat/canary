@@ -52,7 +52,7 @@
 .hero-art .artwork-current { animation:hero-crossfade .8s ease; }
 .hero-art .artwork-layer { background-position:center; }
 @keyframes hero-crossfade { from{opacity:0;}to{opacity:1;} }
-.hero-paused .hero-art { animation:none!important; }
+.hero-art { animation:none; transform:none; }
 .settings-search { margin:12px 20px 0; }
 .settings-search input { width:100%; background:var(--surface-2); border:1px solid var(--line); padding:10px 13px; color:var(--text); }
 .settings-results { display:grid; gap:8px; }
@@ -82,4 +82,4 @@ label>.glass-select,.runtime-form .glass-select{width:100%}
 
 .sort-wrap>svg{display:none}
 
-.glass-select-popup:focus{outline:none}.glass-select-trigger:active:not(:disabled){background:var(--surface-3);transform:translateY(1px)}
+.glass-select-popup:focus{outline:none}.glass-select-trigger:active:not(:disabled){background:var(--surface-3)}

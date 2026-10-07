@@ -139,7 +139,7 @@
 :root .nav-capsule,:root .segment-capsule { background:linear-gradient(150deg,var(--mat-buttons-light),transparent 65%),var(--surface-selected); border:1px solid var(--mat-buttons-edge); box-shadow:inset 0 1px var(--mat-buttons-light),0 2px 6px #0002; backdrop-filter:none; }
 :root button:not(:disabled) { transition:background-color 160ms,border-color 160ms,color 160ms,box-shadow 160ms,transform 160ms; }
 :root button:where(:hover:not(:disabled):not(.card-visual):not(.card-title):not(.window-close)) { background-color:var(--surface-hover); border-color:var(--border-strong); }
-:root button:where(:active:not(:disabled):not(.card-visual):not(.toggle)) { background:var(--mat-buttons-sheen),var(--surface-pressed); border-color:var(--accent-pressed); transform:translateY(1px); box-shadow:inset 0 1px var(--m-light); }
+:root button:where(:active:not(:disabled):not(.card-visual):not(.toggle)) { background:var(--mat-buttons-sheen),var(--surface-pressed); border-color:var(--accent-pressed); box-shadow:inset 0 1px var(--m-light); }
 :root button:is(.selected,[aria-pressed="true"],[aria-selected="true"]):not(:disabled) { background:var(--mat-buttons-sheen),var(--surface-selected); border-color:var(--border-selected); color:var(--text); }
 :root :is(.primary-button,.play-action,.install-action) { background:var(--mat-buttons-sheen),color-mix(in srgb,var(--accent) 20%,var(--mat-buttons-fill)); border-color:color-mix(in srgb,var(--accent) 48%,var(--line)); color:var(--text); font-weight:700; box-shadow:var(--mat-buttons-shadow); }
 :root :is(.primary-button,.play-action,.install-action):hover:not(:disabled) { background-color:var(--surface-hover); border-color:var(--accent-hover); }
@@ -159,7 +159,7 @@
 :root :is(.settings-modal,.runtime-dialog,.instance-surface) :is(.runtime-panel,.polish-disclosure,.content-item,.content-history,.runtime-account) { -webkit-backdrop-filter:none; backdrop-filter:none; box-shadow:inset 0 1px var(--mat-cards-light); }
 :root .runtime-dialog .runtime-panel,:root .accounts-panel { background:transparent; border:0; box-shadow:none; backdrop-filter:none; }
 :root .project-card { transition:transform 160ms,border-color 160ms,box-shadow 160ms; }
-:root .project-card:hover { transform:translateY(-2px); }
+:root .project-card:hover { transform:none; }
 :root .chips>span { background:color-mix(in srgb,var(--surface) 35%,transparent); border:1px solid var(--line); color:var(--muted); }
 :root .card-foot,:root .runtime-inline,:root .content-item-actions,:root .detail-actions,:root .toast-actions { gap:var(--space-2); }
 :root .runtime-account { display:grid; grid-template-columns:minmax(0,1fr) auto; align-items:center; gap:8px 12px; padding:12px; margin-bottom:12px; border:1px solid var(--mat-cards-edge); }
@@ -355,6 +355,3 @@
 :root :is(.settings-nav,.sidebar nav) button:active .nav-capsule { background:var(--surface-pressed); }
 /* Carousel controls sit over artwork, with the same protected floating tint. */
 :root .hero-carousel-controls .hero-arrow { background:var(--mat-floating-fill); color:var(--icon-primary); border-color:var(--border-default); box-shadow:none; }
-:root .hero-carousel-controls button:not(.hero-arrow) { background:var(--icon-secondary); border:0; box-shadow:none; backdrop-filter:none; transform:none; }
-:root .hero-carousel-controls button:not(.hero-arrow)[aria-pressed="true"] { background:var(--accent); box-shadow:0 0 0 2px var(--accent-soft); transform:scale(1.25); }
-:root .hero-carousel-controls button:not(.hero-arrow):hover { background:var(--accent-hover); }

@@ -21,6 +21,7 @@
   --info: #94bce8;
   --backdrop-overlay: rgb(0 0 0 / .5);
   --shadow-soft: 0 5px 16px #00000028;
+  --material-shadow-strength: 1;
   --shadow: 0 24px 60px #0008;
   --blur: 24px;
   --motion: all 0.2s cubic-bezier(0.2, 0.8, 0.2, 1);
@@ -49,7 +50,7 @@
   --border-subtle: var(--line-subtle);
   --border-default: var(--line);
   --border-strong: var(--line-strong);
-  --border-selected: color-mix(in srgb, var(--accent) 60%, var(--line-strong));
+  --border-selected: color-mix(in srgb, var(--accent) 32%, var(--line));
   --accent-hover: color-mix(in srgb, var(--accent) 88%, var(--text));
   --accent-pressed: color-mix(in srgb, var(--accent) 75%, var(--text));
   --accent-soft: color-mix(in srgb, var(--accent) 12%, var(--surface));
@@ -74,6 +75,7 @@
   --surface-floor-floating: 92%;
 }
 :root[data-mode="light"] {
+  --material-shadow-strength: .55;
   --bg: #f3f5f4;
   --surface: #fff;
   --surface-2: #eef1ef;

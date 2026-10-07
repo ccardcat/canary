@@ -31,7 +31,7 @@ mockIPC((command,args)=>{
   if(command==='install_curseforge_pack'){const instance={...state.instances[0],id:'curseforge-100-200',provider:'curseforge',project_id:'100',version_id:'200',name:'CurseForge contract pack',directory:'C:/Canary/instances/curseforge-100-200'};state.instances.push(instance);return instance;}
   if(command==='content_inventory')return structuredClone(inventory);
   if(command==='content_worlds')return [];
-  if(command==='content_search')return {hits:[{project_id:'sodium',title:'Sodium',author:'Author',description:'A compatible optimization mod',downloads:123,versions:['1.21.1'],categories:['fabric']}],total_hits:1};
+  if(command==='content_search'){const data={hits:[{project_id:'sodium',title:'Sodium',author:'Author',description:'A compatible optimization mod',downloads:123,versions:['1.21.1'],categories:['fabric']}],total_hits:1};return globalThis.__backendTest.slowContent?new Promise(resolve=>setTimeout(()=>resolve(data),600)):data;}
   if(command==='content_project')return {id:'sodium',title:'Sodium',description:'Optimized rendering',body:'**Safe description**',game_versions:['1.21.1'],loaders:['fabric']};
   if(command==='content_versions')return [{id:'sodium-v1',name:'Sodium 1',version_number:'1',version_type:'release'}];
   if(command==='content_preview')return {items:[{project:'sodium',version:'sodium-v1',name:'Sodium',number:'1',kind:'mod'},{project:'fabric-api',version:'api-v1',name:'Fabric API',number:'1',kind:'mod'}],optional:['Optional recommendation'],fingerprint:'contract-plan'};
@@ -90,7 +90,7 @@ test("existing Settings saves real runtime settings and Java selection",async({p
   expect(settings.max_memory).toBe(6144);expect(settings.java_path).toBe("C:/Java/bin/java.exe");
 });
 
-test("instance settings stay outside the grid and bind to stable instance identity",async({page})=>{
+test("instance settings use their own page and bind to stable instance identity",async({page})=>{
  await page.setViewportSize({width:1920,height:1080});
  await page.evaluate(()=>{const test=(globalThis as any).__backendTest;test.state.instances.push({...test.state.instances[0],id:"instance-b",name:"Second instance",overrides:{max_memory:2048}});});
  await page.getByRole("button",{name:"Library",exact:true}).first().click();
@@ -100,8 +100,10 @@ test("instance settings stay outside the grid and bind to stable instance identi
  await cards.nth(0).getByRole("button",{name:"Details",exact:true}).click();
  await expect(page.locator(".instance-surface")).toHaveCount(1);
  await expect(page.locator(".instance-surface input").first()).toHaveValue("Contract instance");
+ await expect(cards).toHaveCount(0);
+ await page.locator(".instance-surface>.runtime-heading").getByRole("button",{name:"Close",exact:true}).click();
+ await expect(cards).toHaveCount(2);
  expect(await cards.evaluateAll(nodes=>nodes.map(n=>Math.round(n.getBoundingClientRect().height*100)/100))).toEqual(before);
- await expect(cards.locator(".runtime-panel")).toHaveCount(0);
  await cards.nth(1).getByRole("button",{name:"Details",exact:true}).click();
  await expect(page.locator(".instance-surface input").first()).toHaveValue("Second instance");
  await page.locator(".instance-surface input").first().fill("Second renamed");
@@ -174,20 +176,16 @@ test("pack updates require review and preserve the selected instance identity",a
 test("F11 changes native fullscreen and Escape respects the settings dialog",async({page})=>{await expect(page.locator(".window-titlebar")).toBeVisible();await page.keyboard.press("F11");await expect(page.locator("html")).toHaveAttribute("data-window-fullscreen","true");await expect(page.locator(".window-titlebar")).toBeHidden();await page.getByRole("button",{name:"Settings",exact:true}).first().click();await expect(page.locator(".modal-backdrop")).toHaveCSS("top","0px");await page.keyboard.press("Escape");await expect(page.locator(".settings-modal")).toHaveCount(0);await expect(page.locator("html")).toHaveAttribute("data-window-fullscreen","true");await page.keyboard.press("Escape");await expect(page.locator("html")).toHaveAttribute("data-window-fullscreen","false");const calls=await page.evaluate(()=>(globalThis as any).__backendTest.calls);expect(calls.filter((c:any)=>c.command==="plugin:window|set_fullscreen").map((c:any)=>c.args.value)).toEqual([true,false]);expect(calls.some((c:any)=>c.command==="plugin:window|set_position")).toBe(true);});
 test("internal instances stay hidden while user names remain visible and playtime is human readable",async({page})=>{await page.evaluate(()=>{const t=(globalThis as any).__backendTest;t.state.instances[0].name="User validation world";t.state.instances[0].playtime=4320;t.state.instances.push({...t.state.instances[0],id:"internal-validation",name:"Technical QA",internal:true});});await page.getByRole("button",{name:"Library",exact:true}).first().click();await page.getByRole("button",{name:"Check updates",exact:true}).click();await expect(page.locator(".library-grid .project-card")).toHaveCount(1);await expect(page.locator(".library-grid")).toContainText("User validation world");await expect(page.locator(".library-grid")).toContainText("1 h 12 min");});
 
-test("CurseForge detail accepts ZIP pack versions and retains provider during installation",async({page})=>{
-  await page.getByRole("button",{name:"Discover",exact:true}).first().click();
-  await page.getByRole("combobox",{name:"Provider",exact:true}).click();await page.getByRole("option",{name:"CurseForge",exact:true}).click();
-  await page.locator(".card-title").filter({hasText:"CurseForge contract pack"}).click();
-  await expect(page.locator(".detail-page")).toContainText("Safe CF description");
-  await expect(page.getByRole("combobox",{name:"Version to install",exact:true})).toContainText("2 · 1.21.1 · fabric");
-  expect(await page.evaluate(()=>(window as any).cfUnsafe)).toBeUndefined();
-  await page.locator(".detail-actions").getByRole("button",{name:"Install",exact:true}).click();
-  await expect(page.locator(".library-grid")).toContainText("CurseForge contract pack");
-  const calls=await page.evaluate(()=>(globalThis as any).__backendTest.calls);
-  expect(calls.find((call:any)=>call.command==="install_curseforge_pack")?.args).toMatchObject({projectId:100,fileId:200,taskId:expect.any(String)});
-  expect(calls.some((call:any)=>call.command==="install_modpack")).toBe(false);
+test("CurseForge offers a neutral Coming Soon state without install actions",async({page})=>{
+ await page.getByRole("button",{name:"Discover",exact:true}).first().click();
+ await page.getByRole("combobox",{name:"Provider",exact:true}).click();await page.getByRole("option",{name:"CurseForge · coming soon",exact:true}).click();
+ await expect(page.locator(".empty-state")).toContainText("CurseForge is not available yet");
+ await expect(page.locator(".detail-page,.discover-page .project-grid")).toHaveCount(0);
+ await expect(page.getByRole("button",{name:"Install",exact:true})).toHaveCount(0);
+ const calls=await page.evaluate(()=>(globalThis as any).__backendTest.calls);
+ expect(calls.some((call:any)=>["catalog_search","catalog_versions","install_curseforge_pack","install_modpack"].includes(call.command))).toBe(false);
+ await expect(page.getByRole("alert")).toHaveCount(0);
 });
-
 
 test("pending Stop waits for an explicit Force choice",async({page})=>{
   await page.evaluate(()=>{const test=(globalThis as any).__backendTest;test.state.instances[0].status="running";test.stopPending=true;});
@@ -209,20 +207,23 @@ test("pending Stop waits for an explicit Force choice",async({page})=>{
 });
 
 
-test("changing CurseForge search cancels the native request and discards stale results",async({page})=>{
-  await page.evaluate(()=>(globalThis as any).__backendTest.slowSearch=true);
-  await page.getByRole("button",{name:"Discover",exact:true}).first().click();
-  await page.getByRole("combobox",{name:"Provider",exact:true}).click();await page.getByRole("option",{name:"CurseForge",exact:true}).click();
-  const search=page.getByRole("textbox",{name:"Search projects",exact:true});
-  await search.fill("first");
-  await expect.poll(()=>page.evaluate(()=>(globalThis as any).__backendTest.calls.some((c:any)=>c.command==="catalog_search"&&c.args.query==="first"))).toBe(true);
-  await search.fill("second");
-  await expect(page.locator(".card-title")).toContainText("second CF pack");
-  const calls=await page.evaluate(()=>(globalThis as any).__backendTest.calls);
-  const first=calls.find((c:any)=>c.command==="catalog_search"&&c.args.query==="first");
-  expect(first.args.requestId).toMatch(/^provider-/);
-  expect(calls.some((c:any)=>c.command==="cancel_operation"&&c.args.id===first.args.requestId)).toBe(true);
-  await expect(page.locator(".card-title")).not.toContainText("first CF pack");
+test("switching providers cancels pending Content requests and discards stale Modrinth results",async({page})=>{
+ await page.getByRole("button",{name:"Library",exact:true}).first().click();
+ await page.locator(".instance-links").getByRole("button",{name:"Content",exact:true}).click();
+ await expect(page.locator(".card-title")).toHaveText("Sodium");
+ await page.evaluate(()=>(globalThis as any).__backendTest.slowContent=true);
+ await page.getByRole("textbox",{name:"Search projects",exact:true}).fill("pending");
+ await expect.poll(()=>page.evaluate(()=>(globalThis as any).__backendTest.calls.some((c:any)=>c.command==="content_search"&&c.args.query==="pending"))).toBe(true);
+ await page.getByRole("combobox",{name:"Provider",exact:true}).click();await page.getByRole("option",{name:"CurseForge · coming soon",exact:true}).click();
+ await expect(page.locator(".content-manager .empty-state")).toContainText("CurseForge is not available yet");
+ await expect(page.locator(".card-title")).toHaveCount(0);
+ const calls=await page.evaluate(()=>(globalThis as any).__backendTest.calls);
+ const request=calls.find((c:any)=>c.command==="content_search"&&c.args.query==="pending");
+ expect(request.args.requestId).toMatch(/^provider-/);
+ expect(calls.some((c:any)=>c.command==="cancel_operation"&&c.args.id===request.args.requestId)).toBe(true);
+ expect(calls.some((c:any)=>c.args?.provider==="curseforge")).toBe(false);
+ await page.getByRole("combobox",{name:"Provider",exact:true}).click();await page.getByRole("option",{name:"Modrinth",exact:true}).click();
+ await expect(page.locator(".card-title")).toHaveText("Sodium");
 });
 
 test("storage cleanup requires confirmation and RAM warning leaves account defaults selectable",async({page})=>{
@@ -270,8 +271,11 @@ for(const kind of ["vanilla","fabric","mrpack"]){test(`create ${kind} prevents d
 });}
 
 
-test("CurseForge pagination preserves provider and offsets through 1 → 2 → 3 → 2 → 1",async({page})=>{
- await page.evaluate(()=>(globalThis as any).__backendTest.manyPages=true);await page.getByRole("button",{name:"Discover",exact:true}).first().click();await page.getByRole("combobox",{name:"Provider",exact:true}).click();await page.getByRole("option",{name:"CurseForge",exact:true}).click();
- for(const [button,number] of [[null,1],["Next",2],["Next",3],["Previous",2],["Previous",1]] as const){if(button)await page.getByRole("button",{name:button,exact:true}).click();await expect(page.getByTestId("page-label")).toHaveText(`Page ${number} / 8`);await expect(page.locator(".card-title").first()).toHaveText(`CF page item ${(number-1)*12}`);}
- const calls=await page.evaluate(()=>(globalThis as any).__backendTest.calls.filter((c:any)=>c.command==="catalog_search"));expect(calls.map((c:any)=>c.args.offset)).toEqual([0,12,24,12,0]);
+test("CurseForge unavailable has no pagination and Modrinth still restores",async({page})=>{
+ await page.getByRole("button",{name:"Discover",exact:true}).first().click();
+ await page.getByRole("combobox",{name:"Provider",exact:true}).click();await page.getByRole("option",{name:"CurseForge · coming soon",exact:true}).click();
+ await expect(page.locator(".empty-state")).toBeVisible();await expect(page.locator(".pagination")).toHaveCount(0);
+ await page.getByRole("combobox",{name:"Provider",exact:true}).click();await page.getByRole("option",{name:"Modrinth",exact:true}).click();
+ await expect(page.locator(".pagination")).toBeVisible();
+ expect(await page.evaluate(()=>(globalThis as any).__backendTest.calls.some((c:any)=>c.command==="catalog_search"))).toBe(false);
 });

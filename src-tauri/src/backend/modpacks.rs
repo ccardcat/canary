@@ -43,9 +43,12 @@ pub async fn verify(backend:Arc<Backend>,instance:&Instance,job:Arc<Job>,deep:bo
     storage::write_json(&receipt,&inventory)?;job.check()?;Ok(())
 }
 pub async fn updates(backend:Arc<Backend>)->Result<Value> {
+    updates_for_providers(backend,None).await
+}
+pub async fn updates_for_providers(backend:Arc<Backend>,allowed:Option<&[String]>)->Result<Value> {
     let mut result=vec![];for mut instance in backend.instances()?{
         let Ok(_lease)=backend.lease(&instance.id) else{continue};
-        if instance.status=="unavailable"{continue;}if instance.provider=="curseforge"{if let Some(project)=&instance.project_id{let latest=match super::curseforge_content::versions(&backend,project,"modpack",&instance.minecraft,&instance.loader,false).await{Ok(versions)=>versions.into_iter().next(),Err(error)=>{result.push(json!({"id":instance.id,"error":error}));continue;}};instance.update_available=latest.as_ref().and_then(|v|v["id"].as_str()).is_some_and(|id|Some(id)!=instance.version_id.as_deref());backend.save_instance(&instance)?;result.push(json!({"id":instance.id,"available":instance.update_available,"latest":latest}));}continue;}if instance.provider!="modrinth"{continue;}
+        if instance.status=="unavailable"||allowed.is_some_and(|providers|!providers.contains(&instance.provider)){continue;}if instance.provider=="curseforge"{if let Some(project)=&instance.project_id{let latest=match super::curseforge_content::versions(&backend,project,"modpack",&instance.minecraft,&instance.loader,false).await{Ok(versions)=>versions.into_iter().next(),Err(error)=>{result.push(json!({"id":instance.id,"error":error}));continue;}};instance.update_available=latest.as_ref().and_then(|v|v["id"].as_str()).is_some_and(|id|Some(id)!=instance.version_id.as_deref());backend.save_instance(&instance)?;result.push(json!({"id":instance.id,"available":instance.update_available,"latest":latest}));}continue;}if instance.provider!="modrinth"{continue;}
         let Some(project)=&instance.project_id else{continue};let mut url=reqwest::Url::parse("https://api.modrinth.com/v2/project/").unwrap();url.path_segments_mut().unwrap().pop_if_empty().push(project).push("version");
         url.query_pairs_mut().append_pair("game_versions",&json!([instance.minecraft]).to_string()).append_pair("loaders",&json!([instance.loader]).to_string());
         let versions=match download::json(&backend,url.as_str()).await{Ok(versions)=>versions,Err(error)=>{result.push(json!({"id":instance.id,"error":error}));continue;}};let latest=versions.as_array().and_then(|v|v.first());

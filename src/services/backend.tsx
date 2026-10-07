@@ -1,3 +1,4 @@
+import {availableProviders} from "./providers";
 import {
   createContext,
   useCallback,
@@ -423,7 +424,7 @@ export function BackendProvider({ children }: { children: ReactNode }) {
     )
       return;
     updateChecked.current = true;
-    void invoke("check_modpack_updates")
+    void invoke("check_modpack_updates",{allowedProviders:availableProviders})
       .then(refresh)
       .catch(() => {});
   }, [snapshot?.settings.update_checks, refresh]);

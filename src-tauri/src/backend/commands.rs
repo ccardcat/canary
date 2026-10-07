@@ -17,7 +17,7 @@ pub async fn install_curseforge_pack(backend:State<'_,B>,app:AppHandle,project_i
     job.finish(&result);result
 }
 #[tauri::command]
-pub async fn check_modpack_updates(backend:State<'_,B>)->Result<serde_json::Value>{super::modpacks::updates(backend.inner().clone()).await}
+pub async fn check_modpack_updates(backend:State<'_,B>,allowed_providers:Option<Vec<String>>)->Result<serde_json::Value>{super::modpacks::updates_for_providers(backend.inner().clone(),allowed_providers.as_deref()).await}
 #[tauri::command]
 pub fn backend_snapshot(backend:State<'_,B>)->Result<serde_json::Value>{
     let store=backend.store.lock().unwrap().clone();let mut instances=backend.instances()?;
@@ -227,7 +227,7 @@ pub async fn content_action(backend:State<'_,B>,app:AppHandle,id:String,ids:Vec<
 #[tauri::command]
 pub async fn content_rollback(backend:State<'_,B>,app:AppHandle,id:String)->Result<super::content::State>{let b=backend.inner().clone();let event_id=id.clone();let result=tokio::task::spawn_blocking(move||{let _lease=b.lease(&id)?;super::content::rollback(&b,&id)}).await.map_err(|e|BackendError::new("content_snapshot",e.to_string()))?;let _=app.emit("content-changed",serde_json::json!({"id":event_id}));result}
 #[tauri::command]
-pub async fn content_updates(backend:State<'_,B>,id:String,beta:bool)->Result<super::content::State>{let _lease=backend.inner().lease(&id)?;super::content_provider::updates(&backend,&id,beta).await}
+pub async fn content_updates(backend:State<'_,B>,id:String,beta:bool,allowed_providers:Option<Vec<String>>)->Result<super::content::State>{let _lease=backend.inner().lease(&id)?;super::content_provider::updates_for_providers(&backend,&id,beta,allowed_providers.as_deref()).await}
 #[tauri::command]
 pub async fn choose_content_files(app:AppHandle)->Result<Vec<String>>{
  tokio::task::spawn_blocking(move||{use tauri_plugin_dialog::DialogExt;Ok(app.dialog().file().add_filter("Minecraft content",&["jar","zip"]).blocking_pick_files().unwrap_or_default().into_iter().filter_map(|p|p.into_path().ok().map(|p|p.to_string_lossy().into_owned())).collect())}).await.map_err(|e|BackendError::new("content_file",e.to_string()))?

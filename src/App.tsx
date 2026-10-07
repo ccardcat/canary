@@ -1,3 +1,6 @@
+import {EmptyState} from "./components/EmptyState";
+import {useAnchoredPopover} from "./hooks/useAnchoredPopover";
+import {ProviderSelect,ProviderUnavailable} from "./components/ProviderUI";
 import {version as appVersion} from "../package.json";
 import GlassSelect from "./components/GlassSelect";
 import {
@@ -11,7 +14,7 @@ import {
 } from "react";
 import { AnimatePresence, MotionConfig, motion } from "motion/react";
 import ProjectCard from "./components/ProjectCard";
-import {providerDetail,providerVersions,providerName,providerSite,type Provider} from "./services/providers";
+import {providerAvailable,providerDetail,providerVersions,providerName,providerSite,type Provider} from "./services/providers";
 import { useDiscovery } from "./hooks/useDiscovery";
 import { diagnostics, type Progress } from "./services/installation";
 import { externalLink } from "./services/links";
@@ -274,6 +277,7 @@ function App() {
   }, [page, detail?.id]);
 
   async function openProject(p: Project) {
+    if (!providerAvailable(p.provider)) { setDetail(null); setPage("Discover"); discovery.setProvider("curseforge"); return; }
     detailAbort.current?.abort();
     const controller = new AbortController();
     detailAbort.current = controller;
@@ -309,6 +313,7 @@ function App() {
     }
   }
   async function install(p: Project, versionId?: string) {
+    if (!providerAvailable(p.provider)) return;
     if (installing.current || backend.snapshot?.instances.some(x=>x.project_id===p.project_id&&x.provider===(p.provider||"modrinth")) || lib.some((x) => x.project_id === p.project_id&&(x.provider||"modrinth")===(p.provider||"modrinth")))
       return;
     if (!isTauri()) {
@@ -647,14 +652,15 @@ function App() {
   );
 }
 function AccountPopover({ t, onClose }: { t: T; onClose: () => void }) {
+  const ref = useAnchoredPopover();
   return (
     <motion.div
-      className="popover account-popover"
+      ref={ref} popover="manual" className="popover account-popover anchored-popover"
       role="dialog"
       aria-label={t("account")}
-      initial={{ opacity: 0, y: -6, scale: 0.98 }}
-      animate={{ opacity: 1, y: 0, scale: 1 }}
-      exit={{ opacity: 0, y: -4, scale: 0.98 }}
+      initial={{ opacity: 0 }}
+      animate={{ opacity: 1 }}
+      exit={{ opacity: 0 }}
     >
       <div className="popover-title">
         <span>{t("account")}</span>
@@ -701,12 +707,14 @@ function HomePage({
   busy: boolean;
 }) {
   const { value } = useVisualAppearance();
+  // Background navigation changes artwork only; copy stays stable for this visit.
+  const [copyIndex] = useState(() => Math.floor(Math.random() * heroCopy.en.length));
   return (
     <section className="home-page">
       <HeroCarousel russian={russian}>
-        {(index) => {
+        {() => {
           const [title, subtitle] =
-            heroCopy[russian ? "ru" : "en"][index % heroCopy.en.length];
+            heroCopy[russian ? "ru" : "en"][copyIndex];
           return (
             <div className="hero-content">
               <h2>{title}</h2>
@@ -966,7 +974,7 @@ function DiscoverPage({
       <div className="discover-intro">
         <p>{t("discoverSub")}</p>
         <div className="provider-badge">
-          <GlassSelect aria-label={t("home")==="Главная"?"Источник проектов":"Provider"} value={provider} onChange={e=>setProvider(e.target.value as Provider)}><option value="modrinth">Modrinth</option><option value="curseforge">CurseForge</option></GlassSelect>
+          <ProviderSelect value={provider} onChange={value=>{setProvider(value);setFilterOpen(false);}} russian={t("home")==="Главная"}/>
         </div>
       </div>
       <div className="type-tabs" role="tablist" aria-label={t("contentTypes")}>
@@ -989,7 +997,7 @@ function DiscoverPage({
           </button>
         ))}
       </div>
-      <div className="discover-toolbar">
+      {providerAvailable(provider)&&<div className="discover-toolbar">
         <div className="search-field">
           <Search size={18} />
           <input
@@ -1043,12 +1051,9 @@ function DiscoverPage({
           <ChevronDown size={14} />
         </div>
       </div>
-      {type === "server" ? (
-        <div className="notice-empty">
-          <Server size={25} />
-          <h3>{t("serverUnavailable")}</h3>
-          <p>{t("serverUnavailableSub")}</p>
-        </div>
+      }
+      {!providerAvailable(provider) ? <ProviderUnavailable russian={t("home")==="Главная"}/> : type === "server" ? (
+        <EmptyState className="notice-empty" icon={Server} title={t("serverUnavailable")} description={t("serverUnavailableSub")}/>
       ) : (
         <>
           <div className="results-line">
@@ -1087,11 +1092,7 @@ function DiscoverPage({
                 ))}
               </div>
             ) : (
-              <div className="notice-empty">
-                <Search size={25} />
-                <h3>{t("noResults")}</h3>
-                <p>{t("noResultsSub")}</p>
-              </div>
+              <EmptyState className="notice-empty" icon={Search} title={t("noResults")} description={t("noResultsSub")}/>
             )}
           </div>
           <div className="pagination" aria-label={t("page")}>
@@ -1141,14 +1142,15 @@ function FilterPopover({
   }) => void;
   type: ContentType;
 }) {
+  const ref = useAnchoredPopover();
   const update = (key: keyof typeof filters, value: string) =>
     setFilters({ ...filters, [key]: value });
   return (
     <motion.div
-      className="popover filter-popover"
-      initial={{ opacity: 0, y: -6, scale: 0.98 }}
-      animate={{ opacity: 1, y: 0, scale: 1 }}
-      exit={{ opacity: 0, y: -4, scale: 0.98 }}
+      ref={ref} popover="manual" className="popover filter-popover anchored-popover"
+      initial={{ opacity: 0 }}
+      animate={{ opacity: 1 }}
+      exit={{ opacity: 0 }}
     >
       <div className="filter-head">
         <b>{t("filters")}</b>
@@ -1421,6 +1423,7 @@ function DetailPage({
                   onClick={onInstall}
                   disabled={
                     busy ||
+                    !providerAvailable(detail.provider) ||
                     !selected ||
                     !available.some((v) => v.id === selected)
                   }
@@ -1657,17 +1660,7 @@ function EmptyPage({
 }) {
   return (
     <section className="empty-page">
-      <div className="empty-surface">
-        <Icon size={30} />
-        <h2>{title}</h2>
-        <p>{text}</p>
-        {onAction && (
-          <button className="primary-button" onClick={onAction}>
-            <SettingsIcon size={16} />
-            {t("appearance")}
-          </button>
-        )}
-      </div>
+      <EmptyState className="empty-surface" icon={Icon} title={title} description={text} action={onAction&&<button className="primary-button" onClick={onAction}><SettingsIcon size={16}/>{t("appearance")}</button>}/>
     </section>
   );
 }
@@ -1809,9 +1802,10 @@ function SettingsModal({
             <AnimatePresence mode="wait" initial={false}>
               <motion.div
                 key={tab}
-                initial={{ opacity: 0, y: 6 }}
-                animate={{ opacity: 1, y: 0 }}
-                exit={{ opacity: 0, y: -4 }}
+                initial={{ opacity: 0 }}
+                animate={{ opacity: 1 }}
+                exit={{ opacity: 0 }}
+                transition={{duration:.12}}
               >
                 {search.trim()?<div className="settings-results">{results.length?results.map(([id,label,Icon,words])=><button key={id} onClick={()=>{setTab(id);setSearch("");}}><Icon size={17}/> {label}<small>{words.split(" ").slice(0,7).join(" · ")}</small></button>):<p>{russian?"Настройки не найдены":"No settings found"}</p>}</div>:tab === "discord" ? <DiscordSettings russian={russian} status={discordStatus}/> :tab === "window" ? <WindowPreferencesPanel russian={russian}/> :tab === "background" ? <><VisualPreferences russian={russian} group="background"/><HeroSettings russian={russian}/></> :tab === "effects" ? <EffectsPreferences russian={russian}><MotionPreference t={t} reduceMotion={reduceMotion} setReduceMotion={setReduceMotion}/></EffectsPreferences> :tab === "typography" ? <VisualPreferences russian={russian} group="typography"/> :tab === "storage" ? <StorageSettings russian={russian}/> :tab === "minecraft"?<RuntimeSettingsPanel russian={russian} section="minecraft"/> :tab === "downloads"?<RuntimeSettingsPanel russian={russian} section="downloads"/> :tab === "appearance" ? (
                   <Appearance
@@ -1852,6 +1846,7 @@ function SettingsModal({
                           ? "Canary"
                           : t(tab as Key)
                     }
+                    about={tab === "about"}
                     text={
                       tab === "accountSettings"
                         ? t("accountSub")
@@ -1859,7 +1854,7 @@ function SettingsModal({
                           ? t("noDownloadsSub")
                           : tab === "advanced"
                             ? t("advancedSub")
-                            : `${t("aboutSub")} ${t("version")} ${appVersion} · Modrinth / CurseForge`
+                            : t("aboutSub")
                     }
                   />
                 )}
@@ -2049,21 +2044,23 @@ function SettingsInfo({
   icon: Icon,
   title,
   text,
+  about = false,
 }: {
+  about?: boolean;
   t: T;
   icon: typeof UserRound;
   title: string;
   text: string;
 }) {
   return (
-    <div className="settings-info">
+    <div className={`settings-info ${about ? "about-card" : ""}`}>
       <Icon size={28} />
       <div className="setting-intro">
         <div className="overline">CANARY</div>
         <h3>{title}</h3>
         <p>{text}</p>
       </div>
-      <span className="planned-badge">{t("planned")}</span>
+      {about ? <div className="about-meta"><span>{t("version")} {appVersion}</span><span>Modrinth · {t("home")==="Главная"?"CurseForge скоро":"CurseForge coming soon"}</span></div> : <span className="planned-badge">{t("planned")}</span>}
     </div>
   );
 }

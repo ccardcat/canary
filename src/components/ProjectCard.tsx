@@ -1,7 +1,7 @@
 import {Download,SquareArrowOutUpRight,Plus} from "lucide-react";
 import {categories,type T} from "../locales";
 import {artwork,type Project,type ContentType} from "../services/modrinth";
-import {providerName} from "../services/providers";
+import {providerName,providerAvailable} from "../services/providers";
 import RemoteImage from "./RemoteImage";
 import {cardSpotlight} from "./DesktopBehavior";
 export default function ProjectCard({
@@ -74,7 +74,7 @@ export default function ProjectCard({
                   ? "compact-action installed"
                   : "compact-action install-action"
               }
-              disabled={installed || busy}
+              disabled={installed || busy || !providerAvailable(p.provider)}
               onClick={onInstall}
             >
               {installed
