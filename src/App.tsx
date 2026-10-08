@@ -2053,7 +2053,7 @@ function SettingsInfo({
         <h3>{title}</h3>
         <p>{text}</p>
       </div>
-      {about ? <div className="about-meta"><span>{t("version")} {appVersion}</span><span>Modrinth · {t("home")==="Главная"?"CurseForge скоро":"CurseForge coming soon"}</span></div> : <span className="planned-badge">{t("planned")}</span>}
+      {about ? <div className="about-meta"><span>{t("version")} {appVersion}</span><span>Modrinth · {providerAvailable("curseforge")?"CurseForge":t("home")==="Главная"?"CurseForge недоступен":"CurseForge unavailable"}</span></div> : <span className="planned-badge">{t("planned")}</span>}
     </div>
   );
 }

@@ -1,19 +1,28 @@
+import {useSyncExternalStore} from "react";
 import {invoke,isTauri} from "@tauri-apps/api/core";
 import {api,searchProjects,type Detail,type Project,type Version} from "./modrinth";
 import type {DiscoveryState} from "./discovery";
 export type Provider="modrinth"|"curseforge";
-export const providers = {
- modrinth: {name:"Modrinth", status:"available"},
- curseforge: {name:"CurseForge", status:"comingSoon"},
-} as const;
-export const availableProviders = Object.entries(providers).filter(([,p])=>p.status === "available").map(([id])=>id);
-export const providerCopy = {
- ru: {title:"CurseForge пока недоступен", description:"Поддержка CurseForge появится в одном из следующих обновлений Canary."},
- en: {title:"CurseForge is not available yet", description:"CurseForge support is coming in a future Canary update."},
+type ProviderStatus="available"|"unavailable";
+export const providers:Record<Provider,{name:string;status:ProviderStatus}> = {
+ modrinth:{name:"Modrinth",status:"available"},curseforge:{name:"CurseForge",status:"unavailable"},
 };
-export const providerAvailable = (provider?:string) => !provider || !(provider in providers) || providers[provider as Provider].status === "available";
+export let availableProviders:string[]=["modrinth"];
+const listeners=new Set<()=>void>();
+export function configureProviders(capabilities?:Record<string,{configured:boolean}>){
+ const status=capabilities?.curseforge?.configured?"available":"unavailable";
+ if(providers.curseforge.status===status)return;
+ providers.curseforge.status=status;availableProviders=status==="available"?["modrinth","curseforge"]:["modrinth"];
+ listeners.forEach(listener=>listener());
+}
+export const useProviderAvailability=()=>useSyncExternalStore(listener=>{listeners.add(listener);return()=>{listeners.delete(listener);};},()=>providers.curseforge.status,()=>"unavailable");
+export const providerCopy = {
+ ru:{title:"CurseForge недоступен",description:"CurseForge пока не подключён в этой версии Canary."},
+ en:{title:"CurseForge is unavailable",description:"CurseForge is not connected in this version of Canary."},
+};
+export const providerAvailable=(provider?:string)=>!provider||!(provider in providers)||providers[provider as Provider].status==="available";
 export function requireAvailableProvider(provider?:string) {
- if (!providerAvailable(provider)) throw Object.assign(new Error(providerCopy.en.title), {code:"provider_coming_soon"});
+ if (!providerAvailable(provider)) throw Object.assign(new Error(providerCopy.en.title), {code:"provider_not_configured"});
 }
 export async function providerInvoke<T>(command:string,args:Record<string,unknown>,signal?:AbortSignal):Promise<T>{
  requireAvailableProvider(args.provider as string | undefined);

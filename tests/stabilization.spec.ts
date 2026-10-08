@@ -49,8 +49,8 @@ for(const russian of [false,true]) test(`Content header and button rows resize w
     await page.screenshot({path:`${directory}/content-${russian?"ru":"en"}-${width}.png`,fullPage:true});
   }
   writeFileSync(`${directory}/content-${russian?"ru":"en"}.json`,JSON.stringify(measured,null,2));
-  await choose(page,russian?"Источник проектов":"Provider",russian?"CurseForge · скоро":"CurseForge · coming soon");
-  await expect(page.locator(".content-manager .empty-state")).toContainText(russian?"CurseForge пока недоступен":"CurseForge is not available yet");
+  await choose(page,russian?"Источник проектов":"Provider",russian?"CurseForge · недоступен":"CurseForge · unavailable");
+  await expect(page.locator(".content-manager .empty-state")).toContainText(russian?"CurseForge недоступен":"CurseForge is unavailable");
   await expect(page.locator(".content-project-grid,.content-loading,.content-pagination")).toHaveCount(0);
   const calls=await page.evaluate(()=>(globalThis as any).__materialQA.calls);
   expect(calls.some((c:any)=>c.args?.provider==="curseforge")).toBe(false);
@@ -61,8 +61,8 @@ for(const russian of [false,true]) test(`Content header and button rows resize w
 test("CurseForge Discover is immediately unavailable and never leaks previous Modrinth results",async({page})=>{
   await page.route("https://api.modrinth.com/v2/search*",route=>route.fulfill({json:{hits:[{project_id:"modrinth-only",title:"Modrinth only",description:"Available provider",versions:["1.21.1"],categories:[],downloads:100}],total_hits:1}}));
   await page.goto("/");await nav(page,"Discover").click();await expect(page.locator(".project-grid")).toContainText("Modrinth only");
-  await choose(page,"Provider","CurseForge · coming soon");
-  await expect(page.locator(".empty-state")).toContainText("CurseForge is not available yet");
+  await choose(page,"Provider","CurseForge · unavailable");
+  await expect(page.locator(".empty-state")).toContainText("CurseForge is unavailable");
   await expect(page.locator(".discover-page .project-grid,.discover-page .pagination,.discover-toolbar")).toHaveCount(0);
   await expect(page.getByRole("alert")).toHaveCount(0);
   const calls=await page.evaluate(()=>(globalThis as any).__materialQA.calls);
@@ -83,7 +83,7 @@ test("Storage, Accounts and About keep their geometry at narrow widths and low h
         expect(gap).toBeGreaterThanOrEqual(8);
       }
       if(tab==="Account") await expect(page.locator(".account-logins button").last()).toBeDisabled();
-      if(tab==="About") {await expect(page.locator(".about-card")).toContainText("CurseForge coming soon");await expect(page.locator(".about-card .planned-badge")).toHaveCount(0);}
+      if(tab==="About") {await expect(page.locator(".about-card")).toContainText("CurseForge unavailable");await expect(page.locator(".about-card .planned-badge")).toHaveCount(0);}
       await page.screenshot({path:`${directory}/settings-${tab.toLowerCase()}-${width}.png`});
     }
   }

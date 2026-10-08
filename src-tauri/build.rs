@@ -1,4 +1,5 @@
 fn main() {
+    println!("cargo:rerun-if-env-changed=CANARY_CURSEFORGE_PROXY_URL");
     let windows = std::env::var("CARGO_CFG_TARGET_OS").as_deref() == Ok("windows");
     let attributes = if windows {
         // The linker embeds the same Common Controls dependency for every target.

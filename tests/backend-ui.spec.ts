@@ -176,10 +176,10 @@ test("pack updates require review and preserve the selected instance identity",a
 test("F11 changes native fullscreen and Escape respects the settings dialog",async({page})=>{await expect(page.locator(".window-titlebar")).toBeVisible();await page.keyboard.press("F11");await expect(page.locator("html")).toHaveAttribute("data-window-fullscreen","true");await expect(page.locator(".window-titlebar")).toBeHidden();await page.getByRole("button",{name:"Settings",exact:true}).first().click();await expect(page.locator(".modal-backdrop")).toHaveCSS("top","0px");await page.keyboard.press("Escape");await expect(page.locator(".settings-modal")).toHaveCount(0);await expect(page.locator("html")).toHaveAttribute("data-window-fullscreen","true");await page.keyboard.press("Escape");await expect(page.locator("html")).toHaveAttribute("data-window-fullscreen","false");const calls=await page.evaluate(()=>(globalThis as any).__backendTest.calls);expect(calls.filter((c:any)=>c.command==="plugin:window|set_fullscreen").map((c:any)=>c.args.value)).toEqual([true,false]);expect(calls.some((c:any)=>c.command==="plugin:window|set_position")).toBe(true);});
 test("internal instances stay hidden while user names remain visible and playtime is human readable",async({page})=>{await page.evaluate(()=>{const t=(globalThis as any).__backendTest;t.state.instances[0].name="User validation world";t.state.instances[0].playtime=4320;t.state.instances.push({...t.state.instances[0],id:"internal-validation",name:"Technical QA",internal:true});});await page.getByRole("button",{name:"Library",exact:true}).first().click();await page.getByRole("button",{name:"Check updates",exact:true}).click();await expect(page.locator(".library-grid .project-card")).toHaveCount(1);await expect(page.locator(".library-grid")).toContainText("User validation world");await expect(page.locator(".library-grid")).toContainText("1 h 12 min");});
 
-test("CurseForge offers a neutral Coming Soon state without install actions",async({page})=>{
+test("Unconfigured CurseForge has no install actions",async({page})=>{
  await page.getByRole("button",{name:"Discover",exact:true}).first().click();
- await page.getByRole("combobox",{name:"Provider",exact:true}).click();await page.getByRole("option",{name:"CurseForge · coming soon",exact:true}).click();
- await expect(page.locator(".empty-state")).toContainText("CurseForge is not available yet");
+ await page.getByRole("combobox",{name:"Provider",exact:true}).click();await page.getByRole("option",{name:"CurseForge · unavailable",exact:true}).click();
+ await expect(page.locator(".empty-state")).toContainText("CurseForge is unavailable");
  await expect(page.locator(".detail-page,.discover-page .project-grid")).toHaveCount(0);
  await expect(page.getByRole("button",{name:"Install",exact:true})).toHaveCount(0);
  const calls=await page.evaluate(()=>(globalThis as any).__backendTest.calls);
@@ -215,8 +215,8 @@ test("switching providers cancels pending Content requests and discards stale Mo
  await page.evaluate(()=>(globalThis as any).__backendTest.slowContent=true);
  await page.getByRole("textbox",{name:"Search projects",exact:true}).fill("pending");
  await expect.poll(()=>page.evaluate(()=>(globalThis as any).__backendTest.calls.some((c:any)=>c.command==="content_search"&&c.args.query==="pending"))).toBe(true);
- await page.getByRole("combobox",{name:"Provider",exact:true}).click();await page.getByRole("option",{name:"CurseForge · coming soon",exact:true}).click();
- await expect(page.locator(".content-manager .empty-state")).toContainText("CurseForge is not available yet");
+ await page.getByRole("combobox",{name:"Provider",exact:true}).click();await page.getByRole("option",{name:"CurseForge · unavailable",exact:true}).click();
+ await expect(page.locator(".content-manager .empty-state")).toContainText("CurseForge is unavailable");
  await expect(page.locator(".card-title")).toHaveCount(0);
  const calls=await page.evaluate(()=>(globalThis as any).__backendTest.calls);
  const request=calls.find((c:any)=>c.command==="content_search"&&c.args.query==="pending");
@@ -274,7 +274,7 @@ for(const kind of ["vanilla","fabric","mrpack"]){test(`create ${kind} prevents d
 
 test("CurseForge unavailable has no pagination and Modrinth still restores",async({page})=>{
  await page.getByRole("button",{name:"Discover",exact:true}).first().click();
- await page.getByRole("combobox",{name:"Provider",exact:true}).click();await page.getByRole("option",{name:"CurseForge · coming soon",exact:true}).click();
+ await page.getByRole("combobox",{name:"Provider",exact:true}).click();await page.getByRole("option",{name:"CurseForge · unavailable",exact:true}).click();
  await expect(page.locator(".empty-state")).toBeVisible();await expect(page.locator(".pagination")).toHaveCount(0);
  await page.getByRole("combobox",{name:"Provider",exact:true}).click();await page.getByRole("option",{name:"Modrinth",exact:true}).click();
  await expect(page.locator(".pagination")).toBeVisible();
@@ -300,4 +300,29 @@ test("Desktop background enables Acrylic and window transparency previews live b
  await page.reload();await page.getByRole("button",{name:"Settings",exact:true}).first().click();await page.locator(".settings-nav").getByRole("button",{name:"Background",exact:true}).click();
  await expect(page.getByRole("slider",{name:"Window transparency",exact:true})).toHaveValue(String(draft));
  await page.getByRole("button",{name:/^Picture/}).click();await expect(page.locator(".visual-backdrop")).toBeVisible();await expect(page.locator("html")).toHaveAttribute("data-window-material","solid");
+});
+
+async function connectCurseForge(page:import("@playwright/test").Page){
+ await page.evaluate(()=>{(globalThis as any).__backendTest.state.providers.curseforge={configured:true};});
+ await page.getByRole("button",{name:"Library",exact:true}).first().click();await page.getByRole("button",{name:"Check updates",exact:true}).click();
+ await page.getByRole("button",{name:"Discover",exact:true}).first().click();
+ await page.getByRole("combobox",{name:"Provider",exact:true}).click();await page.getByRole("option",{name:"CurseForge",exact:true}).click();
+}
+test("Configured CurseForge searches, sanitizes details and installs without asking for a key",async({page})=>{
+ await connectCurseForge(page);await expect(page.locator(".discover-page .project-card")).toHaveCount(1);
+ await page.locator(".card-title").click();await expect(page.locator(".detail-page")).toContainText("Safe CF description");
+ expect(await page.evaluate(()=>(globalThis as any).cfUnsafe)).toBeUndefined();
+ await page.locator(".detail-page").getByRole("button",{name:"Install",exact:true}).click();
+ await expect.poll(()=>page.evaluate(()=>(globalThis as any).__backendTest.calls.some((c:any)=>c.command==="install_curseforge_pack"))).toBe(true);
+ const call=await page.evaluate(()=>(globalThis as any).__backendTest.calls.find((c:any)=>c.command==="install_curseforge_pack"));
+ expect(call.args.projectId).toBe(100);expect(call.args.fileId).toBe(200);
+ expect(JSON.stringify(call)).not.toContain("apiKey");
+});
+test("Configured CurseForge uses twelve-item pages and stale searches are cancelled",async({page})=>{
+ await page.evaluate(()=>(globalThis as any).__backendTest.manyPages=true);await connectCurseForge(page);
+ await expect(page.locator(".discover-page .project-card")).toHaveCount(12);
+ const calls=await page.evaluate(()=>(globalThis as any).__backendTest.calls.filter((c:any)=>c.command==="catalog_search"));
+ expect(calls[0].args.limit).toBe(12);expect(calls[0].args.offset).toBe(0);
+ await page.getByRole("textbox",{name:"Search projects",exact:true}).fill("second");
+ await expect.poll(()=>page.evaluate(()=>(globalThis as any).__backendTest.calls.some((c:any)=>c.command==="catalog_search"&&c.args.query==="second"))).toBe(true);
 });

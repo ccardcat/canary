@@ -23,6 +23,7 @@ on:
         type: string
 
 env:
+  CANARY_CURSEFORGE_PROXY_URL: ${{ vars.CANARY_CURSEFORGE_PROXY_URL }}
   RELEASE_TAG: ${{ inputs.tag || github.ref_name }}
   WINDOWS_ONLY: ${{ github.event_name == 'workflow_dispatch' && inputs.platform == 'windows' }}
 

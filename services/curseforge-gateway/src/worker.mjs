@@ -1,0 +1,150 @@
+const API = 'https://api.curseforge.com/v1/';
+const CLASSES = new Set(['6', '4471', '12', '6552', '6945']);
+const encoder = new TextEncoder();
+const signingKeys = new WeakMap();
+class Failure extends Error {
+  constructor(status, code, message) { super(message); this.status = status; this.code = code; }
+}
+const fail = (status, code, message) => { throw new Failure(status, code, message); };
+const json = (value, status = 200, extra = {}) => Response.json(value, {status, headers: {'cache-control': 'no-store', 'x-content-type-options': 'nosniff', ...extra}});
+const numeric = value => /^[1-9]\d{0,9}$/.test(value) && Number(value) <= 0xffffffff;
+const cdn = url => url.protocol === 'https:' && !url.username && !url.password && (!url.port || url.port === '443') && ['edge.forgecdn.net', 'mediafilez.forgecdn.net', 'media.forgecdn.net'].includes(url.hostname);
+
+function route(url) {
+  if (url.pathname === '/health') return {health: true};
+  let match = /^\/v1\/download\/([0-9]+)\/([0-9]+)$/.exec(url.pathname);
+  if (match && match.slice(1).every(numeric)) {
+    if ([...url.searchParams.keys()].some(k => k !== 'ticket')) fail(400, 'invalid_request', 'Unsupported download parameter');
+    return {download: true, project: match[1], file: match[2]};
+  }
+  if (url.pathname === '/v1/mods/search') {
+    const allowed = new Set(['gameId', 'classId', 'searchFilter', 'sortField', 'sortOrder', 'index', 'pageSize', 'gameVersion', 'modLoaderType']);
+    validateQuery(url, allowed);
+    if (url.searchParams.has('gameId') && url.searchParams.get('gameId') !== '432') fail(400, 'invalid_request', 'Only Minecraft is supported');
+    if (!CLASSES.has(url.searchParams.get('classId') || '4471')) fail(400, 'invalid_request', 'Unsupported content category');
+    url.searchParams.set('gameId', '432');
+    return {path: 'mods/search'};
+  }
+  match = /^\/v1\/mods\/([0-9]+)(\/(description|files)(\/([0-9]+))?)?$/.exec(url.pathname);
+  if (!match || !numeric(match[1]) || match[5] && (!numeric(match[5]) || match[3] !== 'files')) fail(404, 'not_found', 'Unknown endpoint');
+  validateQuery(url, new Set(match[3] === 'files' && !match[5] ? ['gameVersion', 'modLoaderType', 'index', 'pageSize'] : []));
+  return {project: match[1], path: url.pathname.slice(4)};
+}
+function validateQuery(url, allowed) {
+  const seen = new Set();
+  for (const [key, value] of url.searchParams) {
+    if (!allowed.has(key) || seen.has(key) || value.length > 200) fail(400, 'invalid_request', 'Unsupported parameter');
+    seen.add(key);
+    if (['pageSize', 'index', 'modLoaderType', 'sortField'].includes(key) && !/^\d+$/.test(value)) fail(400, 'invalid_request', 'Invalid numeric parameter');
+    if (key === 'pageSize' && (+value < 1 || +value > 50) || key === 'index' && +value > 10000) fail(400, 'invalid_request', 'Pagination is outside the supported range');
+    if (key === 'sortOrder' && !['asc', 'desc'].includes(value)) fail(400, 'invalid_request', 'Invalid sort order');
+  }
+}
+async function signingKey(env) {
+  const secret = env.DOWNLOAD_SIGNING_KEY || env.CURSEFORGE_API_KEY;
+  const existing = signingKeys.get(env);
+  if (existing?.secret === secret) return existing.key;
+  const key = crypto.subtle.importKey('raw', encoder.encode(secret), {name: 'HMAC', hash: 'SHA-256'}, false, ['sign', 'verify']);
+  signingKeys.set(env, {secret, key});
+  return key;
+}
+const hex = buffer => [...new Uint8Array(buffer)].map(b => b.toString(16).padStart(2, '0')).join('');
+async function ticket(env, project, file, now) {
+  const expiry = Math.floor(now / 1000) + 1800;
+  const signature = await crypto.subtle.sign('HMAC', await signingKey(env), encoder.encode(`${project}:${file}:${expiry}`));
+  return `${expiry}.${hex(signature)}`;
+}
+async function verifyTicket(env, value, project, file, now) {
+  const match = /^(\d{10})\.([a-f0-9]{64})$/.exec(value || '');
+  if (!match || +match[1] < Math.floor(now / 1000) || +match[1] > Math.floor(now / 1000) + 1800) return false;
+  const bytes = new Uint8Array(match[2].match(/../g).map(b => parseInt(b, 16)));
+  return crypto.subtle.verify('HMAC', await signingKey(env), bytes, encoder.encode(`${project}:${file}:${match[1]}`));
+}
+async function rewriteFiles(value, env, origin, now, permitted = true) {
+  if (!value || typeof value !== 'object') return;
+  if (Array.isArray(value)) { await Promise.all(value.map(v => rewriteFiles(v, env, origin, now, permitted))); return; }
+  permitted = permitted && value.allowModDistribution !== false;
+  if ('downloadUrl' in value && numeric(String(value.modId)) && numeric(String(value.id))) {
+    if (!permitted || typeof value.downloadUrl !== 'string' || !value.downloadUrl) value.downloadUrl = null;
+    else {
+      let source; try { source = new URL(value.downloadUrl); } catch { source = null; }
+      value.downloadUrl = source && cdn(source) ? `${origin}/v1/download/${value.modId}/${value.id}?ticket=${await ticket(env, value.modId, value.id, now)}` : null;
+    }
+  }
+  await Promise.all(Object.values(value).filter(v => v && typeof v === 'object').map(v => rewriteFiles(v, env, origin, now, permitted)));
+}
+
+export function createGateway({fetchUpstream = fetch, cache, now = Date.now} = {}) {
+  async function api(path, query, env, origin, signal) {
+    const url = new URL(path, API); url.search = query.toString(); url.searchParams.sort();
+    const cacheKey = new Request(`${origin}/_cache/${path}?${url.searchParams}`);
+    const stored = await cache?.match(cacheKey);
+    if (stored) return stored.json();
+    const response = await fetchUpstream(url, {redirect: 'manual', signal: AbortSignal.any([signal, AbortSignal.timeout(30000)]), headers: {'x-api-key': env.CURSEFORGE_API_KEY, 'accept': 'application/json'}});
+    if (!response.ok) {
+      await response.body?.cancel();
+      if (response.status === 429) fail(429, 'provider_rate_limit', 'CurseForge is temporarily rate limited');
+      fail(response.status === 404 ? 404 : 503, 'provider_unavailable', 'CurseForge service is temporarily unavailable');
+    }
+    // Bound JSON metadata, never buffer downloaded game archives.
+    const reader = response.body.getReader(); const chunks = []; let length = 0;
+    try { for (;;) { const {done, value} = await reader.read(); if (done) break; length += value.byteLength; if (length > 8 * 1024 * 1024) fail(502, 'metadata', 'Metadata is too large'); chunks.push(value); } }
+    catch (error) { await reader.cancel(); throw error; }
+    const bytes = new Uint8Array(length); let offset = 0; for (const chunk of chunks) { bytes.set(chunk, offset); offset += chunk.byteLength; }
+    const data = JSON.parse(new TextDecoder().decode(bytes));
+    // Cache upstream metadata only. Signed client URLs are regenerated per request.
+    await cache?.put(cacheKey, Response.json(data, {headers: {'cache-control': 'public, max-age=60'}}));
+    return data;
+  }
+  async function project(id, env, origin, signal) {
+    const value = await api(`mods/${id}`, new URLSearchParams(), env, origin, signal);
+    if (String(value.data?.id) !== id || value.data?.gameId !== 432 || !CLASSES.has(String(value.data?.classId))) fail(404, 'not_found', 'Minecraft project is not available');
+    return value;
+  }
+  return async function handle(request, env) {
+    try {
+      if (request.method !== 'GET' && request.method !== 'HEAD') return json({error: {code: 'method_not_allowed', message: 'Read-only service'}}, 405, {allow: 'GET, HEAD'});
+      const url = new URL(request.url); const r = route(url);
+      if (!env.CURSEFORGE_API_KEY || !env.API_RATE_LIMIT || !env.DOWNLOAD_RATE_LIMIT || !env.BUDGET_RATE_LIMIT) fail(503, 'provider_unavailable', 'CurseForge service is not configured');
+      const ip = request.headers.get('cf-connecting-ip') || 'unknown';
+      const limiter = r.download ? env.DOWNLOAD_RATE_LIMIT : env.API_RATE_LIMIT;
+      if (!(await limiter.limit({key: ip})).success || !(await env.BUDGET_RATE_LIMIT.limit({key: 'all'})).success) return json({error: {code: 'provider_rate_limit', message: 'Please try again shortly'}}, 429, {'retry-after': '60'});
+      if (r.health) return json({service: 'canary-curseforge', configured: true});
+      const origin = url.origin;
+      if (r.download) {
+        if (!await verifyTicket(env, url.searchParams.get('ticket'), r.project, r.file, now())) fail(403, 'download_ticket', 'Download link expired; refresh the project');
+        const p = await project(r.project, env, origin, request.signal);
+        if (p.data.allowModDistribution === false) fail(403, 'manual_download_required', 'The author disabled third-party downloads');
+        const metadata = await api(`mods/${r.project}/files/${r.file}`, new URLSearchParams(), env, origin, request.signal);
+        if (String(metadata.data?.id) !== r.file || String(metadata.data?.modId) !== r.project) fail(502, 'metadata', 'Project/file mismatch');
+        if (!metadata.data.downloadUrl) fail(403, 'manual_download_required', 'This file requires manual download');
+        let source = new URL(metadata.data.downloadUrl);
+        const headers = {'x-api-key': env.CURSEFORGE_API_KEY, 'accept-encoding': 'identity'};
+        const range = request.headers.get('range'); if (range) { if (!/^bytes=\d+-\d*$/.test(range)) fail(400, 'invalid_request', 'Unsupported byte range'); headers.range = range; }
+        for (let redirects = 0; redirects <= 3; redirects++) {
+          if (!cdn(source)) fail(502, 'download_source', 'Unsupported publisher download host');
+          const response = await fetchUpstream(source, {method: request.method, headers, redirect: 'manual', signal: request.signal});
+          if ([301, 302, 303, 307, 308].includes(response.status)) { const location = response.headers.get('location'); await response.body?.cancel(); if (!location) break; source = new URL(location, source); continue; }
+          if (!response.ok) { await response.body?.cancel(); fail(503, 'provider_unavailable', 'Publisher download is temporarily unavailable'); }
+          const output = new Headers({'cache-control': 'no-store', 'x-content-type-options': 'nosniff', 'content-type': 'application/octet-stream'});
+          for (const name of ['content-length', 'content-range', 'accept-ranges']) if (response.headers.has(name)) output.set(name, response.headers.get(name));
+          return new Response(request.method === 'HEAD' ? null : response.body, {status: response.status, headers: output});
+        }
+        fail(502, 'download_source', 'Too many publisher redirects');
+      }
+      if (request.method !== 'GET') return json({error: {code: 'method_not_allowed', message: 'Use GET for metadata'}}, 405);
+      let p; if (r.project) p = await project(r.project, env, origin, request.signal);
+      const value = r.path === `mods/${r.project}` ? p : await api(r.path, url.searchParams, env, origin, request.signal);
+      if (r.path === 'mods/search') value.data = (value.data || []).filter(p => p.gameId === 432 && CLASSES.has(String(p.classId)));
+      await rewriteFiles(value, env, origin, now(), p?.data.allowModDistribution !== false);
+      return json(value);
+    } catch (error) {
+      if (error instanceof Failure) return json({error: {code: error.code, message: error.message}}, error.status);
+      // Never forward publisher error bodies, request headers or secrets to clients.
+      return json({error: {code: 'provider_unavailable', message: 'CurseForge service is temporarily unavailable'}}, 503);
+    }
+  };
+}
+export default {
+  fetch(request, env) { return createGateway({cache: globalThis.caches?.default})(request, env); }
+};

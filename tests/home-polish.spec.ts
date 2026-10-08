@@ -362,7 +362,7 @@ test("Discover uses one search surface, separate categories, consistent provider
     await expect(tab).toHaveCSS("outline-style", "none");
   }
   await page.getByRole("tab", { name: "Modpacks", exact: true }).click();
-  await choose(page, "Provider", "CurseForge · coming soon");
+  await choose(page, "Provider", "CurseForge · unavailable");
   await expect(
     page.getByRole("combobox", { name: "Provider", exact: true }),
   ).toContainText("CurseForge");

@@ -50,6 +50,7 @@ pub struct Backend {
     pub account_resources:account_resources::Registry,
     pub client: reqwest::Client,
     pub private_api_client:reqwest::Client,
+    pub private_download_client:reqwest::Client,
     pub store: Mutex<model::Store>,
     pub jobs: Mutex<HashMap<String, Arc<AtomicBool>>>,
     pub provider_requests: Mutex<HashMap<String, Arc<AtomicBool>>>,
@@ -73,6 +74,7 @@ impl Backend {
         startup_phase("HTTP client initialization");
         Ok(Self { root,discord:Arc::new(discord::Manager::default()),tasks:Mutex::new(HashMap::new()),staged:Mutex::new(HashMap::new()),wallpaper_lock:Mutex::new(()),maintenance:AtomicBool::new(false),auth:tokio::sync::Mutex::new(()),account_resources:Mutex::new(HashMap::new()), store: Mutex::new(store), jobs: Mutex::new(HashMap::new()), provider_requests:Mutex::new(HashMap::new()), processes: Mutex::new(HashMap::new()),
             private_api_client:reqwest::Client::builder().user_agent("Canary/0.1.0").redirect(reqwest::redirect::Policy::none()).timeout(std::time::Duration::from_secs(30)).build()?,
+            private_download_client:reqwest::Client::builder().user_agent("Canary/0.1.0").redirect(reqwest::redirect::Policy::none()).connect_timeout(std::time::Duration::from_secs(20)).timeout(std::time::Duration::from_secs(300)).build()?,
             client: reqwest::Client::builder().user_agent("Canary/0.1.0 (https://github.com/ccardcat/canary)")
                 .connect_timeout(std::time::Duration::from_secs(20)).timeout(std::time::Duration::from_secs(300)).build()? })
     }

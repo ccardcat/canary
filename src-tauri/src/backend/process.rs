@@ -44,7 +44,7 @@ pub async fn launch(backend:Arc<Backend>,mut instance:Instance,job:Arc<Job>,app:
     args.extend(custom_game.clone());
     if instance.overrides.fullscreen.unwrap_or(settings.fullscreen){args.push("--fullscreen".into());}
     job.critical()?;job.emit("launching","running",&instance.name);
-    let mut command=tokio::process::Command::new(&java.path);command.env_remove("JAVA_TOOL_OPTIONS").env_remove("_JAVA_OPTIONS").env_remove("JDK_JAVA_OPTIONS").env_remove("CLASSPATH").env_remove("CANARY_CURSEFORGE_API_KEY").args(&args).current_dir(&dir).stdout(Stdio::piped()).stderr(Stdio::piped());
+    let mut command=tokio::process::Command::new(&java.path);command.env_remove("JAVA_TOOL_OPTIONS").env_remove("_JAVA_OPTIONS").env_remove("JDK_JAVA_OPTIONS").env_remove("CLASSPATH").env_remove("CANARY_CURSEFORGE_API_KEY").env_remove("CANARY_CURSEFORGE_PROXY_URL").args(&args).current_dir(&dir).stdout(Stdio::piped()).stderr(Stdio::piped());
     #[cfg(windows)]command.creation_flags(0x08000000);
     let log_dir=storage::safe_join(&dir,"logs")?;std::fs::create_dir_all(&log_dir)?;let log_path=log_dir.join(format!("canary-{}-{}.log",now(),uuid::Uuid::new_v4()));
     let mut child=command.spawn().map_err(|e|BackendError::new("launch",e.to_string()))?;let pid=child.id().ok_or_else(||BackendError::new("launch","No process ID"))?;

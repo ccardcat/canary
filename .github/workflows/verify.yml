@@ -8,7 +8,24 @@ permissions:
 concurrency:
   group: desktop-verification-${{ github.sha }}
   cancel-in-progress: false
+env:
+  CANARY_CURSEFORGE_PROXY_URL: ${{ vars.CANARY_CURSEFORGE_PROXY_URL }}
 jobs:
+  curseforge-gateway:
+    runs-on: ubuntu-22.04
+    defaults:
+      run:
+        working-directory: services/curseforge-gateway
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '24'
+          cache: npm
+          cache-dependency-path: services/curseforge-gateway/package-lock.json
+      - run: npm ci --no-audit --no-fund
+      - run: npm test
+      - run: npx wrangler deploy --dry-run
   desktop:
     strategy:
       fail-fast: false

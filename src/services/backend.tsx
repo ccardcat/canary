@@ -1,7 +1,7 @@
 import {normalizeError} from "./errors";
 import {taskStore,useTaskLifecycle} from "./taskStore";
 import {gameLogStore} from "./gameLogStore";
-import {availableProviders} from "./providers";
+import {availableProviders,configureProviders} from "./providers";
 import {
   createContext,
   useCallback,
@@ -201,6 +201,7 @@ export function BackendProvider({ children }: { children: ReactNode }) {
       const sequence = ++refreshSequence.current;
       const value = await invoke<Snapshot>("backend_snapshot");
       if (sequence === refreshSequence.current) {
+        configureProviders(value.providers);
         setSnapshot(value);
         value.tasks?.forEach(updateTask);
       }

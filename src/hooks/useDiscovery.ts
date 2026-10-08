@@ -1,4 +1,4 @@
-import {searchProvider,providerAvailable,type Provider} from "../services/providers";
+import {searchProvider,providerAvailable,useProviderAvailability,type Provider} from "../services/providers";
 import { useEffect, useReducer, useState } from "react";
 import {
 
@@ -12,6 +12,7 @@ import {
 } from "../services/discovery";
 
 export function useDiscovery() {
+  const availability=useProviderAvailability();
   const [state, dispatch] = useReducer(discoveryReducer, initialDiscovery);
   const [result, setResult] = useState<{
     projects: Project[];
@@ -54,7 +55,7 @@ export function useDiscovery() {
       clearTimeout(timer);
       controller.abort();
     };
-  }, [state, revision]);
+  }, [state, revision,availability]);
   return {
     ...state,
     ...(providerAvailable(state.provider) ? result : {projects:[],total:0,loading:false,error:null}),

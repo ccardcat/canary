@@ -19,7 +19,7 @@ pub fn providers()->serde_json::Value{serde_json::json!({
     "local":{"configured":true},
     "elyby":{"configured":true},
     "microsoft":{"configured":true},
-    "curseforge":{"configured":super::curseforge::configured(),"requirement":"Set CANARY_CURSEFORGE_API_KEY using your own official CurseForge API key"}
+    "curseforge":{"configured":super::curseforge::configured(),"requirement":"CurseForge service is not connected in this build"}
 })}
 // Windows Credential Manager only. Remote providers will use this shared store;
 // non-sensitive account metadata never contains access/refresh credentials.

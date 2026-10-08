@@ -50,6 +50,25 @@ pub async fn preview(b:&Backend,i:&Instance,project:&str,version:Option<&str>,co
         if file["hashes"]["sha1"].as_str().is_none(){return Err(BackendError::new("checksum","Publisher SHA-1 missing"));}
         items.push(Planned{provider:"curseforge".into(),project:pid,version:vid,name:detail["name"].as_str().unwrap_or("Project").into(),number:v["version_number"].as_str().unwrap_or("").into(),kind:content_kind,icon:detail["logo"]["url"].as_str().map(str::to_owned),file,required,dependencies:deps});
     }
-    use sha2::Digest;let fingerprint=format!("{:x}",sha2::Sha256::digest(serde_json::to_vec(&json!({"items":items,"world":world,"minecraft":i.minecraft,"loader":i.loader}))?));Ok(Plan{items,optional,world,fingerprint})
+    let fingerprint=plan_fingerprint(json!({"items":items,"world":world,"minecraft":i.minecraft,"loader":i.loader}))?;Ok(Plan{items,optional,world,fingerprint})
 }
 #[cfg(test)]mod tests{use super::*;#[test]fn normalized_file_keeps_restriction_and_provider(){let f=normalize_file(&json!({"id":2,"modId":1,"fileName":"test.jar","downloadUrl":null,"releaseType":1,"gameVersions":["1.21.1","Fabric"],"hashes":[{"algo":1,"value":"abc"}]}),"mod");assert_eq!(f["provider"],"curseforge");assert!(f["files"][0]["url"].is_null());assert_eq!(f["loaders"][0],"fabric");}}
+
+// Authorization tickets can rotate between review and installation. Content
+// identity, checksums, filenames, sizes and destination still define approval.
+fn plan_fingerprint(mut value:Value)->Result<String>{
+ if let Some(items)=value["items"].as_array_mut(){for item in items{
+  if let Some(raw)=item["file"]["url"].as_str(){if let Ok(mut url)=reqwest::Url::parse(raw){
+   if url.path()==format!("/v1/download/{}/{}",item["project"].as_str().unwrap_or(""),item["version"].as_str().unwrap_or(""))&&url.query_pairs().all(|(k,_)|k=="ticket"){url.set_query(None);item["file"]["url"]=json!(url.as_str());}
+  }}
+ }}
+ use sha2::Digest;Ok(format!("{:x}",sha2::Sha256::digest(serde_json::to_vec(&value)?)))
+}
+#[cfg(test)]mod gateway_tests {
+ use super::*;
+ #[test]fn rotating_ticket_preserves_approval_but_changed_hash_does_not(){
+  let mut plan=json!({"items":[{"project":"1","version":"2","file":{"url":"https://gateway.example/v1/download/1/2?ticket=old","hashes":{"sha1":"original"},"filename":"mod.jar","size":10}}]});
+  let approved=plan_fingerprint(plan.clone()).unwrap();plan["items"][0]["file"]["url"]=json!("https://gateway.example/v1/download/1/2?ticket=new");
+  assert_eq!(approved,plan_fingerprint(plan.clone()).unwrap());plan["items"][0]["file"]["hashes"]["sha1"]=json!("changed");assert_ne!(approved,plan_fingerprint(plan).unwrap());
+ }
+}

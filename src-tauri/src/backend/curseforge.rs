@@ -1,16 +1,45 @@
 use super::{Backend,download::{self,Artifact,Job},model::*,storage};
 use serde_json::{Value,json};
 use std::{sync::Arc,path::Path};
-pub fn configured()->bool {std::env::var("CANARY_CURSEFORGE_API_KEY").is_ok_and(|s|!s.trim().is_empty())}
+// A public gateway URL is compiled into releases; the publisher key stays on the server.
+fn parse_gateway(value:&str)->Option<reqwest::Url>{
+ let url=reqwest::Url::parse(value.trim()).ok()?;
+ let secure=url.scheme()=="https"||cfg!(test)&&url.scheme()=="http"&&url.host_str()==Some("127.0.0.1");
+ (secure&&url.host_str().is_some()&&url.username().is_empty()&&url.password().is_none()&&url.query().is_none()&&url.fragment().is_none()&&url.path()=="/").then_some(url)
+}
+fn gateway()->Option<reqwest::Url>{
+ let value=std::env::var("CANARY_CURSEFORGE_PROXY_URL").ok().or_else(||option_env!("CANARY_CURSEFORGE_PROXY_URL").map(str::to_owned));
+ value.as_deref().and_then(parse_gateway)
+}
+pub fn configured()->bool {gateway().is_some()||std::env::var("CANARY_CURSEFORGE_API_KEY").is_ok_and(|s|!s.trim().is_empty())}
 fn status_error(status:u16)->BackendError{BackendError::new(match status{401=>"provider_credentials",403=>"provider_unauthorized",429=>"provider_rate_limit",_=>"provider_unavailable"},match status{401=>"CurseForge rejected the API key. Check your official API credential.",403=>"This API key is not authorized for the requested CurseForge resource.",429=>"CurseForge request limit reached. Wait before trying again.",404=>"This CurseForge project or file is no longer available.",_=>"CurseForge is unavailable. Try again later."})}
 pub async fn request(backend:&Backend,path:&str,query:&[(&str,String)])->Result<Value> {
-    let key=zeroize::Zeroizing::new(std::env::var("CANARY_CURSEFORGE_API_KEY").ok().filter(|s|!s.trim().is_empty()).ok_or_else(||BackendError::new("provider_not_configured","Set CANARY_CURSEFORGE_API_KEY in the Canary process environment using your own official API key"))?);
-    let mut url=reqwest::Url::parse("https://api.curseforge.com/v1/").unwrap();url.path_segments_mut().unwrap().pop_if_empty().extend(path.split('/'));url.query_pairs_mut().extend_pairs(query);
-    // The key is sent only to the official API, with redirects disabled.
-    let mut header=reqwest::header::HeaderValue::from_str(key.trim()).map_err(|_|BackendError::new("provider_credentials","The CurseForge API key has an invalid format"))?;header.set_sensitive(true);
-    let response=backend.private_api_client.get(url).header("x-api-key",header).send().await.map_err(|_|BackendError::new("network","Could not reach the official CurseForge API"))?;
-    if !response.status().is_success(){let mut error=status_error(response.status().as_u16());error.retryable=matches!(response.status().as_u16(),429|500..=599);return Err(error);}
-    Ok(response.json().await?)
+ let proxy=gateway();let mut url=proxy.clone().unwrap_or_else(||reqwest::Url::parse("https://api.curseforge.com/").unwrap());
+ url.path_segments_mut().unwrap().pop_if_empty().extend(["v1"]).extend(path.split('/'));url.query_pairs_mut().extend_pairs(query);
+ let mut request=backend.private_api_client.get(url);
+ if proxy.is_none(){
+  let key=zeroize::Zeroizing::new(std::env::var("CANARY_CURSEFORGE_API_KEY").ok().filter(|s|!s.trim().is_empty()).ok_or_else(||BackendError::new("provider_not_configured","CurseForge is not connected in this build of Canary"))?);
+  let mut header=reqwest::header::HeaderValue::from_str(key.trim()).map_err(|_|BackendError::new("provider_credentials","The CurseForge API key has an invalid format"))?;header.set_sensitive(true);request=request.header("x-api-key",header);
+ }
+ let response=request.send().await.map_err(|_|BackendError::new("network","Could not reach the CurseForge service"))?;
+ if !response.status().is_success(){let status=response.status().as_u16();let mut error=if proxy.is_some()&&matches!(status,401|403){BackendError::new("provider_unavailable","CurseForge service is temporarily unavailable")}else{status_error(status)};error.retryable=matches!(status,429|500..=599);return Err(error);}
+ Ok(response.json().await?)
+}
+fn publisher_cdn(url:&reqwest::Url)->bool{url.scheme()=="https"&&url.username().is_empty()&&url.password().is_none()&&url.port_or_known_default()==Some(443)&&matches!(url.host_str(),Some("edge.forgecdn.net"|"mediafilez.forgecdn.net"|"media.forgecdn.net"))}
+pub async fn download_response(backend:&Backend,url:&reqwest::Url)->Result<reqwest::Response>{
+ // Gateway downloads need no launcher credential. Direct developer downloads
+ // authenticate only exact publisher hosts, checking redirects before each send.
+ if !publisher_cdn(url){return Ok(backend.client.get(url.clone()).send().await?);}
+ let key=zeroize::Zeroizing::new(std::env::var("CANARY_CURSEFORGE_API_KEY").ok().filter(|s|!s.trim().is_empty()).ok_or_else(||BackendError::new("provider_not_configured","CurseForge download service is not configured"))?);
+ let mut header=reqwest::header::HeaderValue::from_str(key.trim()).map_err(|_|BackendError::new("provider_credentials","Invalid CurseForge credential"))?;header.set_sensitive(true);
+ let mut target=url.clone();
+ for _ in 0..4{
+  if !publisher_cdn(&target){return Err(BackendError::new("download","Untrusted publisher redirect rejected"));}
+  let response=backend.private_download_client.get(target.clone()).header("x-api-key",header.clone()).send().await?;
+  if response.status().is_redirection(){let location=response.headers().get("location").and_then(|h|h.to_str().ok()).ok_or_else(||BackendError::new("download","Publisher redirect missing"))?;target=target.join(location).map_err(|_|BackendError::new("download","Invalid publisher redirect"))?;continue;}
+  return Ok(response);
+ }
+ Err(BackendError::new("download","Too many publisher redirects"))
 }
 fn artifact(data:&Value,path:std::path::PathBuf)->Result<Artifact> {
     let url=data["downloadUrl"].as_str().filter(|s|!s.is_empty()).ok_or_else(||BackendError::new("manual_download_required","The author does not allow API downloads for this file; no mirror or guessed CDN URL will be used"))?;
@@ -60,3 +89,12 @@ pub async fn install(backend:Arc<Backend>,project_id:u32,file_id:u32,job:Arc<Job
 #[cfg(test)]mod tests {use super::*;use serde_json::json;#[test]fn refuses_restricted_downloads(){assert_eq!(artifact(&json!({"downloadUrl":null}),"file".into()).unwrap_err().code,"manual_download_required");assert_eq!(artifact(&json!({"downloadUrl":"https://example.com/file","hashes":[]}),"file".into()).unwrap_err().code,"checksum");}#[test]fn credential_authorization_and_rate_limit_are_distinct(){assert_eq!(status_error(401).code,"provider_credentials");assert_eq!(status_error(403).code,"provider_unauthorized");assert_eq!(status_error(429).code,"provider_rate_limit");assert_eq!(status_error(503).code,"provider_unavailable");}}
 
 pub async fn verify(b:Arc<Backend>,instance:&Instance,job:Arc<Job>)->Result<()>{let root=b.instance_path(&instance.id)?;let path=root.join("curseforge-files.json");if !path.is_file(){return Err(BackendError::new("modpack","CurseForge file receipt missing; reinstall this pack after backing up worlds"));}let receipts:Vec<Value>=serde_json::from_slice(&std::fs::read(path)?)?;let state=super::content::load(&root)?;let mut files=vec![];for file in receipts {job.check()?;let rel=file["path"].as_str().ok_or_else(||BackendError::new("metadata","Pack file path missing"))?;if state.suppressed_pack_paths.iter().any(|p|p==rel){continue;}let path=storage::safe_join(&root,rel)?;let project=file["project"].as_str().ok_or_else(||BackendError::new("metadata","Pack project missing"))?;let id=file["file"].as_str().ok_or_else(||BackendError::new("metadata","Pack file missing"))?;let hash=file["sha1"].as_str().ok_or_else(||BackendError::new("checksum","Pack checksum missing"))?;let saved=Artifact{url:String::new(),path:path.clone(),hash:Some(hash.into()),algorithm:"sha1",size:file["size"].as_u64()};if download::valid_job(&saved,&job).await?{continue;}let detail=download::cancellable(&job,request(&b,&format!("mods/{project}/files/{id}"),&[])).await?;files.push(artifact(&detail["data"],path)?);}download::batch(b,files,job,"mods").await}
+
+#[cfg(test)]mod gateway_tests{
+ use super::*;
+ #[test]fn gateway_requires_public_https_without_embedded_credentials(){
+  assert!(parse_gateway("https://canary-cf.example").is_some());assert!(parse_gateway("http://example.com").is_none());assert!(parse_gateway("https://secret@example.com").is_none());assert!(parse_gateway("https://example.com/?key=secret").is_none());assert!(parse_gateway("https://example.com/v1").is_none());
+  for source in ["https://edge.forgecdn.net/files/a.jar","https://mediafilez.forgecdn.net/files/a.jar"]{assert!(publisher_cdn(&reqwest::Url::parse(source).unwrap()));}
+  for source in ["https://edge.forgecdn.net.evil.example/file","http://edge.forgecdn.net/file","https://edge.forgecdn.net:8443/file"]{assert!(!publisher_cdn(&reqwest::Url::parse(source).unwrap()));}
+ }
+}

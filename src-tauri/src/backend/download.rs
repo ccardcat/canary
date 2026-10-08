@@ -50,7 +50,7 @@ pub async fn file(backend:&Backend,item:&Artifact,job:&Job,stage:&str)->Result<(
     for attempt in 0..3 {
         job.check()?;let mut received=0u64;
         let result:Result<()>=async {
-            let request=backend.client.get(parsed.clone()).send();tokio::pin!(request);
+            let request=super::curseforge::download_response(backend,&parsed);tokio::pin!(request);
             let mut response=loop{tokio::select!{result=&mut request=>break result?,_=tokio::time::sleep(std::time::Duration::from_millis(250))=>{job.check()?;}}};
             if !secure_source(response.url()){return Err(BackendError::new("download","Insecure redirect rejected"));}
             if !response.status().is_success(){return Err(BackendError::new(&format!("http_{}",response.status().as_u16()),"Artifact download failed"));}
