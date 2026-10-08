@@ -24,7 +24,36 @@
       }
     ],
     "security": {
-      "csp": null,
+      "csp": {
+        "default-src": "'none'",
+        "script-src": "'self'",
+        "script-src-attr": "'none'",
+        "style-src": "'self' 'unsafe-inline'",
+        "style-src-attr": "'unsafe-inline'",
+        "img-src": "'self' asset: http://asset.localhost https://asset.localhost data: blob: https:",
+        "font-src": "'self' data:",
+        "connect-src": "'self' ipc: http://ipc.localhost https://ipc.localhost asset: http://asset.localhost https://asset.localhost https://api.modrinth.com",
+        "object-src": "'none'",
+        "frame-src": "'none'",
+        "worker-src": "'none'",
+        "base-uri": "'none'",
+        "form-action": "'none'"
+      },
+      "devCsp": {
+        "default-src": "'none'",
+        "script-src": "'self' 'unsafe-inline'",
+        "script-src-attr": "'none'",
+        "style-src": "'self' 'unsafe-inline'",
+        "style-src-attr": "'unsafe-inline'",
+        "img-src": "'self' asset: http://asset.localhost https://asset.localhost data: blob: https:",
+        "font-src": "'self' data:",
+        "connect-src": "'self' ipc: http://ipc.localhost https://ipc.localhost asset: http://asset.localhost https://asset.localhost https://api.modrinth.com ws://127.0.0.1:1420 ws://localhost:1420",
+        "object-src": "'none'",
+        "frame-src": "'none'",
+        "worker-src": "'none'",
+        "base-uri": "'none'",
+        "form-action": "'none'"
+      },
       "assetProtocol": {
         "enable": true,
         "scope": [

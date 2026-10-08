@@ -31,7 +31,7 @@ try{
  const invoke=(command,args={})=>evaluate(`window.__TAURI_INTERNALS__.invoke(${JSON.stringify(command)},${JSON.stringify(args)})`);
  const win=(command,args={})=>invoke(`plugin:window|${command}`,{label:'main',...args});
  const key=async(key,code)=>{await call('Input.dispatchKeyEvent',{type:'keyDown',key,code:key,windowsVirtualKeyCode:code});await call('Input.dispatchKeyEvent',{type:'keyUp',key,code:key,windowsVirtualKeyCode:code});};
- const click=expression=>evaluate(`${expression}.click()`);
+ const click=async expression=>{await until(()=>evaluate(`!!(${expression})`),'render click target');return evaluate(`(${expression}).click()`);};
  const textButton=(scope,text)=>`[...document.querySelectorAll(${JSON.stringify(scope)})].find(b=>b.textContent.trim()===${JSON.stringify(text)})`;
  const choose=async(name,text)=>{await until(()=>evaluate(`[...document.querySelectorAll('button[role="combobox"]')].some(b=>b.getAttribute('aria-label')===${JSON.stringify(name)})`),`render ${name}`);await evaluate(`(()=>{const control=[...document.querySelectorAll('button[role="combobox"]')].find(b=>b.getAttribute('aria-label')===${JSON.stringify(name)});for(let details=control?.closest('details');details;details=details.parentElement?.closest('details'))details.open=true;})()`);await click(`[...document.querySelectorAll('button[role="combobox"]')].find(b=>b.getAttribute('aria-label')===${JSON.stringify(name)})`);await until(()=>evaluate(`!!document.querySelector('dialog.glass-select-popup[open]')`),'open glass select');await click(textButton('dialog.glass-select-popup[open] button',text));await delay(350);};
  const state=async()=>({fullscreen:await win('is_fullscreen'),maximized:await win('is_maximized'),size:await win('inner_size'),position:await win('outer_position'),ui:await evaluate(`({state:document.documentElement.dataset.windowState,fullscreen:document.documentElement.dataset.windowFullscreen,titlebar:getComputedStyle(document.querySelector('.window-titlebar')).display})`)});
@@ -48,7 +48,10 @@ try{
   }
  };
 
- await call('Runtime.enable');await call('Page.enable');await until(()=>evaluate(`!!document.querySelector('.window-titlebar')&&document.documentElement.dataset.windowTransition==='false'&&!!window.__TAURI_INTERNALS__`),'Canary UI');
+ await call('Runtime.enable');await call('Page.enable');
+ // This suite deliberately exercises Hero geometry; fresh-user Hero stays off.
+ await reloadWithPreferences(`localStorage.setItem('canary-language','en');localStorage.setItem('canary-visual',JSON.stringify({...JSON.parse(localStorage.getItem('canary-visual')||'{}'),showHero:true}));`);
+ await until(()=>evaluate(`document.documentElement.dataset.startup==='ready'&&!!document.querySelector('.window-titlebar')&&document.documentElement.dataset.windowTransition==='false'&&!!window.__TAURI_INTERNALS__`),'Canary UI');
  report.capabilities=await invoke('window_material_capabilities');assert.equal(report.capabilities.platform,'windows');
  await win('unmaximize');await win('set_size',{value:{Physical:{width:900,height:620}}});await win('set_position',{value:{Physical:{x:50,y:40}}});await delay(300);
  const normal=await state();assert.equal(normal.fullscreen,false);

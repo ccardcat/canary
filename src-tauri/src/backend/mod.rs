@@ -64,6 +64,10 @@ pub struct JobLease {pub backend:Arc<Backend>,pub id:String,pub cancel:Arc<Atomi
 impl Drop for JobLease {fn drop(&mut self){self.backend.jobs.lock().unwrap().remove(&self.id);}}
 impl Backend {
     pub fn new() -> Result<Self> {
+        // Only inspector QA builds can redirect storage; production keeps its
+        // normal per-user directory. Native security tests never touch real accounts.
+        #[cfg(feature="native-qa")]
+        if let Some(root)=std::env::var_os("CANARY_QA_DATA_ROOT") {return Self::with_root(root.into());}
         let root = dirs::data_local_dir().ok_or_else(|| BackendError::new("storage", "No application data directory"))?.join("Canary");
         Self::with_root(root)
     }
