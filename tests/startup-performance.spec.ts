@@ -1,13 +1,14 @@
 import {test,expect} from "@playwright/test";
-import {mkdirSync} from "node:fs";
+import {mkdirSync,writeFileSync} from "node:fs";
 import {nativeFixture} from "./helpers/nativeFixture";
 
-test("fresh profile opens with an opaque splash and a simple black interface",async({page})=>{
+test("fresh profile opens with a translucent splash and a simple black interface",async({page})=>{
  mkdirSync(".qa/startup",{recursive:true});await nativeFixture(page);
  const queries:string[]=[];page.on("request",request=>{if(request.url().includes("api.modrinth.com"))queries.push(request.url());});
  await page.goto("/");const splash=page.locator(".startup-splash");
  await expect(splash).toBeVisible();await expect(splash).toHaveCSS("backdrop-filter","none");
- await expect(splash).toHaveCSS("background-color","rgb(0, 0, 0)");
+ await expect(splash).toHaveCSS("background-color","rgba(0, 0, 0, 0)");
+ await expect(splash).toHaveCSS("background-image",/radial-gradient/);
  await expect(page.locator(".startup-app")).toHaveAttribute("inert","");
  await expect(page.locator(".startup-app")).toHaveCSS("visibility","hidden");
  await page.screenshot({path:".qa/startup/splash.png"});
@@ -23,6 +24,63 @@ test("fresh profile opens with an opaque splash and a simple black interface",as
  await expect(page.locator(".library-intro .overline,.topbar .breadcrumb")).toHaveCount(0);
  await page.getByRole("button",{name:"Discover",exact:true}).first().click();
  await expect.poll(()=>queries.length).toBeGreaterThan(0);
+});
+
+test("transparent splash crossfades the interface smoothly and keeps input locked until completion",async({page})=>{
+ mkdirSync(".qa/startup",{recursive:true});
+ await page.emulateMedia({reducedMotion:"no-preference"});
+ await page.addInitScript(()=>{
+  localStorage.setItem("canary-visual",JSON.stringify({backgroundSource:"canary",app:"sakura1",sidebar:"green",showCommunity:false}));
+  (globalThis as any).__startupQA={holdSnapshot:true};(globalThis as any).__revealFrames=[];
+  window.addEventListener("canary-startup-ready",()=>{(globalThis as any).__revealFinishedAt=performance.now();});
+  function sample(){
+   const splash=document.querySelector(".startup-splash"),app=document.querySelector(".startup-app>.canary-app");
+   if(splash&&app&&document.documentElement.dataset.startup==="revealing"){
+    // Seek real browser animations synchronously, then resume from their original
+    // time. Intermediate opacity must not depend on the runner's RAF frequency.
+    if(!(globalThis as any).__revealProbe){
+     const incoming=app.getAnimations().find(a=>(a as CSSAnimation).animationName==="startup-ui-in");
+     const outgoing=splash.getAnimations().find(a=>(a as CSSTransition).transitionProperty==="opacity");
+     if(incoming&&outgoing){
+      const animations=[incoming,outgoing],times=animations.map(a=>a.currentTime);
+      animations.forEach(a=>{a.pause();a.currentTime=Number(a.effect!.getComputedTiming().duration)/2;});
+      (globalThis as any).__revealProbe={app:Number(getComputedStyle(app).opacity),splash:Number(getComputedStyle(splash).opacity)};
+      animations.forEach((a,i)=>{a.currentTime=times[i];a.play();});
+     }
+    }
+    (globalThis as any).__revealFrames.push({at:performance.now(),splash:Number(getComputedStyle(splash).opacity),app:Number(getComputedStyle(app).opacity),animation:getComputedStyle(app).animationName,motion:document.documentElement.dataset.motion,locked:document.querySelector(".startup-app")?.hasAttribute("inert")});
+   }
+   if(document.documentElement.dataset.startup!=="ready")requestAnimationFrame(sample);
+  }
+  requestAnimationFrame(sample);
+ });
+ await nativeFixture(page);await page.goto("/");await expect(page.locator(".startup-splash")).toBeVisible();
+ await expect(page.locator(".global-wallpaper .artwork-current")).toHaveCSS("background-image",/sakura1/);
+ await page.screenshot({path:".qa/startup/transparent-splash.png"});
+ await page.waitForTimeout(3000);
+ await page.evaluate(()=>{const qa=(globalThis as any).__startupQA;qa.holdSnapshot=false;qa.resolvers.forEach((release:()=>void)=>release());});
+ await expect(page.locator("html")).toHaveAttribute("data-startup","revealing");
+ await expect(page.locator(".startup-app")).toHaveAttribute("inert","");
+ await expect(page.locator(".startup-splash")).toHaveCount(0);
+ const frames=await page.evaluate(()=>(globalThis as any).__revealFrames);
+ writeFileSync(".qa/startup/reveal-frames.json",JSON.stringify(frames,null,2));
+ await test.info().attach("reveal-frames",{body:JSON.stringify(frames),contentType:"application/json"});
+ const probe=await page.evaluate(()=>(globalThis as any).__revealProbe);
+ expect(probe.splash).toBeGreaterThan(.1);expect(probe.splash).toBeLessThan(.9);
+ expect(probe.app).toBeGreaterThan(.1);expect(probe.app).toBeLessThan(.9);
+ expect(frames.every((f:any)=>f.locked)).toBe(true);
+ expect(await page.evaluate(()=>(globalThis as any).__revealFinishedAt)-frames[0].at).toBeGreaterThan(750);
+ await expect(page.locator(".startup-app>.canary-app")).toHaveCSS("opacity","1");
+ expect(await page.locator(".startup-app").getAttribute("inert")).toBeNull();
+});
+
+test("reduced motion uses a short startup without moving the splash brand",async({page})=>{
+ await page.emulateMedia({reducedMotion:"reduce"});await nativeFixture(page);await page.goto("/");
+ await expect(page.locator(".startup-brand")).toHaveCSS("transform","none");
+ await expect(page.locator(".startup-splash")).toHaveClass(/reduced/);
+ await expect(page.locator(".startup-splash")).toHaveCSS("transition-duration","0s");
+ expect(await page.locator("html").evaluate(el=>el.style.getPropertyValue("--startup-exit-duration"))).toBe("220ms");
+ await expect(page.locator(".startup-splash")).toHaveCount(0);
 });
 
 test("splash waits for delayed local data and defers remote maintenance",async({page})=>{
@@ -79,6 +137,8 @@ test("wallpaper changes remain paired and settle to a single decoded layer",asyn
   await expect(page.locator(".sidebar-art .artwork-current")).toHaveCSS("background-image",new RegExp(`sakura${number}-sidebar.jpg`));
   await expect(page.locator(".global-wallpaper .artwork-layer")).toHaveCount(1);
  }
+ // Decoding a later wallpaper must never re-show a minimized window.
+ expect(await page.evaluate(()=>(globalThis as any).__materialQA.calls.filter((c:any)=>c.command==="show_main_window").length)).toBe(1);
  await page.reload();await expect(page.locator(".startup-splash")).toHaveCount(0);
  await expect(page.locator(".global-wallpaper .artwork-current")).toHaveCSS("background-image",/sakura2-bg.jpg/);
 });

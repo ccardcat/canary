@@ -38,7 +38,7 @@ try{
  const csp=await page.evaluate(()=>document.querySelector('meta[http-equiv="Content-Security-Policy"]')?.content)||await response?.headerValue('content-security-policy');
  assert.ok(csp?.includes('script-src'),'Tauri must actually inject CSP into the bundled document');
  assert.ok(csp.includes('sha256-')||csp.includes('nonce-'),'Bundled startup script must have explicit authorization');
- report.policy=csp;report.cases.push('actual generated Tauri CSP and opaque startup');
+ report.policy=csp;report.cases.push('actual generated Tauri CSP and startup');
  await page.locator('.home-hero').waitFor();
  assert.ok(await page.evaluate(async()=>{await document.fonts.ready;return document.fonts.check('16px Nunito');}));
  assert.ok((await page.locator('.global-wallpaper .artwork-current').evaluate(e=>getComputedStyle(e).backgroundImage)).includes('sakura1'));
