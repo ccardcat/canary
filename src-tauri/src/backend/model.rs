@@ -26,13 +26,16 @@ pub struct Overrides {pub memory_mode:Option<String>,pub java:Option<String>,pub
 #[derive(Clone, Serialize, Deserialize)]
 #[serde(default)]
 pub struct Instance {
+    pub last_server:Option<LastServer>,
     pub internal:bool, pub schema:u32, pub id:String, pub name:String, pub provider:String, pub project_id:Option<String>,pub version_id:Option<String>,pub version_name:String,
     pub minecraft:String,pub loader:String,pub loader_version:Option<String>, pub directory:String,pub icon:Option<String>, pub installed:u64,
     pub last_played:Option<u64>,pub playtime:u64,pub favorite:bool,pub status:String,pub update_available:bool,pub error:Option<BackendErrorData>,pub overrides:Overrides,
 }
 #[derive(Clone, Serialize, Deserialize)]
 pub struct BackendErrorData {pub code:String,pub message:String}
-impl Default for Instance {fn default()->Self { Self {internal:false,schema:1,id:String::new(),name:String::new(),provider:"custom".into(),project_id:None,version_id:None,version_name:String::new(),minecraft:String::new(),loader:"vanilla".into(),loader_version:None,directory:String::new(),icon:None,installed:now(),last_played:None,playtime:0,favorite:false,status:"installed".into(),update_available:false,error:None,overrides:Overrides::default()} }}
+#[derive(Clone, Serialize, Deserialize)]
+pub struct LastServer {pub address:String,pub joined_at:u64}
+impl Default for Instance {fn default()->Self { Self {last_server:None,internal:false,schema:1,id:String::new(),name:String::new(),provider:"custom".into(),project_id:None,version_id:None,version_name:String::new(),minecraft:String::new(),loader:"vanilla".into(),loader_version:None,directory:String::new(),icon:None,installed:now(),last_played:None,playtime:0,favorite:false,status:"installed".into(),update_available:false,error:None,overrides:Overrides::default()} }}
 #[derive(Clone, Serialize, Deserialize)]
 pub struct Account {pub id:String,pub provider:String,pub uuid:String,pub username:String,pub avatar:Option<String>,pub status:String,pub last_used:Option<u64>,pub credential_ref:Option<String>}
 #[derive(Default, Clone, Serialize, Deserialize)]

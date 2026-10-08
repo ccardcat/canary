@@ -707,10 +707,13 @@ function HomePage({
 }) {
   const { value } = useVisualAppearance();
   // Background navigation changes artwork only; copy stays stable for this visit.
+  const {snapshot}=useBackend();
+  const lastServerInstance=snapshot?.instances.filter(i=>!i.internal&&i.last_server).sort((a,b)=>(b.last_server?.joined_at||0)-(a.last_server?.joined_at||0))[0];
+  const lastServerProject=lastServerInstance?lib.find(p=>p.native_instance_id===lastServerInstance.id):undefined;
   const [copyIndex] = useState(() => Math.floor(Math.random() * heroCopy.en.length));
   return (
     <section className="home-page">
-      <HeroCarousel russian={russian}>
+      {value.showHero && <HeroCarousel russian={russian}>
         {() => {
           const [title, subtitle] =
             heroCopy[russian ? "ru" : "en"][copyIndex];
@@ -725,13 +728,14 @@ function HomePage({
             </div>
           );
         }}
-      </HeroCarousel>
+      </HeroCarousel>}
       <section className="home-section" aria-label={t("continue")}>
         <div className="home-section-head">
           <h3>{t("continue")}</h3>
         </div>
         {lib.length ? (
           <div className="home-row">
+            {lastServerProject&&<ContinueCard p={lastServerProject} t={t} russian={russian} onOpen={onOpen} serverMode/>}
             {lib.slice(0, 3).map((p) => (
               <ContinueCard
                 key={
@@ -815,11 +819,13 @@ function ContinueCard({
   t,
   russian,
   onOpen,
+  serverMode=false,
 }: {
   p: Project;
   t: T;
   russian: boolean;
   onOpen: (p: Project) => void;
+  serverMode?:boolean;
 }) {
   const { snapshot, run, progress } = useBackend();
   const instance = snapshot?.instances.find(
@@ -850,18 +856,19 @@ function ContinueCard({
             ? "Готов"
             : "Ready";
   return (
-    <article className="mini-card continuation-card">
+    <article className={`mini-card continuation-card${serverMode?" last-server-card":""}`}>
       <RemoteImage src={p.icon_url} className="mini-art" />
       <button
         className="continue-open surface-action"
         onClick={() => onOpen(p)}
       >
-        <b>{p.title}</b>
+        <b>{serverMode?`${russian?"Последний сервер":"Last server"} · ${instance?.last_server?.address}`:p.title}</b>
         <small>
           {instance
-            ? `Minecraft ${instance.minecraft} · ${instance.loader}`
+            ? `${serverMode?`${instance.name}${instance.version_name&&instance.version_name!==instance.minecraft?` ${instance.version_name}`:""} · `:""}Minecraft ${instance.minecraft} · ${instance.loader}`
             : p.description || p.version_name}
         </small>
+        {!serverMode&&instance?.last_server&&<span className="continue-server">{russian?"Сервер":"Server"}: {instance.last_server.address}</span>}
       </button>
       {instance && (
         <>

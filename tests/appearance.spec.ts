@@ -129,7 +129,7 @@ test("settings search finds Window and Effects, and appearance preferences persi
 });
 
 test("Hero rotates global backgrounds, pauses on hover and keeps manual controls in reduced motion",async({page})=>{
- await page.keyboard.press("Escape");await page.clock.install();await page.reload();await expect(page.locator(".hero-art .artwork-current")).toBeVisible();
+ await page.addInitScript(()=>localStorage.setItem("canary-visual",JSON.stringify({showHero:true})));await page.keyboard.press("Escape");await page.clock.install();await page.reload();await expect(page.locator(".hero-art .artwork-current")).toBeVisible();
  const artwork=page.locator(".hero-art .artwork-current");const first=await artwork.evaluate(e=>getComputedStyle(e).backgroundImage);expect(first).not.toMatch(/sidebar/);
  await page.clock.fastForward(9500);await expect.poll(()=>artwork.evaluate(e=>getComputedStyle(e).backgroundImage)).not.toBe(first);
  await page.locator(".home-hero").hover();const held=await artwork.evaluate(e=>getComputedStyle(e).backgroundImage);await page.clock.fastForward(20000);await expect(artwork).toHaveCSS("background-image",held);

@@ -7,18 +7,27 @@ const ids=['solid','soft','vibrancy','glass','clear','liquid','transparent'];
 const directory='.qa/material-install-state';
 const nav=(page:Page,name:string)=>page.locator('.sidebar').getByRole('button',{name,exact:true});
 async function choose(page:Page,label:string,name:string){await page.getByRole('combobox',{name:label,exact:true}).click();await page.getByRole('option',{name,exact:true}).click();}
-async function preset(page:Page,index:number){await page.locator('.material-preset-control').filter({has:page.locator('b',{hasText:new RegExp('^'+materials[index]+'$')})}).click();}
+async function preset(page:Page,index:number){
+ const comparison=page.locator('.material-disclosure').filter({has:page.locator('.material-preset-control')});
+ if(!await comparison.evaluate(el=>(el as HTMLDetailsElement).open))await comparison.locator('summary').click();
+ await page.locator('.material-preset-control').filter({has:page.locator('b',{hasText:new RegExp('^'+materials[index]+'$')})}).click();
+}
 test.beforeEach(async({page})=>{mkdirSync(directory,{recursive:true});await nativeFixture(page);await page.emulateMedia({reducedMotion:'reduce'});});
 
 test('all seven presets and reset preserve every sidebar layout, unrelated settings and restart persistence',async({page})=>{
  test.setTimeout(180000);
- await page.goto('/');
+ await page.addInitScript(()=>{
+  const parameters=new URLSearchParams(location.search);if(!parameters.has('qaSidebarSide'))return;
+  const side=parameters.get('qaSidebarSide'),mode=parameters.get('qaSidebarMode'),compact=parameters.get('qaCompact');
+  const old=JSON.parse(localStorage.getItem('canary-visual')||'{}');
+  localStorage.setItem('canary-visual',JSON.stringify({...old,sidebarSide:side,sidebarMode:mode,app:'sakura1',sidebar:'green',font:'Monocraft',fontScale:110,materialRadius:23,instanceLayout:'compact',instanceArtwork:'ambient',buttonDensity:'compact'}));
+  localStorage.setItem('canary-compact',compact!);localStorage.setItem('canary-mode','amoled');localStorage.setItem('canary-accent','purple');
+ });
  for(const side of ['left','right'])for(const mode of ['attached','floating'])for(const compact of [false,true]){
-  await page.evaluate(({side,mode,compact})=>{
-   const old=JSON.parse(localStorage.getItem('canary-visual')!);
-   localStorage.setItem('canary-visual',JSON.stringify({...old,sidebarSide:side,sidebarMode:mode,app:'sakura1',sidebar:'green',font:'Monocraft',fontScale:110,materialRadius:23,instanceLayout:'compact',instanceArtwork:'ambient',buttonDensity:'compact'}));
-   localStorage.setItem('canary-compact',String(compact));localStorage.setItem('canary-mode','amoled');localStorage.setItem('canary-accent','purple');
-  },{side,mode,compact});await page.reload();await nav(page,'Settings').click();
+  // Initialize before React mounts; pagehide deliberately flushes its live state.
+  await page.goto(`/?qaSidebarSide=${side}&qaSidebarMode=${mode}&qaCompact=${compact}`);
+  await page.evaluate(()=>history.replaceState(null,'','/'));
+  await nav(page,'Settings').click();
   const geometry=async()=>Promise.all(['.sidebar','.window-titlebar','.settings-modal'].map(selector=>page.locator(selector).boundingBox()));
   const before=await geometry();
   const unrelated=await page.evaluate(()=>{const saved=JSON.parse(localStorage.getItem('canary-visual')!);return Object.fromEntries(['sidebarSide','sidebarMode','app','sidebar','font','fontScale','materialRadius','instanceLayout','instanceArtwork','buttonDensity','backgroundSource','material','tint','windowTransparency','globalTreatment','sidebarTreatment'].map(key=>[key,saved[key]]));});

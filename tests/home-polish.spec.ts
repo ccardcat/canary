@@ -166,6 +166,7 @@ test("Home hero copy stays stable through slides and Continue has compact real P
   page.on("console", (message) => {
     if (message.type() === "error") errors.push(message.text());
   });
+  await page.addInitScript(()=>localStorage.setItem("canary-visual",JSON.stringify({showHero:true})));
   await nativeFixture(page);
   await page.goto("/");
   await expect(page.locator(".hero-content .overline")).toHaveCount(0);
@@ -447,7 +448,8 @@ test("Project details lighten Back/tabs and widen metadata with themes and every
       .evaluate((el) => el.scrollWidth <= el.clientWidth),
   ).toBe(true);
   await page.locator(".back-button").click();
-  await expect(page.locator(".home-hero")).toBeVisible();
+  await expect(page.locator(".home-page")).toBeVisible();
+  await expect(page.locator(".home-hero")).toHaveCount(0);
 });
 
 test("sidebar hover/focus matches full hit area on both sides and layouts without movement", async ({

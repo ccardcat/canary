@@ -75,7 +75,7 @@ export function normalizeMaterials(saved:Record<string,unknown>):MaterialPrefere
   if(result.materialPreset==='clear'&&result.materialLinked&&result.materialStyle==='glass')result.materialStyle='clear';
   return result;
 }
-export type TokenPreferences=MaterialPreferences & {surfaceOpacity:number;surfaceBlur:number;glassIntensity:number;quality:string;focus:boolean};
+export type TokenPreferences=MaterialPreferences & {surfaceOpacity:number;surfaceBlur:number;glassIntensity:number;quality:string;focus:boolean;backgroundSource?:string};
 // Profiles share one token pipeline. Depth belongs to the semantic category,
 // not the page. Controls use a foreground variant to avoid nested backdrop work.
 export const materialProfiles:Record<SurfaceMaterial,{opacity:number;blur:number;saturation:number;light:number;edge:number;shadow:number;influence:number}>={
@@ -99,11 +99,15 @@ export function applyMaterialTokens(root:HTMLElement,value:TokenPreferences){
     const strength=clamp(value.materialIntensity/100*multiplier,0,1.5);
     const fallback=value.quality==='low'||value.reduceTransparency||value.focus;
     const foreground=category==='buttons'||category==='inputs';
-    const opacity=fallback?100:style==='solid'?100:clamp(p.opacity*value.surfaceOpacity/82+(0.5-strength)*8,4,98);
+    // Native desktop material already supplies depth below the WebView. Keep
+    // foreground surfaces translucent instead of masking it with a second veil.
+    const desktop=value.backgroundSource==='desktop';
+    const transparencyScale=desktop?.72:1;
+    const opacity=fallback?100:style==='solid'?100:clamp((p.opacity*value.surfaceOpacity/82+(0.5-strength)*8)*transparencyScale,4,98);
     const blur=fallback||foreground?0:clamp(value.surfaceBlur*p.blur*d*(.75+strength*.5),0,32);
     const light=clamp(p.light*(.65+strength)*value.materialHighlight/100*(.7+value.glassIntensity/70),0,.14);
     const shadow=clamp(p.shadow*(.4+strength)*d*value.materialShadow/100,0,.18);
-    const edge=clamp(p.edge*(.7+strength*.4)*value.materialBorder/100,0,.22);
+    const edge=clamp(Math.max(p.edge,desktop?.075:0)*(.7+strength*.4)*value.materialBorder/100,0,.22);
     const prefix=`--mat-${category}-`;
     const token=(key:string,v:string)=>root.style.setProperty(prefix+key,v);
     // Readable control tints follow user opacity instead of imposing opaque fills.
@@ -111,7 +115,7 @@ export function applyMaterialTokens(root:HTMLElement,value:TokenPreferences){
       category==='dialogs'?clamp(value.surfaceOpacity+6,46,96):
       category==='floating'?clamp(value.surfaceOpacity+2,38,94):
       foreground?clamp(value.surfaceOpacity-6,24,92):0;
-    const effective=Math.max(opacity,fallback?100:style==='solid'?100:floor);
+    const effective=Math.max(opacity,fallback?100:style==='solid'?100:floor*transparencyScale);
     token('opacity',effective.toFixed(1)+'%');
     const base=category==='inputs'?'input':category==='sidebar'?'sidebar':category==='dialogs'?'modal':category==='popovers'?'elevated':'primary';
     token('fill',`color-mix(in srgb, var(--surface-${base}) var(${prefix}opacity), transparent)`);

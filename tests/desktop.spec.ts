@@ -138,7 +138,8 @@ test("query, sort, filters and type reset only when changed; stale queries canno
 test("Home is separate, desktop window resizes without horizontal overflow", async ({
   page,
 }) => {
-  await expect(page.locator(".home-hero")).toBeVisible();
+  await expect(page.locator(".home-page")).toBeVisible();
+  await expect(page.locator(".home-hero")).toHaveCount(0);
   await expect(page.getByRole("tablist")).toHaveCount(0);
   for (const width of [1600, 1280, 1000, 800, 640, 480]) {
     await page.setViewportSize({ width, height: 800 });

@@ -1,4 +1,9 @@
 /* One density and material vocabulary across discovery, content and runtime UI. */
+:root :is(.mini-card,.home-empty,.content-dropzone){background:var(--mat-cards-sheen),linear-gradient(var(--mat-cards-tint),var(--mat-cards-tint)),var(--mat-cards-fill);border:1px solid var(--mat-cards-edge);box-shadow:var(--mat-cards-shadow);backdrop-filter:var(--mat-cards-filter);border-radius:var(--mat-cards-radius)}
+:root .mini-card:hover{background:var(--mat-cards-sheen),linear-gradient(var(--mat-cards-tint),var(--mat-cards-tint)),var(--mat-cards-fill);border-color:var(--border-strong)}
+:root .mini-art{background:var(--mat-buttons-fill);border:1px solid var(--mat-buttons-edge)}
+:root .last-server-card{margin-bottom:12px}
+:root .continue-server{color:var(--text);font-size:calc(12px * var(--ui-font-scale,1));overflow-wrap:anywhere}
 :root :is(.project-grid,.content-project-grid){grid-template-columns:repeat(auto-fill,minmax(min(100%,300px),1fr));gap:16px;align-items:stretch}
 :root .compact-project-card{display:flex;flex-direction:column;min-width:0;overflow:hidden;padding:16px;min-height:220px}
 :root .project-card-heading{display:flex;align-items:center;gap:12px;min-width:0}

@@ -21,7 +21,7 @@ pub async fn install_curseforge_pack(backend:State<'_,B>,app:AppHandle,project_i
 pub async fn check_modpack_updates(backend:State<'_,B>,allowed_providers:Option<Vec<String>>)->Result<serde_json::Value>{super::modpacks::updates_for_providers(backend.inner().clone(),allowed_providers.as_deref()).await}
 #[tauri::command]
 pub async fn backend_snapshot(backend:State<'_,B>)->Result<serde_json::Value>{
-    let mut instances=backend.instances()?;let store=backend.store.lock().unwrap().clone();
+    let mut instances=backend.instances()?;for instance in &mut instances{super::server_history::restore(&backend,instance);}let store=backend.store.lock().unwrap().clone();
     let processes:std::collections::HashMap<_,_>=backend.processes.lock().unwrap().iter().map(|(id,p)|(id.clone(),p.stopping.load(Ordering::Relaxed))).collect();let preparing:std::collections::HashSet<_>=backend.jobs.lock().unwrap().keys().cloned().collect();for instance in &mut instances{if let Some(process)=processes.get(&instance.id){instance.status=if *process{"stopping"}else{"running"}.into();}else if preparing.contains(&instance.id){instance.status="preparing".into();}}
     let mut providers=accounts::providers();providers["curseforge"]["configured"]=serde_json::json!(super::curseforge::available(&backend).await);
     Ok(serde_json::json!({"instances":instances,"accounts":store.accounts,"settings":store.settings,"providers":providers,"activity":store.activity,"data_folder":backend.root,"physical_memory_mb":super::system::memory_mb(),"tasks":backend.tasks.lock().unwrap().values().map(|r|r.task.clone()).collect::<Vec<_>>()}))

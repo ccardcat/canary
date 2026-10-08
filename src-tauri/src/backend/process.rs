@@ -70,15 +70,16 @@ pub async fn launch(backend:Arc<Backend>,mut instance:Instance,job:Arc<Job>,app:
     if let Some(stdout)=stdout_pipe{tokio::spawn(output(stdout,sender.clone(),secret.clone()));}
     if let Some(stderr)=errors{tokio::spawn(output(stderr,sender.clone(),secret));}
     drop(sender);
-    let output_app=app.clone();let output_id=instance.id.clone();
+    let output_app=app.clone();let output_id=instance.id.clone();let history_backend=backend.clone();
     tokio::spawn(async move{
         use tokio::io::AsyncWriteExt;
         let Ok(file)=tokio::fs::OpenOptions::new().create(true).append(true).open(&log_path).await else{return};
         let mut writer=tokio::io::BufWriter::new(file);let mut written=0usize;let mut batch=vec![];
+        let mut server_tracker=super::server_history::Tracker::default();
         let mut tick=tokio::time::interval(std::time::Duration::from_millis(50));
         loop {
             let (closed,flush_due)=tokio::select!{
-                line=receiver.recv()=>match line{Some(line)=>{written+=line.len()+1;let _=writer.write_all(line.as_bytes()).await;let _=writer.write_all(b"\n").await;batch.push(line);(false,false)},None=>(true,true)},
+                line=receiver.recv()=>match line{Some(line)=>{if let Some(server)=server_tracker.line(&line,now()){if super::server_history::record(&history_backend,&output_id,server).is_ok(){if let Some(app)=&output_app{let _=app.emit("instances-changed",());}}}written+=line.len()+1;let _=writer.write_all(line.as_bytes()).await;let _=writer.write_all(b"\n").await;batch.push(line);(false,false)},None=>(true,true)},
                 _=tick.tick()=>(false,true)
             };
             if !batch.is_empty()&&(closed||batch.len()>=256||flush_due){

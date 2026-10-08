@@ -9,7 +9,7 @@ export const windowDefaults = {
   vibrancyPreset: "off", glassIntensity: 35, frost: false,
   titlebarBranding: "icon-text" as "icon"|"text"|"icon-text"|"hidden",
   windowControls: "windows" as "windows"|"minimal"|"compact"|"traffic-lights",
-  controlsPosition: "right" as "left"|"right", heroRotation: true, heroSpeed: 9,
+  controlsPosition: "right" as "left"|"right", showHero: false, heroRotation: true, heroSpeed: 9,
   effectPreset: "medium", particleWind: 100,
 };
 export type WindowPreferences = typeof windowDefaults;

@@ -90,7 +90,7 @@ test("Storage, Accounts and About keep their geometry at narrow widths and low h
 });
 
 test("Hero arrows change decoded artwork without changing hero, copy, controls or scale",async({page})=>{
-  test.setTimeout(90000);await page.addInitScript(()=>localStorage.setItem("canary-visual",JSON.stringify({ambient:"sakura",heroRotation:false})));
+  test.setTimeout(90000);await page.addInitScript(()=>localStorage.setItem("canary-visual",JSON.stringify({ambient:"sakura",showHero:true,heroRotation:false})));
   await page.goto("/");
   for(const [width,height] of [[1920,1080],[1280,800],[780,540],[480,340]]) {
     await page.setViewportSize({width,height});await page.waitForTimeout(300);
@@ -156,7 +156,7 @@ test("tooltips stay above native modals, popup bounds and titlebar hit targets r
 test("imported backgrounds with different natural sizes leave Hero geometry unchanged",async({page})=>{
   await page.addInitScript(()=>{
     (globalThis as any).__customWallpapers=[{id:"custom-wide",name:"Wide image",target:"app",image:"C:/qa-wide.svg",thumbnail:"C:/qa-wide.svg"},{id:"custom-tall",name:"Tall image",target:"app",image:"C:/qa-tall.svg",thumbnail:"C:/qa-tall.svg"},{id:"custom-hd",name:"HD image",target:"app",image:"C:/qa-hd.svg",thumbnail:"C:/qa-hd.svg"}];
-    localStorage.setItem("canary-visual",JSON.stringify({heroRotation:false}));
+    localStorage.setItem("canary-visual",JSON.stringify({showHero:true,heroRotation:false}));
   });
   await page.route(/qa-(wide|tall|hd)\.svg/,route=>{const dimensions=route.request().url().includes("wide")?[2400,600]:route.request().url().includes("tall")?[480,900]:[1920,1080];return route.fulfill({contentType:"image/svg+xml",body:`<svg xmlns="http://www.w3.org/2000/svg" width="${dimensions[0]}" height="${dimensions[1]}"><rect width="100%" height="100%" fill="#647866"/></svg>`});});
   await page.goto("/");await expect(page.getByRole("button",{name:"Show background: Tall image",exact:true})).toBeVisible();

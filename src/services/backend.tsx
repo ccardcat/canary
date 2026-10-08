@@ -46,6 +46,7 @@ export interface RuntimeInstance {
   icon?: string;
   installed: number;
   last_played?: number;
+  last_server?: {address:string;joined_at:number};
   playtime: number;
   favorite: boolean;
   update_available?: boolean;

@@ -19,6 +19,7 @@ pub mod download;
 pub mod java;
 pub mod loaders;
 pub mod loader_catalog;
+pub mod server_history;
 pub mod minecraft;
 pub mod modpacks;
 pub mod mrpack_import;
@@ -53,6 +54,7 @@ pub struct Backend {
     pub private_api_client:reqwest::Client,
     pub private_download_client:reqwest::Client,
     pub curseforge_health:tokio::sync::Mutex<Option<(std::time::Instant,bool)>>,
+    pub server_history_checked:Mutex<std::collections::HashSet<String>>,
     pub store: Mutex<model::Store>,
     pub jobs: Mutex<HashMap<String, Arc<AtomicBool>>>,
     pub provider_requests: Mutex<HashMap<String, Arc<AtomicBool>>>,
@@ -74,7 +76,7 @@ impl Backend {
         if let Some(path)=&store.settings.instances_path{transaction::recover(std::path::Path::new(path))?;}
         for path in &store.instance_roots {transaction::recover(std::path::Path::new(path))?;}
         startup_phase("HTTP client initialization");
-        Ok(Self { root,curseforge_health:tokio::sync::Mutex::new(None),discord:Arc::new(discord::Manager::default()),tasks:Mutex::new(HashMap::new()),staged:Mutex::new(HashMap::new()),wallpaper_lock:Mutex::new(()),maintenance:AtomicBool::new(false),auth:tokio::sync::Mutex::new(()),account_resources:Mutex::new(HashMap::new()), store: Mutex::new(store), jobs: Mutex::new(HashMap::new()), provider_requests:Mutex::new(HashMap::new()), processes: Mutex::new(HashMap::new()),
+        Ok(Self { root,server_history_checked:Mutex::new(std::collections::HashSet::new()),curseforge_health:tokio::sync::Mutex::new(None),discord:Arc::new(discord::Manager::default()),tasks:Mutex::new(HashMap::new()),staged:Mutex::new(HashMap::new()),wallpaper_lock:Mutex::new(()),maintenance:AtomicBool::new(false),auth:tokio::sync::Mutex::new(()),account_resources:Mutex::new(HashMap::new()), store: Mutex::new(store), jobs: Mutex::new(HashMap::new()), provider_requests:Mutex::new(HashMap::new()), processes: Mutex::new(HashMap::new()),
             private_api_client:reqwest::Client::builder().user_agent("Canary/0.1.0").redirect(reqwest::redirect::Policy::none()).timeout(std::time::Duration::from_secs(30)).build()?,
             private_download_client:reqwest::Client::builder().user_agent("Canary/0.1.0").redirect(reqwest::redirect::Policy::none()).connect_timeout(std::time::Duration::from_secs(20)).timeout(std::time::Duration::from_secs(300)).build()?,
             client: reqwest::Client::builder().user_agent("Canary/0.1.0 (https://github.com/ccardcat/canary)")
@@ -108,6 +110,9 @@ impl Backend {
         let staged=self.staged.lock().unwrap().contains_key(&value.id);
         let mut store=self.store.lock().unwrap();
         if value.overrides.account.as_ref().is_some_and(|id|store.removed_accounts.contains(id)){value.overrides.account=None;}
+        if let Some(latest)=store.instance_catalog.iter().find(|i|i.id==value.id).and_then(|i|i.last_server.as_ref()) {
+            if value.last_server.as_ref().is_none_or(|s|s.joined_at<=latest.joined_at){value.last_server=Some(latest.clone());}
+        }
         storage::write_json(&root.join("instance.json"),&value)?;
         if staged{return Ok(());}
         store.instance_catalog.retain(|i|i.id!=value.id);store.instance_catalog.push(value);
