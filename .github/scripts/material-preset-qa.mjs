@@ -2,7 +2,7 @@ import assert from 'node:assert/strict';
 
 // Runs inside the packaged Canary WebView2 through the existing inspector.
 // It uses actual settings controls, local persistence and native window resize.
-export async function materialPresetQA({evaluate,choose,click,textButton,call,win,until,delay,screenshot,report}) {
+export async function materialPresetQA({evaluate,choose,click,textButton,call,win,until,delay,screenshot,report,reloadWithPreferences}) {
  const original=await evaluate(`({visual:localStorage.getItem('canary-visual'),compact:localStorage.getItem('canary-compact'),narrow:localStorage.getItem('canary-sidebar-expanded-narrow'),mode:localStorage.getItem('canary-mode')})`);
  const names=['Solid','Soft','Vibrancy','Glass','Clear Glass','Liquid Glass','Transparent'];
  const ids=['solid','soft','vibrancy','glass','clear','liquid','transparent'];
@@ -12,8 +12,8 @@ export async function materialPresetQA({evaluate,choose,click,textButton,call,wi
  await win('set_size',{value:{Physical:{width:1200,height:760}}});await delay(300);
  report.surfaceMaterials=[];
  for(const side of ['left','right'])for(const mode of ['attached','floating'])for(const compact of [false,true]) {
-  await evaluate(`(()=>{const old=JSON.parse(localStorage.getItem('canary-visual'));localStorage.setItem('canary-visual',JSON.stringify({...old,sidebarSide:${JSON.stringify(side)},sidebarMode:${JSON.stringify(mode)},quality:'balanced',focus:false,reduceTransparency:false,backgroundSource:'canary',app:'sakura1',sidebar:'green'}));localStorage.setItem('canary-compact',${JSON.stringify(String(compact))});localStorage.setItem('canary-sidebar-expanded-narrow','true');localStorage.setItem('canary-mode','dark');})()`);
-  await call('Page.reload');await settings();const before=await geometry(),saved=await unrelated();
+  await reloadWithPreferences(`(()=>{const old=JSON.parse(localStorage.getItem('canary-visual'));localStorage.setItem('canary-visual',JSON.stringify({...old,sidebarSide:${JSON.stringify(side)},sidebarMode:${JSON.stringify(mode)},quality:'balanced',focus:false,reduceTransparency:false,backgroundSource:'canary',app:'sakura1',sidebar:'green'}));localStorage.setItem('canary-compact',${JSON.stringify(String(compact))});localStorage.setItem('canary-sidebar-expanded-narrow','true');localStorage.setItem('canary-mode','dark');})()`);
+  await settings();const before=await geometry(),saved=await unrelated();
   for(let i=0;i<names.length;i++) {
    await choose('Material preset',names[i]);
    assert.equal(await evaluate(`document.documentElement.dataset.materialCards`),ids[i]);
@@ -37,7 +37,7 @@ export async function materialPresetQA({evaluate,choose,click,textButton,call,wi
    }
   }
  }
- await evaluate(`(()=>{const saved=${JSON.stringify(original)};for(const [key,value] of Object.entries({'canary-visual':saved.visual,'canary-compact':saved.compact,'canary-sidebar-expanded-narrow':saved.narrow,'canary-mode':saved.mode})){value===null?localStorage.removeItem(key):localStorage.setItem(key,value);}})()`);
- await call('Page.reload');await settings();
+ await reloadWithPreferences(`(()=>{const saved=${JSON.stringify(original)};for(const [key,value] of Object.entries({'canary-visual':saved.visual,'canary-compact':saved.compact,'canary-sidebar-expanded-narrow':saved.narrow,'canary-mode':saved.mode})){value===null?localStorage.removeItem(key):localStorage.setItem(key,value);}})()`);
+ await settings();
  report.cases.push({name:'surface-material-ownership-layout-persistence-resize',combinations:56,themes:3,resizeWidths:[1200,960],nativeIPC:true});
 }

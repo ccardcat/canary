@@ -242,7 +242,14 @@ pub async fn inspect_content_files(backend:State<'_,B>,id:String,paths:Vec<Strin
 pub async fn import_content_files(backend:State<'_,B>,app:AppHandle,id:String,paths:Vec<String>,world:Option<String>,task_id:Option<String>)->Result<super::content::State>{let b=backend.inner().clone();let lease=b.lease(&id)?;let job=Job::tracked(backend.inner().clone(),&id,"install",&backend.instance(&id)?.name,Some(&id),Some(app.clone()),lease.cancel.clone(),task_id)?;job.content_history.store(true,Ordering::Relaxed);let worker_job=job.clone();let event_id=id.clone();let result=tokio::task::spawn_blocking(move||{let _lease=lease;super::content_provider::import_with_job(&b,&id,paths,world,Some(&worker_job))}).await.unwrap_or_else(|e|Err(BackendError::new("content_file",e.to_string())));job.finish(&result);let _=app.emit("content-changed",serde_json::json!({"id":event_id}));result}
 
 #[derive(serde::Deserialize)]
-pub struct ContentRequest {#[serde(default="super::content::default_provider")]provider:String,project:String,version:Option<String>,kind:String,world:Option<String>,beta:bool,fingerprint:String}
+pub struct ContentRequest {#[serde(default="super::content::default_provider")]provider:String,project:String,version:Option<String>,kind:String,world:Option<String>,beta:bool,#[serde(default)]fingerprint:String}
+#[tauri::command]
+pub async fn bulk_content_preview(backend:State<'_,B>,id:String,requests:Vec<ContentRequest>)->Result<Vec<super::content_provider::Plan>>{
+ if requests.is_empty()||requests.len()>100{return Err(BackendError::new("dependency","Select between 1 and 100 projects"));}
+ let _lease=backend.inner().lease(&id)?;super::content_provider::identify(&backend,&id).await?;let instance=backend.instance(&id)?;let mut plans=Vec::new();
+ for r in requests{plans.push(super::content_provider::provider_preview(&backend,&r.provider,&instance,&r.project,r.version.as_deref(),&r.kind,r.world,r.beta).await?);}
+ Ok(plans)
+}
 #[tauri::command]
 pub async fn bulk_install_content(backend:State<'_,B>,app:AppHandle,id:String,requests:Vec<ContentRequest>,task_id:Option<String>)->Result<super::content::State>{
  let lease=backend.inner().lease(&id)?;let job=Job::tracked(backend.inner().clone(),&id,"install",&backend.instance(&id)?.name,Some(&id),Some(app.clone()),lease.cancel.clone(),task_id)?;job.content_history.store(true,Ordering::Relaxed);

@@ -40,6 +40,29 @@ fn copy_libraries(source:&Path,dest:&Path)->Result<()> {
         }Ok(())
     }walk(source,source,dest)
 }
+// Pre-1.13 installers embed their universal library and versionInfo directly.
+// The containing installer has already been verified against the publisher SHA-1.
+fn legacy_profile(backend:&Backend,instance:&Instance,archive:&Path,install:&Value,receipt:&Path,job:&Job)->Result<Value>{
+ if install["install"]["minecraft"]!=instance.minecraft||install["versionInfo"]["inheritsFrom"].as_str().is_some_and(|v|v!=instance.minecraft){return Err(BackendError::new("loader","Installer targets a different Minecraft version"));}
+ let coordinate=install["install"]["path"].as_str().ok_or_else(||BackendError::new("loader","Legacy installer library missing"))?;
+ let relative=super::minecraft::maven_path(coordinate,None)?;
+ let path=storage::safe_join(&backend.root.join("cache/libraries"),&relative)?;
+ let entry=install["install"]["filePath"].as_str().ok_or_else(||BackendError::new("loader","Legacy installer payload missing"))?;
+ let mut zip=zip::ZipArchive::new(std::fs::File::open(archive)?).map_err(|e|BackendError::new("loader",e.to_string()))?;
+ let mut payload=zip.by_name(entry).map_err(|e|BackendError::new("loader",e.to_string()))?;
+ if payload.size()>128*1024*1024{return Err(BackendError::new("loader","Legacy installer payload is too large"));}
+ job.check()?;std::fs::create_dir_all(path.parent().unwrap())?;
+ let temporary=path.with_extension(format!("{}.part",uuid::Uuid::new_v4()));
+ let copied:Result<()>= (||{use std::io::Write;let mut output=std::fs::File::create(&temporary)?;let mut buffer=[0u8;131072];loop{job.check()?;let n=payload.read(&mut buffer)?;if n==0{break;}output.write_all(&buffer[..n])?;}output.sync_all()?;Ok(())})();
+ if let Err(error)=copied{let _=std::fs::remove_file(&temporary);return Err(error);}
+ storage::replace(&temporary,&path)?;std::fs::write(path.with_extension("sha256"),download::hash(&path,"sha256")?)?;
+ let mut child=install["versionInfo"].clone();
+ if !child["libraries"].is_array()||!child["mainClass"].is_string(){return Err(BackendError::new("loader","Legacy version profile is invalid"));}
+ // Explicitly point the embedded Forge artifact to the verified cache receipt.
+ for lib in child["libraries"].as_array_mut().unwrap(){if lib["name"]==coordinate{lib["url"]=json!("https://maven.minecraftforge.net/");}}
+ storage::write_json(receipt,&json!({"loader_version":instance.loader_version,"profile":child,"files":[{"path":path,"size":std::fs::metadata(&path)?.len()}]}))?;
+ job.check()?;Ok(child)
+}
 // Delegate processor execution and output verification to the publisher's
 // actual headless installer. It operates only in a fresh Canary staging root.
 pub async fn profile(backend:Arc<Backend>,instance:&Instance,parent:&Value,client:&Artifact,job:Arc<Job>,deep:bool)->Result<Value> {
@@ -51,6 +74,7 @@ pub async fn profile(backend:Arc<Backend>,instance:&Instance,parent:&Value,clien
     let archive=storage::safe_join(&backend.root.join("cache/loaders"),&format!("{}-{version}.jar",instance.loader))?;
     download::batch(backend.clone(),vec![Artifact{url,path:archive.clone(),hash:Some(checksum.into()),algorithm:"sha1",size:None},client.clone()],job.clone(),"loader").await?;
     let install=archive_json(&archive,"install_profile.json")?;
+    if install.get("versionInfo").is_some(){return legacy_profile(&backend,instance,&archive,&install,&receipt,&job);}
     if install["minecraft"].as_str()!=Some(&instance.minecraft){return Err(BackendError::new("loader","Installer targets a different Minecraft version"));}
     let child=archive_json(&archive,install["json"].as_str().ok_or_else(||BackendError::new("loader_unsupported","Legacy installer schema is not supported"))?)?;
     let runtime=java::select(backend.clone(),instance,parent["javaVersion"]["majorVersion"].as_u64().unwrap_or(8) as u32,job.clone()).await?;
@@ -75,3 +99,22 @@ pub async fn profile(backend:Arc<Backend>,instance:&Instance,parent:&Value,clien
     storage::write_json(&receipt,&json!({"loader_version":instance.loader_version,"profile":child,"files":files}))?;job.check()?;Ok(child)
 }
 #[cfg(test)]mod tests{use super::*;#[test]fn installer_sources(){let i=Instance{minecraft:"1.21.1".into(),loader:"forge".into(),loader_version:Some("52.0.1".into()),..Instance::default()};assert!(location(&i).unwrap().0.ends_with("forge-1.21.1-52.0.1-installer.jar"));let i=Instance{loader_version:Some("../../escape".into()),..i};assert!(location(&i).is_err());}}
+
+#[cfg(test)]mod legacy_tests{
+ use super::*;
+ #[test]fn embedded_legacy_forge_is_installed_without_executing_java(){
+  use std::io::Write;
+  let root=std::env::temp_dir().join(format!("canary-old-forge-{}",uuid::Uuid::new_v4()));
+  let _cleanup=storage::Staging(root.clone());let backend=Backend::with_root(root.clone()).unwrap();
+  let path=root.join("installer.jar");let mut zip=zip::ZipWriter::new(std::fs::File::create(&path).unwrap());
+  zip.start_file("forge-universal.jar",zip::write::SimpleFileOptions::default()).unwrap();zip.write_all(b"verified installer payload").unwrap();zip.finish().unwrap();
+  let instance=Instance{minecraft:"1.7.10".into(),loader:"forge".into(),loader_version:Some("10.13.4.1614".into()),..Instance::default()};
+  let profile=json!({"install":{"minecraft":"1.7.10","path":"net.minecraftforge:forge:1.7.10-10.13.4.1614","filePath":"forge-universal.jar"},"versionInfo":{"inheritsFrom":"1.7.10","mainClass":"net.minecraft.launchwrapper.Launch","libraries":[{"name":"net.minecraftforge:forge:1.7.10-10.13.4.1614"}]}});
+  let job=Job::new("legacy",None,Arc::new(std::sync::atomic::AtomicBool::new(false)));
+  let child=legacy_profile(&backend,&instance,&path,&profile,&root.join("loader.json"),&job).unwrap();
+  let artifact=root.join("cache/libraries/net/minecraftforge/forge/1.7.10-10.13.4.1614/forge-1.7.10-10.13.4.1614.jar");
+  assert_eq!(std::fs::read(&artifact).unwrap(),b"verified installer payload");assert!(artifact.with_extension("sha256").is_file());
+  assert_eq!(child["mainClass"],"net.minecraft.launchwrapper.Launch");
+  let wrong=Instance{minecraft:"1.12.2".into(),..instance};assert!(legacy_profile(&backend,&wrong,&path,&profile,&root.join("wrong.json"),&job).is_err());
+ }
+}

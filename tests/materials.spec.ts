@@ -51,7 +51,7 @@ test('all seven materials switch real card, button, sidebar and modal surfaces; 
 
 test('compact instances preserve primary actions, move favorite up and persist layout',async({page})=>{
  await nativeFixture(page);await page.goto('/');await page.getByRole('button',{name:'Library',exact:true}).first().click();
- const first=page.locator('.instance-card').first();const comfortable=(await first.boundingBox())!.height;
+ await choose(page,'Instance card layout','Comfortable');const first=page.locator('.instance-card').first();const comfortable=(await first.boundingBox())!.height;
  await page.screenshot({path:'.qa/materials/comfortable-library.png'});
  await choose(page,'Instance card layout','Compact');
  await expect(first.locator('.card-visual')).toBeHidden();await expect(first.locator('.instance-small-icon')).toBeVisible();

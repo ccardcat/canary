@@ -14,6 +14,7 @@ import { useBackend,defaultAccount, type Java, type RuntimeInstance, type Runtim
 import { backendMessages } from "../locales/backend";
 import RemoteImage from "./RemoteImage";
 import AccountAvatar from "./AccountAvatar";
+import {MicrosoftLogo} from "./MicrosoftLogo";
 import { cardSpotlight } from "./DesktopBehavior";
 import "./RuntimeUI.css";
 import {CreateInstance} from "./CreateInstance";
@@ -32,7 +33,7 @@ export function AccountsPanel({russian}:{russian:boolean}) {
   const text=useText(russian);const {snapshot,run}=useBackend();const [username,setUsername]=useState("");const [rename,setRename]=useState("");const [remove,setRemove]=useState("");const [edit,setEdit]=useState("");const [ely,setEly]=useState(false);const [microsoft,setMicrosoft]=useState(false);const ct=contentMessages[russian?"ru":"en"];
   return <div className="runtime-panel accounts-panel">
     {snapshot?.accounts.map(account=><div className="runtime-account" key={account.id}>
-      <button className="popover-action" onClick={()=>ignore(run("switch_account",{id:account.id}))}><AccountAvatar key={account.avatar} username={account.username} skin={account.avatar}/><span><b>{account.username}</b><small>{account.provider==="local"?text.local:account.provider==="elyby"?"Ely.by":account.provider}{account.provider!=="local"&&` · ${account.status==="authenticated"?ct.authenticated:account.status==="unavailable"?ct.authUnavailable:ct.relogin}`}</small></span>{defaultAccount(snapshot)?.id===account.id&&<Check size={16}/>}</button>
+      <button className="popover-action" onClick={()=>ignore(run("switch_account",{id:account.id}))}><AccountAvatar key={account.avatar} username={account.username} skin={account.avatar}/><span><b>{account.username}</b><small className="account-provider">{account.provider==="microsoft"&&<MicrosoftLogo/>}{account.provider==="local"?text.local:account.provider==="elyby"?"Ely.by":account.provider==="microsoft"?"Microsoft":account.provider}{account.provider!=="local"&&account.status!=="authenticated"&&<span className="account-status">{account.status==="unavailable"?ct.authUnavailable:ct.relogin}</span>}</small></span>{defaultAccount(snapshot)?.id===account.id&&<Check size={16}/>}</button>
       <div className="account-actions">{account.provider==="local"&&<button className="material-icon edit-action" aria-label={text.rename} data-tooltip={text.rename} onClick={()=>{setEdit(account.id);setRename(account.username);}}><Pencil size={16}/></button>}<button className="material-icon destructive" aria-label={account.provider==="elyby"?ct.logout:text.remove} data-tooltip={account.provider==="elyby"?ct.logout:text.remove} onClick={()=>setRemove(account.id)}><Trash2 size={16}/></button></div>
       {account.provider==="elyby"&&<small className="selectable content-path">{account.uuid}</small>}
       {edit===account.id&&<form onSubmit={e=>{e.preventDefault();ignore(run("rename_local_account",{id:account.id,username:rename}).then(()=>{setEdit("");setRename("");}));}}><input aria-label={text.username} value={rename} minLength={3} maxLength={16} pattern="[A-Za-z0-9_]+" required onChange={e=>setRename(e.target.value)}/><button className="quiet-button">{text.save}</button><button type="button" className="material-icon" aria-label={text.cancel} data-tooltip={text.cancel} onClick={()=>setEdit("")}><X size={16}/></button></form>}

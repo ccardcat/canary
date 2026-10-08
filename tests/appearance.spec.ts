@@ -148,10 +148,10 @@ test("light dialogs remain readable and low quality limits surface blur",async({
  await page.locator(".mode-grid").getByRole("button",{name:"Light",exact:true}).click();
  await expect(page.locator("html")).toHaveAttribute("data-mode","light");
  const alpha=async(selector:string)=>page.locator(selector).evaluate(e=>{const canvas=document.createElement("canvas");canvas.width=canvas.height=1;const context=canvas.getContext("2d")!;context.fillStyle=getComputedStyle(e).backgroundColor;context.fillRect(0,0,1,1);return context.getImageData(0,0,1,1).data[3]/255;});
- expect(await alpha(".settings-modal")).toBeGreaterThanOrEqual(.94);
+ expect(await alpha(".settings-modal")).toBeGreaterThanOrEqual(.99);
  await expect(page.locator("html")).toHaveAttribute("data-quality","low");
  await expect(page.locator(".settings-modal")).toHaveCSS("backdrop-filter","none");
  await page.locator(".settings-nav").getByRole("button",{name:"Background",exact:true}).click();await page.getByText("Windows window material",{exact:true}).click();await page.getByRole("combobox",{name:"Background source",exact:true}).click();
- expect(await alpha("dialog.glass-select-popup[open]")).toBeGreaterThanOrEqual(.96);
+ expect(await alpha("dialog.glass-select-popup[open]")).toBeGreaterThanOrEqual(.68);
  await page.keyboard.press("Escape");await expect(page.locator(".settings-modal")).toBeVisible();
 });

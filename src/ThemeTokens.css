@@ -37,10 +37,10 @@
   --surface-sidebar: color-mix(in srgb, var(--surface) 88%, var(--bg));
   --surface-modal: var(--surface-elevated);
   --surface-glass: var(--surface);
-  --surface-hover: color-mix(in srgb, var(--accent) 8%, var(--surface-2));
-  --surface-pressed: color-mix(in srgb, var(--accent) 15%, var(--surface-3));
-  --surface-selected: color-mix(in srgb, var(--accent) 12%, var(--surface-2));
-  --surface-disabled: color-mix(in srgb, var(--surface) 60%, var(--surface-2));
+  --surface-hover: color-mix(in srgb, var(--accent) 8%, var(--mat-buttons-fill, var(--surface-2)));
+  --surface-pressed: color-mix(in srgb, var(--accent) 15%, var(--mat-buttons-fill, var(--surface-3)));
+  --surface-selected: color-mix(in srgb, var(--accent) 12%, var(--mat-buttons-fill, var(--surface-2)));
+  --surface-disabled: color-mix(in srgb, var(--text-disabled) 8%, var(--mat-buttons-fill, var(--surface-2)));
   --text-primary: var(--text);
   --text-secondary: var(--muted);
   --text-tertiary: var(--faint);

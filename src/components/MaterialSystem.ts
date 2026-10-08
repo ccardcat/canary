@@ -18,7 +18,7 @@ export type LayoutPreferences = {
   buttonDensity: 'comfortable' | 'compact';
 };
 export const layoutDefaults: LayoutPreferences = {
-  sidebarMode:'attached', materialRadius:19, instanceLayout:'comfortable', instanceArtwork:'full', buttonDensity:'comfortable',
+  sidebarMode:'attached', materialRadius:19, instanceLayout:'compact', instanceArtwork:'full', buttonDensity:'comfortable',
 };
 const categories: MaterialPreferences['materialCategories'] = {cards:'glass', buttons:'soft', sidebar:'vibrancy', popovers:'glass', dialogs:'glass', inputs:'soft', titlebar:'transparent', floating:'glass'};
 export const materialDefaults: MaterialPreferences = {
@@ -106,12 +106,16 @@ export function applyMaterialTokens(root:HTMLElement,value:TokenPreferences){
     const edge=clamp(p.edge*(.7+strength*.4)*value.materialBorder/100,0,.22);
     const prefix=`--mat-${category}-`;
     const token=(key:string,v:string)=>root.style.setProperty(prefix+key,v);
-    // Overlay/control floors protect text independently of open surface translucency.
-    const protectedSurface=['dialogs','popovers','inputs','buttons','floating'].includes(category);
-    token('opacity',protectedSurface?`max(${opacity.toFixed(1)}%, var(--surface-floor-${category}))`:`${opacity.toFixed(1)}%`);
+    // Readable control tints follow user opacity instead of imposing opaque fills.
+    const floor=category==='popovers'?clamp(value.surfaceOpacity+10,68,98):
+      category==='dialogs'?clamp(value.surfaceOpacity+6,46,96):
+      category==='floating'?clamp(value.surfaceOpacity+2,38,94):
+      foreground?clamp(value.surfaceOpacity-6,24,92):0;
+    const effective=Math.max(opacity,fallback?100:style==='solid'?100:floor);
+    token('opacity',effective.toFixed(1)+'%');
     const base=category==='inputs'?'input':category==='sidebar'?'sidebar':category==='dialogs'?'modal':category==='popovers'?'elevated':'primary';
     token('fill',`color-mix(in srgb, var(--surface-${base}) var(${prefix}opacity), transparent)`);
-    token('readable-fill',`color-mix(in srgb, var(--surface-${base}) ${Math.max(0,(90-opacity)/(100-opacity||1)*100).toFixed(1)}%, transparent)`);
+    token('readable-fill','transparent');
     token('blur',`${blur.toFixed(1)}px`);
     token('saturation',`${(p.saturation*value.materialSaturation/100*(.85+strength*.3)).toFixed(2)}`);
     token('filter',blur===0?'none':`blur(var(${prefix}blur)) saturate(var(${prefix}saturation)) brightness(${value.materialBrightness/100}) contrast(${value.materialContrast/100})`);

@@ -1,19 +1,21 @@
 import {memo,useCallback,useRef} from "react";
 import {useBackend} from "../services/backend";
 import {projectInstallTask,isTerminal} from "../services/activity";
-import {Download,SquareArrowOutUpRight,Plus} from "lucide-react";
+import {Download,Info,Plus} from "lucide-react";
 import {categories,type T} from "../locales";
-import {artwork,type Project,type ContentType} from "../services/modrinth";
+import {type Project,type ContentType} from "../services/modrinth";
 import {providerName,providerAvailable} from "../services/providers";
 import RemoteImage from "./RemoteImage";
 import {cardSpotlight} from "./DesktopBehavior";
 type ProjectCardProps = {
   compatibility?:string;
+  selection?:{checked:boolean;disabled?:boolean;onChange:()=>void;label:string};
   p: Project;
   t: T;
   type: ContentType;
   installed: boolean;
   installationDisabled?:boolean;
+  interactionDisabled?:boolean;
   onOpen: () => void;
   onInstall: () => void;
 };
@@ -26,32 +28,15 @@ function ProjectCard(props:ProjectCardProps) {
   const onInstall=useCallback(()=>handlers.current.onInstall(),[]);
   return <CardView {...props} onOpen={onOpen} onInstall={onInstall} busy={!!task} taskId={task?.id} percent={task&&task.total>0?Math.round(task.percent):undefined} blocked={blocked}/>;
 }
-const CardView=memo(function CardView({p,t,type,installed,onOpen,onInstall,compatibility,busy,blocked,taskId,percent}:ProjectCardProps & {busy:boolean;blocked:boolean;taskId?:string;percent?:number}) {
-  const art = artwork(p) || p.icon_url;
+const CardView=memo(function CardView({p,t,type,installed,onOpen,onInstall,compatibility,selection,interactionDisabled,busy,blocked,taskId,percent}:ProjectCardProps & {busy:boolean;blocked:boolean;taskId?:string;percent?:number}) {
   return (
-    <article data-project-id={`${p.provider||"modrinth"}:${p.project_id}`} data-task-id={taskId} className="project-card" onPointerMove={cardSpotlight}>
-      <button
-        className="card-visual"
-        onClick={onOpen}
-        aria-label={`${t("view")}: ${p.title}`}
-      >
-        {art && (
-          <div
-            className={
-              "card-bg " + (artwork(p) ? "gallery-art" : "blurred-icon")
-            }
-            style={{ backgroundImage: `url(${art})` }}
-          />
-        )}
-        <div className="card-icon-wrap">
-          <RemoteImage src={p.icon_url} alt="" />
-        </div>
-      </button>
+    <article data-project-id={`${p.provider||"modrinth"}:${p.project_id}`} data-task-id={taskId} className={"project-card compact-project-card"+(selection?.checked?" project-selected":"")} onPointerMove={cardSpotlight}>
+      <div className="project-card-heading">
+        <button className="project-icon-button" disabled={interactionDisabled} onClick={onOpen} aria-label={t("view")+": "+p.title}><RemoteImage src={p.icon_url} alt=""/></button>
+        <div className="project-heading-copy"><span className="card-kind">{t(type)}</span><button className="card-title" disabled={interactionDisabled} onClick={onOpen}>{p.title}</button></div>
+        {selection&&<label className="project-selection"><input type="checkbox" aria-label={selection.label} checked={selection.checked} disabled={selection.disabled} onChange={selection.onChange}/></label>}
+      </div>
       <div className="card-body">
-        <div className="card-kind">{t(type)}</div>
-        <button className="card-title" onClick={onOpen}>
-          {p.title}
-        </button>
         <p>{p.description || t("noDescription")}</p>
         <div className="chips">{compatibility&&<span>{compatibility}</span>}
           <span>{p.versions?.[p.versions.length - 1] || "Minecraft"}</span>
@@ -67,11 +52,8 @@ const CardView=memo(function CardView({p,t,type,installed,onOpen,onInstall,compa
               maximumFractionDigits: 1,
             }).format(p.downloads || 0)}
           </span>
-          <button className="compact-action" onClick={onOpen}>
-            {t("view")}
-            <SquareArrowOutUpRight size={13} />
-          </button>
-          {type === "modpack" && (
+          <button className="material-icon project-open-action" disabled={interactionDisabled} aria-label={t("view")} data-tooltip={t("view")} onClick={onOpen}><Info size={16}/></button>
+          {(type === "modpack"||!!selection) && (
             <button
               className={
                 installed

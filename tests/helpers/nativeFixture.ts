@@ -21,6 +21,7 @@ const state={instances:Array.from({length:9},(_,i)=>({id:'instance-'+i,name:i===
 globalThis.__materialQA={state,calls:[]};
 mockIPC((command,args)=>{
  globalThis.__materialQA.calls.push({command,args});
+ if(globalThis.__materialQA.overrides?.[command])return globalThis.__materialQA.overrides[command](args);
  if(command==='backend_snapshot')return structuredClone(state);
  if(command==='list_wallpapers')return globalThis.__customWallpapers||[];
  if(command==='game_log_sessions')return [];

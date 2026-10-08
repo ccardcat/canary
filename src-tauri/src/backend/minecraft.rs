@@ -34,10 +34,28 @@ pub fn merge(parent:&Value,child:&Value)->Value {
 pub async fn manifest(backend:&Backend)->Result<Value> {
     let cache=backend.root.join("cache/manifest.json");match download::json(backend,MANIFEST).await {Ok(value)=>{storage::write_json(&cache,&value)?;Ok(value)},Err(error)=>if cache.is_file(){Ok(serde_json::from_slice(&std::fs::read(cache)?)?)}else{Err(error)}}
 }
+pub fn publisher_url(source:&str)->Result<String>{
+ let mut url=reqwest::Url::parse(source).map_err(|_|BackendError::new("metadata","Invalid publisher URL"))?;
+ match url.host_str(){
+  Some("launcher.mojang.com")=>{url.set_host(Some("piston-data.mojang.com")).unwrap();},
+  Some("launchermeta.mojang.com")=>{url.set_host(Some("piston-meta.mojang.com")).unwrap();},
+  Some("files.minecraftforge.net") if url.path().starts_with("/maven/")=>{let path=url.path().trim_start_matches("/maven").to_owned();url.set_host(Some("maven.minecraftforge.net")).unwrap();url.set_path(&path);},
+  _=>{}
+ }
+ if url.scheme()=="http"&&matches!(url.host_str(),Some("piston-data.mojang.com"|"piston-meta.mojang.com"|"libraries.minecraft.net"|"resources.download.minecraft.net"|"maven.minecraftforge.net")){url.set_scheme("https").unwrap();}
+ Ok(url.into())
+}
+pub fn maven_path(coordinate:&str,classifier:Option<&str>)->Result<String>{
+ let (name,extension)=coordinate.split_once('@').unwrap_or((coordinate,"jar"));
+ let parts:Vec<_>=name.split(':').collect();
+ if !(3..=4).contains(&parts.len())||parts.iter().any(|p|p.is_empty()||*p==".."||p.contains(['/','\\']))||extension.is_empty()||!extension.chars().all(|c|c.is_ascii_alphanumeric()){return Err(BackendError::new("library","Invalid Maven coordinate"));}
+ let suffix=classifier.or_else(||parts.get(3).copied()).map(|c|format!("-{c}")).unwrap_or_default();
+ Ok(format!("{}/{}/{}/{}-{}{}.{}",parts[0].replace('.',"/"),parts[1],parts[2],parts[1],parts[2],suffix,extension))
+}
 fn artifact(download:&Value,path:PathBuf)->Result<Artifact>{
     let published=download["sha1"].as_str().filter(|h|h.len()==40).map(str::to_owned);
     let algorithm=if published.is_some(){"sha1"}else{"sha256"};let hash=published.or_else(||std::fs::read_to_string(path.with_extension("sha256")).ok());
-    Ok(Artifact{url:download["url"].as_str().unwrap_or_default().into(),path,hash,algorithm,size:download["size"].as_u64()})
+    Ok(Artifact{url:publisher_url(download["url"].as_str().unwrap_or_default())?,path,hash,algorithm,size:download["size"].as_u64()})
 }
 pub async fn prepare(backend:Arc<Backend>,instance:&Instance,job:Arc<Job>,deep:bool)->Result<Prepared>{
     job.check()?;job.emit("minecraft","running",&instance.minecraft);
@@ -70,18 +88,25 @@ pub async fn prepare(backend:Arc<Backend>,instance:&Instance,job:Arc<Job>,deep:b
             let rel=art["path"].as_str().ok_or_else(||BackendError::new("metadata","Library path missing"))?;
             let path=storage::safe_join(&cache.join("libraries"),rel)?;
             if seen.insert(path.clone()){classpath.push(path.to_string_lossy().into());files.push(artifact(art,path)?);}
-        }else if lib["name"].is_string(){
-            let coordinate=lib["name"].as_str().unwrap();let parts:Vec<_>=coordinate.split(':').collect();if parts.len()<3||parts.len()>4{return Err(BackendError::new("library","Invalid Maven coordinate"));}
-            let suffix=parts.get(3).map(|v|format!("-{v}")).unwrap_or_default();let rel=format!("{}/{}/{}/{}-{}{}.jar",parts[0].replace('.',"/"),parts[1],parts[2],parts[1],parts[2],suffix);
-            let base=lib["url"].as_str().unwrap_or("https://libraries.minecraft.net/");let url=format!("{}{rel}",base.trim_end_matches('/').to_owned()+"/");let path=storage::safe_join(&cache.join("libraries"),&rel)?;
+        }else if lib.get("downloads").is_none()&&lib.get("natives").is_none()&&lib["name"].is_string(){
+            let rel=maven_path(lib["name"].as_str().unwrap(),None)?;
+            let base=publisher_url(lib["url"].as_str().unwrap_or("https://libraries.minecraft.net/"))?;
+            let url=format!("{}/{rel}",base.trim_end_matches('/'));let path=storage::safe_join(&cache.join("libraries"),&rel)?;
             // Fabric metadata does not publish hashes. Versioned Maven artifacts are
             // cached with a local integrity receipt after the first HTTPS download.
             let receipt=path.with_extension("sha256");let expected=std::fs::read_to_string(&receipt).ok();
             if seen.insert(path.clone()){classpath.push(path.to_string_lossy().into());files.push(Artifact{url,path,hash:expected,algorithm:"sha256",size:None});}
         }
         if let Some(classifier)=lib["natives"][os_name()].as_str(){let classifier=classifier.replace("${arch}",if cfg!(target_pointer_width="64"){"64"}else{"32"});
-            let data=&lib["downloads"]["classifiers"][classifier];let rel=data["path"].as_str().ok_or_else(||BackendError::new("metadata","Native path missing"))?;let path=storage::safe_join(&cache.join("libraries"),rel)?;
-            if seen.insert(path.clone()){files.push(artifact(data,path.clone())?);}natives.push(path);
+            if let Some(data)=lib["downloads"]["classifiers"].get(&classifier){
+                let rel=data["path"].as_str().ok_or_else(||BackendError::new("metadata","Native path missing"))?;let path=storage::safe_join(&cache.join("libraries"),rel)?;
+                if seen.insert(path.clone()){files.push(artifact(data,path.clone())?);}natives.push(path);
+            }else if lib.get("downloads").is_none(){
+                let rel=maven_path(lib["name"].as_str().ok_or_else(||BackendError::new("metadata","Native library name missing"))?,Some(&classifier))?;
+                let base=publisher_url(lib["url"].as_str().unwrap_or("https://libraries.minecraft.net/"))?;let path=storage::safe_join(&cache.join("libraries"),&rel)?;
+                if seen.insert(path.clone()){files.push(Artifact{url:format!("{}/{rel}",base.trim_end_matches('/')),hash:std::fs::read_to_string(path.with_extension("sha256")).ok(),path:path.clone(),algorithm:"sha256",size:None});}natives.push(path);
+            }else{return Err(BackendError::new("metadata","Native classifier download missing"));}
+
         }
     }
     classpath.push(client_path.to_string_lossy().into());
@@ -110,3 +135,39 @@ pub async fn prepare(backend:Arc<Backend>,instance:&Instance,job:Arc<Job>,deep:b
     storage::write_json(&prepared_path,&prepared)?;job.check()?;Ok(prepared)
 }
 #[cfg(test)]mod tests{use super::*;#[test]fn rules_and_placeholders(){assert!(allowed(&json!({})));assert!(allowed(&json!({"rules":[{"action":"allow","os":{"name":os_name()}}]})));assert!(!allowed(&json!({"rules":[{"action":"allow"},{"action":"disallow","os":{"name":os_name()}}]})));let args=arguments(&json!({"arguments":{"game":["--username","${auth_player_name}",{"rules":[{"action":"allow","features":{"is_demo_user":true}}],"value":"--demo"}]}}),"game");assert_eq!(args.len(),2);let values=HashMap::from([("auth_player_name".into(),"Player".into())]);assert_eq!(substitute(args,&values).unwrap(),["--username","Player"]);assert!(substitute(vec!["${missing}".into()],&values).is_err());}#[test]fn loader_merges(){let a=json!({"libraries":[{"name":"a"}],"arguments":{"game":["a"]},"mainClass":"old"});let b=json!({"libraries":[{"name":"b"}],"arguments":{"game":["b"]},"mainClass":"new"});let c=merge(&a,&b);assert_eq!(c["libraries"].as_array().unwrap().len(),2);assert_eq!(c["arguments"]["game"],json!(["a","b"]));assert_eq!(c["mainClass"],"new");}}
+
+#[cfg(test)]
+mod legacy_tests {
+ use super::*;
+ #[test]fn native_only_and_maven_profiles_are_distinct(){
+  let native=json!({"name":"net.java.jinput:jinput-platform:2.0.5","downloads":{"classifiers":{"natives-windows":{"url":"https://libraries.minecraft.net/native.jar","path":"native.jar"}}},"natives":{"windows":"natives-windows"}});
+  assert!(native["downloads"].get("artifact").is_none());
+  // The explicit native download is the sole artifact: its unclassified JAR does not exist.
+  assert!(native.get("downloads").is_some());
+  assert_eq!(maven_path("net.java.jinput:jinput-platform:2.0.5",Some("natives-windows")).unwrap(),"net/java/jinput/jinput-platform/2.0.5/jinput-platform-2.0.5-natives-windows.jar");
+  assert_eq!(maven_path("org.test:library:1.0:client@zip",None).unwrap(),"org/test/library/1.0/library-1.0-client.zip");
+  assert!(maven_path("org.test:../../escape:1",None).is_err());
+ }
+ #[test]fn publisher_migrations_keep_object_identity_and_https(){
+  assert_eq!(publisher_url("http://launcher.mojang.com/v1/objects/abc/client.jar").unwrap(),"https://piston-data.mojang.com/v1/objects/abc/client.jar");
+  assert_eq!(publisher_url("http://files.minecraftforge.net/maven/net/forge.jar").unwrap(),"https://maven.minecraftforge.net/net/forge.jar");
+  assert_eq!(publisher_url("http://unknown.invalid/file.jar").unwrap(),"http://unknown.invalid/file.jar");
+ }
+ #[tokio::test]
+ #[ignore="Downloads verified official Minecraft artifacts into an isolated disposable cache"]
+ async fn real_legacy_vanilla_preparation(){
+  let root=std::env::temp_dir().join(format!("canary-legacy-{}",uuid::Uuid::new_v4()));
+  let _cleanup=storage::Staging(root.clone());let backend=Arc::new(Backend::with_root(root).unwrap());
+  for version in ["1.12.2","1.8.9","1.7.10","1.6.4","1.0","b1.7.3"]{
+   let dir=backend.root.join("instances").join(version);std::fs::create_dir_all(&dir).unwrap();
+   let instance=Instance{id:version.into(),name:version.into(),minecraft:version.into(),provider:"vanilla".into(),loader:"vanilla".into(),directory:dir.to_string_lossy().into(),..Instance::default()};
+   backend.save_instance(&instance).unwrap();
+   let job=Arc::new(Job::new(version,None,Arc::new(std::sync::atomic::AtomicBool::new(false))));
+   let prepared=prepare(backend.clone(),&instance,job,false).await.unwrap();
+   assert!(prepared.files.iter().all(|(p,size)|std::fs::metadata(p).unwrap().len()==*size));
+   assert!(prepared.classpath.iter().all(|p|std::path::Path::new(p).is_file()));
+   assert!(!prepared.classpath.iter().any(|p|p.ends_with("jinput-platform-2.0.5.jar")));
+   println!("LEGACY_PREPARED {version}: {} classpath entries, {} verified files",prepared.classpath.len(),prepared.files.len());
+  }
+ }
+}

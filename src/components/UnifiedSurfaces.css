@@ -1,0 +1,50 @@
+/* One density and material vocabulary across discovery, content and runtime UI. */
+:root :is(.project-grid,.content-project-grid){grid-template-columns:repeat(auto-fill,minmax(min(100%,300px),1fr));gap:16px;align-items:stretch}
+:root .compact-project-card{display:flex;flex-direction:column;min-width:0;overflow:hidden;padding:16px;min-height:220px}
+:root .project-card-heading{display:flex;align-items:center;gap:12px;min-width:0}
+:root .project-icon-button{flex:0 0 48px;width:48px;height:48px;min-height:48px;padding:0;border:0;background:transparent;box-shadow:none;backdrop-filter:none;overflow:hidden;border-radius:12px}
+:root .project-icon-button .remote-image{width:100%;height:100%;border-radius:inherit;object-fit:contain}
+:root .project-heading-copy{flex:1;min-width:0}
+:root .compact-project-card .card-title{text-align:left;padding:0;font-size:1rem;line-height:1.4;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden}
+:root .compact-project-card .card-kind{font-size:.65rem;margin-bottom:3px}
+:root .compact-project-card .card-body{padding:0;display:flex;flex-direction:column;flex:1;gap:10px;min-width:0}
+:root .compact-project-card .card-body>p{margin:10px 0 0;min-height:0;height:2.9em;font-size:.78rem;line-height:1.45;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden}
+:root .compact-project-card .chips{height:auto;min-height:24px;margin:0;gap:5px}
+:root .compact-project-card .card-foot{margin-top:auto;display:flex;flex-wrap:wrap;gap:8px;align-items:center}
+:root .compact-project-card .card-foot .downloads{flex:1 1 70px}
+:root .compact-project-card .card-foot .compact-action{width:auto;grid-row:auto;min-height:34px;font-size:.75rem;padding:5px 9px}
+:root .compact-project-card .card-provider{position:static;margin:0;font-size:.65rem;text-align:right;color:var(--muted)}
+:root .project-selection{margin:0!important;flex:0 0 auto}
+:root .project-selected{border-color:var(--accent);box-shadow:inset 0 0 0 1px color-mix(in srgb,var(--accent) 35%,transparent),var(--mat-cards-shadow)}
+:root .accounts-panel .account-provider{display:flex;align-items:center;gap:6px;flex-wrap:wrap}
+.default-skin-head{width:100%;height:100%;display:block}
+.microsoft-logo{width:13px;height:13px;flex-shrink:0}
+.account-status{font-size:.7rem;color:var(--warning)}
+:root .skin-avatar{border-radius:9px;width:36px;height:36px;background:var(--mat-buttons-fill)}
+:root .content-basket{padding:12px;margin:12px 0;border:1px solid var(--mat-cards-edge);border-radius:var(--mat-cards-radius);background:var(--mat-cards-fill)}
+:root .content-basket label{display:flex;gap:8px;align-items:center;margin:0}
+.content-picked{display:flex;flex-wrap:wrap;gap:6px;margin-top:10px}
+:root .content-picked .quiet-button{min-height:28px;font-size:.7rem;padding:4px 8px}
+:root .content-dropzone{padding:12px;min-height:0;margin-block:12px}
+:root .content-item{padding:12px;gap:12px;min-height:76px}
+:root .content-item .content-path{display:-webkit-box;-webkit-line-clamp:1;-webkit-box-orient:vertical;overflow:hidden}
+:root .content-item.disabled-item{background:var(--mat-cards-fill);opacity:.75}
+:root :is(.content-detail,.content-filter,.content-bulk){background:transparent}
+:root :is(.runtime-dialog,.instance-surface,.settings-modal){background:var(--mat-dialogs-sheen),linear-gradient(var(--mat-dialogs-tint),var(--mat-dialogs-tint)),var(--mat-dialogs-fill);backdrop-filter:var(--mat-dialogs-filter);box-shadow:var(--mat-dialogs-shadow);border-color:var(--mat-dialogs-edge)}
+:root :is(.instance-surface,.runtime-dialog) .runtime-panel{background:transparent;backdrop-filter:none;box-shadow:none;border:0}
+:root :is(.runtime-panel,.content-manager) :is(input:not([type=checkbox]):not([type=range]),textarea,.glass-select-trigger){background:var(--mat-inputs-sheen),var(--mat-inputs-fill);border-color:var(--mat-inputs-edge);box-shadow:var(--mat-inputs-shadow);color:var(--text)}
+:root :is(.surface-tab,.compact-action,.quiet-button,.control-button,.font-options button):is(.selected,[aria-pressed=true]){background:linear-gradient(color-mix(in srgb,var(--accent) 12%,transparent),color-mix(in srgb,var(--accent) 12%,transparent)),var(--mat-buttons-fill)}
+:root :is(.search-field,.library-toolbar>input,.settings-search input){background:var(--mat-inputs-sheen),var(--mat-inputs-fill);border-color:var(--mat-inputs-edge)}
+:root .search-field input{background:transparent;box-shadow:none;border:0}
+:root .content-manager .library-empty{margin:20px auto;padding:24px;min-height:150px}
+@media(max-width:700px){:root :is(.project-grid,.content-project-grid){grid-template-columns:minmax(0,1fr)}:root .compact-project-card{min-height:200px}}
+
+:root .runtime-dialog::backdrop,:root .modal-backdrop{background:color-mix(in srgb,var(--bg) 24%,transparent);backdrop-filter:blur(3px)}
+:root .runtime-account .popover-action{background:transparent;border:0;box-shadow:none}
+
+:root .compact-project-card .card-body{gap:8px}
+:root .compact-project-card .project-open-action{width:34px;height:34px;min-height:34px}
+:root .compact-project-card .card-body>p{height:auto;max-height:2.9em}
+
+:root .content-type-count{font-size:.65rem;color:var(--muted);padding:1px 5px;border-radius:5px;background:color-mix(in srgb,var(--text) 8%,transparent)}
+:root .content-types,:root .content-actions{margin-block:10px}

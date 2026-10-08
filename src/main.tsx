@@ -7,6 +7,7 @@ import { VisualAppearanceProvider } from "./components/VisualAppearance";
 import "./components/Materials.css";
 import "./ThemeTokens.css";
 import "./ControlSystem.css";
+import "./components/UnifiedSurfaces.css";
 
 ReactDOM.createRoot(document.getElementById("root") as HTMLElement).render(
   <React.StrictMode>

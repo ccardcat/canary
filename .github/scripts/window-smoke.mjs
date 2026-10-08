@@ -23,6 +23,11 @@ try{
  socket.addEventListener('message',receive);
  const call=(method,params={})=>new Promise((resolve,reject)=>{const id=++next;const timer=setTimeout(()=>{pending.delete(id);reject(Error(`Inspector timeout: ${method}`));},20000);pending.set(id,{resolve:r=>{clearTimeout(timer);resolve(r);},reject:e=>{clearTimeout(timer);reject(e);}});socket.send(JSON.stringify({id,method,params}));});
  const evaluate=async expression=>{const result=await call('Runtime.evaluate',{expression,awaitPromise:true,returnByValue:true});if(result.exceptionDetails)throw Error(JSON.stringify(result.exceptionDetails));return result.result?.value;};
+ // Seed preferences in the new document: pagehide flushes the running UI's state.
+ const reloadWithPreferences=async source=>{
+  const marker=String(Date.now())+Math.random();const {identifier}=await call('Page.addScriptToEvaluateOnNewDocument',{source:source+';window.__canaryQASeed='+JSON.stringify(marker)});
+  try{await call('Page.reload');await until(()=>evaluate('window.__canaryQASeed==='+JSON.stringify(marker)),'preference seed');}finally{await call('Page.removeScriptToEvaluateOnNewDocument',{identifier});}
+ };
  const invoke=(command,args={})=>evaluate(`window.__TAURI_INTERNALS__.invoke(${JSON.stringify(command)},${JSON.stringify(args)})`);
  const win=(command,args={})=>invoke(`plugin:window|${command}`,{label:'main',...args});
  const key=async(key,code)=>{await call('Input.dispatchKeyEvent',{type:'keyDown',key,code:key,windowsVirtualKeyCode:code});await call('Input.dispatchKeyEvent',{type:'keyUp',key,code:key,windowsVirtualKeyCode:code});};
@@ -55,8 +60,11 @@ try{
  await evaluate(`(()=>{for(let n=0;n<6;n++)document.dispatchEvent(new KeyboardEvent('keydown',{key:'F11',bubbles:true}));})()`);await until(()=>win('is_fullscreen'),'rapid F11');await finished();assert.equal(await win('is_fullscreen'),true);await key('Escape',27);await until(async()=>!await win('is_fullscreen'),'Escape fullscreen');await finished();report.cases.push({name:'rapid-F11-and-Escape',state:await state()});
  await click(textButton('.sidebar button','Settings'));await until(()=>evaluate(`!!document.querySelector('.settings-modal')`),'Settings');
  for(const theme of ['Light','Dark','AMOLED']){
-  await click(textButton('.mode-grid button',theme));await until(()=>evaluate(`document.documentElement.dataset.mode===${JSON.stringify(theme.toLowerCase())}`),'theme');
+  await click(textButton('.settings-nav button','Appearance'));await click(textButton('.mode-grid button',theme));await until(()=>evaluate(`document.documentElement.dataset.mode===${JSON.stringify(theme.toLowerCase())}`),'theme');
   for(const material of report.capabilities.supported){
+   await click(textButton('.settings-nav button','Background'));
+   // Selecting Solid hides the native section; Desktop exposes it again.
+   await click("[...document.querySelectorAll('.background-source-options button')].find(b=>b.querySelector('b')?.textContent==='Desktop')");
    const names={solid:'Solid',transparent:'Transparent',acrylic:'Acrylic',mica:'Mica','mica-alt':'Mica Alt'};await choose('Window Material',names[material]);
    const actual=await evaluate(`document.documentElement.dataset.windowMaterial`);const root=await evaluate(`getComputedStyle(document.documentElement).backgroundColor`);if(actual!=='solid')assert.equal(root,'rgba(0, 0, 0, 0)');
    await screenshot(`${theme.toLowerCase()}-${material}`);report.cases.push({name:'material',theme,requested:material,actual,root});
@@ -71,21 +79,24 @@ try{
   }
  }
  const slider=async(name,value)=>{await evaluate(`(()=>{const e=[...document.querySelectorAll('input[type=range]')].find(e=>e.getAttribute('aria-label')===${JSON.stringify(name)});Object.getOwnPropertyDescriptor(HTMLInputElement.prototype,'value').set.call(e,${JSON.stringify(String(value))});e.dispatchEvent(new Event('input',{bubbles:true}));})()`);};
- const desktopActive=await evaluate(`document.documentElement.dataset.windowMaterial!=='solid'`);if(desktopActive)await slider('Window transparency',77);await slider('Surface opacity',74);await slider('UI surface blur',23);if(desktopActive)await choose('Tint intensity','Strong');
+ const desktopActive=await evaluate("document.documentElement.dataset.windowMaterial!=='solid'");
+ await click(textButton('.settings-nav button','Background'));
+ if(desktopActive){await slider('Window transparency',77);await delay(750);await choose('Tint intensity','Strong');}
+ await click(textButton('.settings-nav button','Appearance'));await slider('Surface opacity',74);await slider('Surface backdrop blur',23);await delay(750);
  const custom=await evaluate(`JSON.parse(localStorage.getItem('canary-visual'))`);if(desktopActive)assert.equal(custom.windowTransparency,77);assert.equal(custom.surfaceOpacity,74);assert.equal(custom.surfaceBlur,23);if(desktopActive)assert.equal(custom.tint,'strong');report.cases.push({name:'custom-opacity-blur-tint',windowTransparency:custom.windowTransparency,surfaceOpacity:custom.surfaceOpacity,surfaceBlur:custom.surfaceBlur,tint:custom.tint});
  await click(textButton('[role=group][aria-label="Sidebar position"] button','Right'));await key('F11',122);await until(()=>win('is_fullscreen'),'right-sidebar fullscreen');await finished();await screenshot('right-sidebar-fullscreen');await key('Escape',27);await until(()=>evaluate(`!document.querySelector('.settings-modal')`),'close right-sidebar Settings');assert.equal(await win('is_fullscreen'),true);await key('Escape',27);await until(async()=>!await win('is_fullscreen'),'right-sidebar restore');await finished();await click(textButton('.sidebar button','Settings'));await until(()=>evaluate(`!!document.querySelector('.settings-modal')`),'reopen Settings');
  await click(textButton('.settings-nav button','Window'));await choose('Window controls style','Traffic Lights');await choose('Control position','Left');await screenshot('left-traffic-controls');
  await choose('Titlebar branding','Text');assert.equal(await evaluate(`document.querySelectorAll('.window-brand img').length`),0);await screenshot('centered-text-brand');
  await click(`[...document.querySelectorAll('button[role="combobox"]')].find(b=>b.getAttribute('aria-label')==='Titlebar branding')`);await screenshot('glass-dropdown');await key('Escape',27);assert.equal(await evaluate(`!!document.querySelector('.settings-modal')`),true);
- await materialPresetQA({evaluate,choose,click,textButton,call,win,until,delay,screenshot,report});
+ await materialPresetQA({evaluate,choose,click,textButton,call,win,until,delay,screenshot,report,reloadWithPreferences});
  // Sample the real compositor with desktop material, glass, ambient motion and
  // Hero enabled. Record runner timings, without inventing a hardware FPS result.
  report.performance=[];
  for(const quality of ['high','low']){
-  await evaluate(`(()=>{const old=JSON.parse(localStorage.getItem('canary-visual')||'{}');localStorage.setItem('canary-visual',JSON.stringify({...old,quality:${JSON.stringify(quality)},backgroundSource:'desktop',material:${JSON.stringify(report.capabilities.supported.includes('acrylic')?'acrylic':'solid')},ambient:'autumn',effectPreset:'high',density:24,heroRotation:true,heroSpeed:9,glassIntensity:55,surfaceOpacity:82,surfaceBlur:24}));localStorage.setItem('canary-mode','dark');})()`);await call('Page.reload');
+  await reloadWithPreferences(`(()=>{const old=JSON.parse(localStorage.getItem('canary-visual')||'{}');localStorage.setItem('canary-visual',JSON.stringify({...old,quality:${JSON.stringify(quality)},backgroundSource:'desktop',material:${JSON.stringify(report.capabilities.supported.includes('acrylic')?'acrylic':'solid')},ambient:'autumn',effectPreset:'high',density:24,heroRotation:true,heroSpeed:9,glassIntensity:55,surfaceOpacity:82,surfaceBlur:24}));localStorage.setItem('canary-mode','dark');})()`);
   await until(()=>evaluate(`!!document.querySelector('.home-hero')&&document.documentElement.dataset.quality===${JSON.stringify(quality)}&&document.documentElement.dataset.windowTransition==='false'`),'performance UI');
   await call('Page.bringToFront');await key('F11',122);await until(()=>win('is_fullscreen'),'performance fullscreen');await finished();await delay(500);
-  const timing=await evaluate(`new Promise(resolve=>{const samples=[];const start=performance.now();let last=start,complete=false;function finish(){if(complete)return;complete=true;const sorted=[...samples].sort((a,b)=>a-b);resolve({quality:${JSON.stringify(quality)},durationMs:performance.now()-start,frames:samples.length,medianMs:sorted[Math.floor(sorted.length*.5)]??null,p95Ms:sorted[Math.floor(sorted.length*.95)]??null,over50ms:samples.filter(n=>n>50).length,particles:document.querySelectorAll('.ambient-particles i').length,sidebarBlur:getComputedStyle(document.querySelector('.sidebar')).backdropFilter,material:document.documentElement.dataset.windowMaterial,fullscreen:document.documentElement.dataset.windowFullscreen});}function frame(now){if(complete)return;samples.push(now-last);last=now;if(now-start>=4000)finish();else requestAnimationFrame(frame);}setTimeout(finish,6000);requestAnimationFrame(frame);})`);
+  const timing=await evaluate(`new Promise(resolve=>{const samples=[];const start=performance.now();let last=start,complete=false;function finish(){if(complete)return;complete=true;const sorted=[...samples].sort((a,b)=>a-b);resolve({quality:${JSON.stringify(quality)},durationMs:performance.now()-start,frames:samples.length,medianMs:sorted[Math.floor(sorted.length*.5)]??null,p95Ms:sorted[Math.floor(sorted.length*.95)]??null,over50ms:samples.filter(n=>n>50).length,particles:[...document.querySelectorAll('.ambient-particles i')].filter(e=>getComputedStyle(e).display!=='none').length,sidebarBlur:getComputedStyle(document.querySelector('.sidebar')).backdropFilter,material:document.documentElement.dataset.windowMaterial,fullscreen:document.documentElement.dataset.windowFullscreen});}function frame(now){if(complete)return;samples.push(now-last);last=now;if(now-start>=4000)finish();else requestAnimationFrame(frame);}setTimeout(finish,6000);requestAnimationFrame(frame);})`);
   assert.ok(timing.frames>0,'Real WebView2 must paint frames');if(quality==='low'){assert.ok(timing.particles<=6);assert.equal(timing.sidebarBlur,'none');}report.performance.push(timing);await screenshot(`performance-${quality}-fullscreen`);
   await key('Escape',27);await until(async()=>!await win('is_fullscreen'),'performance restore');await finished();
  }

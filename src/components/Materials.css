@@ -327,12 +327,6 @@
 :root .continuation-card .continue-open { align-items:flex-start; justify-content:center; padding:0; background:transparent; border:0; box-shadow:none; }
 :root .continue-open :is(b,small) { white-space:normal; overflow-wrap:anywhere; height:auto; }
 @media(forced-colors:active) { :root :is(button,input,textarea,select,a,summary):focus-visible { outline:2px solid Highlight; } :root .sidebar :is(nav,.sidebar-bottom) button:focus-visible { outline:2px solid Highlight; } }
-/* Light theme's regular surface is translucent. Opaque fallback overlays use
-   its existing solid secondary surface when blur is disabled. */
-:root[data-mode="light"][data-quality="low"] :is(.settings-modal,.runtime-dialog,.instance-surface,.popover,.glass-select-popup,.canary-tooltip,.text-context-menu) {
-  background-color:color-mix(in srgb,var(--surface-2) 97%,transparent);
-}
-
 /* Text-bearing surfaces share palette semantics, including Settings navigation. */
 :root .canary-app { background:linear-gradient(120deg,var(--page-background),transparent); }
 :root .settings-nav { background:color-mix(in srgb,var(--surface-secondary) 75%,transparent); border-color:var(--border-default); }

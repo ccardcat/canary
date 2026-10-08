@@ -14,7 +14,7 @@ pub fn client_id() -> String { std::env::var("CANARY_MICROSOFT_CLIENT_ID").ok().
 fn random() -> String { let mut bytes=Vec::new(); for _ in 0..4 {bytes.extend_from_slice(uuid::Uuid::new_v4().as_bytes());} URL_SAFE_NO_PAD.encode(bytes) }
 #[derive(Deserialize)] struct OAuth {access_token:String,refresh_token:Option<String>}
 impl Drop for OAuth {fn drop(&mut self){self.access_token.zeroize();if let Some(v)=&mut self.refresh_token{v.zeroize();}}}
-struct Session {token:Zeroizing<String>,uuid:String,name:String,xuid:String}
+struct Session {token:Zeroizing<String>,uuid:String,name:String,xuid:String,avatar:Option<String>}
 fn denied(stage:&str,status:u16,oauth_error:Option<&str>)->BackendError{
  let message=if status==429{"Authentication request limit reached. Wait before trying again."}else if status>=500{"Authentication service is temporarily unavailable. Try again later."}else{match (stage,status,oauth_error){
   ("microsoft_oauth",_,Some("unauthorized_client"|"invalid_client"))=>"Microsoft denied this application client. Enable personal Microsoft accounts and public-client localhost redirects in its registration.",
@@ -63,7 +63,30 @@ async fn minecraft_session(b:&Backend,oauth:&str,app:Option<&AppHandle>)->Result
     let profile=json(b.private_api_client.get("https://api.minecraftservices.com/minecraft/profile").bearer_auth(token.as_str()).send().await.map_err(|_|network("minecraft_profile"))?,"minecraft_profile").await?;
     let uuid=profile["id"].as_str().filter(|id|id.len()==32&&id.chars().all(|c|c.is_ascii_hexdigit())).ok_or_else(||BackendError::new("minecraft_profile","A valid Minecraft Java profile is required"))?.to_owned();
     let name=profile["name"].as_str().ok_or_else(||BackendError::new("minecraft_profile","Minecraft player name missing"))?.to_owned();
-    Ok(Session{token,uuid,name,xuid})
+    let avatar=profile_skin(b,&profile,&uuid).await;
+    Ok(Session{token,uuid,name,xuid,avatar})
+}
+// Public texture URLs come from the authenticated Minecraft profile response.
+// Texture failure must not invalidate an otherwise valid account session.
+fn skin_url(profile:&serde_json::Value)->Option<reqwest::Url>{
+ let skin=profile["skins"].as_array()?.iter().find(|s|s["state"]=="ACTIVE")?;
+ let mut url=reqwest::Url::parse(skin["url"].as_str()?).ok()?;
+ if url.host_str()!=Some("textures.minecraft.net"){return None;}
+ if url.scheme()=="http"{url.set_scheme("https").ok()?;}
+ (url.scheme()=="https").then_some(url)
+}
+async fn profile_skin(b:&Backend,profile:&serde_json::Value,uuid:&str)->Option<String>{
+ let url=skin_url(profile)?;
+ let key=format!("{:x}",Sha256::digest(url.as_str().as_bytes()));
+ let path=b.root.join("cache/icons/skins").join(format!("{uuid}-{key}.png"));
+ if path.is_file(){return Some(path.to_string_lossy().into_owned());}
+ let mut response=b.client.get(url).timeout(Duration::from_secs(10)).send().await.ok()?;
+ if !response.status().is_success()||response.url().scheme()!="https"||response.url().host_str()!=Some("textures.minecraft.net")||response.content_length().is_some_and(|n|n>131072){return None;}
+ let mut bytes=Vec::new();while let Some(chunk)=response.chunk().await.ok()?{if bytes.len()+chunk.len()>131072{return None;}bytes.extend_from_slice(&chunk);}
+ if !bytes.starts_with(b"\x89PNG\r\n\x1a\n"){return None;}
+ let image=image::load_from_memory(&bytes).ok()?;if image.width()!=64||!matches!(image.height(),32|64){return None;}
+ std::fs::create_dir_all(path.parent()?).ok()?;std::fs::write(&path,bytes).ok()?;
+ Some(path.to_string_lossy().into_owned())
 }
 fn callback(target:&str,state:&str)->Result<String>{
     let url=reqwest::Url::parse(&format!("http://localhost{target}")).map_err(|_|BackendError::new("microsoft_callback","Invalid callback"))?;
@@ -112,7 +135,7 @@ pub async fn begin(backend:Arc<Backend>,app:AppHandle)->Result<serde_json::Value
             let existing=backend.store.lock().unwrap().accounts.iter().find(|a|a.provider=="microsoft"&&a.uuid==session.uuid).cloned();
             let id=existing.map(|a|a.id).unwrap_or_else(||uuid::Uuid::new_v4().to_string());let reference=format!("microsoft-{id}");
             accounts::save_credentials(&reference,oauth.refresh_token.as_deref().ok_or_else(||BackendError::new("microsoft_oauth","Microsoft refresh token missing"))?)?;
-            let account=Account{id:id.clone(),provider:"microsoft".into(),uuid:session.uuid,username:session.name,avatar:None,status:"authenticated".into(),last_used:None,credential_ref:Some(reference)};
+            let account=Account{id:id.clone(),provider:"microsoft".into(),uuid:session.uuid,username:session.name,avatar:session.avatar,status:"authenticated".into(),last_used:None,credential_ref:Some(reference)};
             {let mut store=backend.store.lock().unwrap();store.accounts.retain(|a|a.id!=id);store.accounts.push(account);store.settings.active_account=Some(id);}
             backend.persist()?;Ok::<_,BackendError>(())
         }).await.map_err(|error|if error.code=="cancelled"{BackendError::new("auth_cancelled","Sign-in cancelled")}else{error});
@@ -128,7 +151,7 @@ pub async fn identity(b:&Backend,account:&Account)->Result<accounts::LaunchIdent
     if let Some(rotated)=&oauth.refresh_token{accounts::save_credentials(reference,rotated)?;}
     let session=minecraft_session(b,&oauth.access_token,None).await?;
     if session.uuid!=account.uuid{return Err(BackendError::new("identity_mismatch","Microsoft account profile changed. Sign in again."));}
-    {let mut store=b.store.lock().unwrap();if let Some(a)=store.accounts.iter_mut().find(|a|a.id==account.id){a.status="authenticated".into();a.username=session.name.clone();}}
+    {let mut store=b.store.lock().unwrap();if let Some(a)=store.accounts.iter_mut().find(|a|a.id==account.id){a.status="authenticated".into();a.username=session.name.clone();if let Some(avatar)=&session.avatar{a.avatar=Some(avatar.clone());}}}
     b.persist()?;
     Ok(accounts::LaunchIdentity{username:session.name,uuid:session.uuid,access_token:session.token.to_string(),user_type:"msa".into(),xuid:session.xuid,client_id:client})
 }
@@ -138,3 +161,13 @@ pub async fn restore(b:&Backend){let accounts=b.store.lock().unwrap().accounts.c
 }
 
 #[cfg(test)]mod listener_tests {use super::*;#[tokio::test]async fn listener_rejects_forgery_then_accepts_real_state(){let listener=TcpListener::bind((std::net::Ipv4Addr::LOCALHOST,0)).await.unwrap();let address=listener.local_addr().unwrap();let cancel=Arc::new(std::sync::atomic::AtomicBool::new(false));let token=cancel.clone();let receive=tokio::spawn(async move{receive(listener,"actual-state",&token).await});for query in ["/?state=wrong&code=forged","/?state=actual-state&code=valid"]{let mut client=tokio::net::TcpStream::connect(address).await.unwrap();client.write_all(format!("GET {query} HTTP/1.1\r\nHost: localhost\r\n\r\n").as_bytes()).await.unwrap();let mut response=String::new();client.read_to_string(&mut response).await.unwrap();assert!(response.contains("no-store"));}assert_eq!(receive.await.unwrap().unwrap().as_str(),"valid");assert!(tokio::net::TcpStream::connect(address).await.is_err());}#[tokio::test]async fn cancellation_drops_listener(){let listener=TcpListener::bind((std::net::Ipv4Addr::LOCALHOST,0)).await.unwrap();let address=listener.local_addr().unwrap();let cancel=std::sync::atomic::AtomicBool::new(true);assert_eq!(receive(listener,"state",&cancel).await.err().unwrap().code,"auth_cancelled");assert!(tokio::net::TcpStream::connect(address).await.is_err());}}
+
+#[cfg(test)]mod skin_tests {
+ use super::*;use serde_json::json;
+ #[test]fn profile_skin_uses_active_publisher_texture_over_https(){
+  let p=json!({"skins":[{"state":"INACTIVE","url":"https://textures.minecraft.net/texture/old"},{"state":"ACTIVE","url":"http://textures.minecraft.net/texture/selected"}]});
+  assert_eq!(skin_url(&p).unwrap().as_str(),"https://textures.minecraft.net/texture/selected");
+  assert!(skin_url(&json!({"skins":[{"state":"ACTIVE","url":"https://unknown.invalid/skin"}]})).is_none());
+  assert!(skin_url(&json!({"skins":[]})).is_none());
+ }
+}
