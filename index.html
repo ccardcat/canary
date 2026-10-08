@@ -2,11 +2,13 @@
 <html lang="en">
   <head>
     <script>
+      document.documentElement.dataset.startup = "loading";
       try {
-        const mode = localStorage.getItem('canary-mode') || 'dark';
-        document.documentElement.dataset.mode = mode === 'system' ? (matchMedia('(prefers-color-scheme: light)').matches ? 'light' : 'dark') : ['light', 'dark', 'amoled'].includes(mode) ? mode : 'dark';
-      } catch { document.documentElement.dataset.mode = 'dark'; }
+        const mode = localStorage.getItem('canary-mode') || 'amoled';
+        document.documentElement.dataset.mode = mode === 'system' ? (matchMedia('(prefers-color-scheme: light)').matches ? 'light' : 'dark') : ['light', 'dark', 'amoled'].includes(mode) ? mode : 'amoled';
+      } catch { document.documentElement.dataset.mode = 'amoled'; }
     </script>
+    <style>html[data-startup="loading"] body{margin:0;background:#000}html[data-startup="loading"][data-mode="light"] body{background:#f3f5f4}</style>
     <meta charset="UTF-8" />
     <link rel="icon" type="image/svg+xml" href="/branding/canary-bird-white.png" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />

@@ -24,7 +24,7 @@
   --material-shadow-strength: 1;
   --shadow: 0 24px 60px #0008;
   --blur: 24px;
-  --motion: all 0.2s cubic-bezier(0.2, 0.8, 0.2, 1);
+  --motion: color 160ms,background-color 160ms,border-color 160ms,opacity 160ms,transform 160ms;
   --ease: cubic-bezier(0.2, 0.8, 0.2, 1);
   color-scheme: dark;
 
@@ -149,3 +149,5 @@
 :root[data-mode="light"][data-accent="purple"] { --accent: #6a4a9a; }
 :root[data-mode="light"][data-accent="rose"] { --accent: #9b415d; }
 :root[data-mode="light"][data-accent="orange"] { --accent: #915727; }
+
+:root[data-mode="amoled"][data-background-source="solid"][data-material-titlebar="solid"] .window-titlebar{background:#000}

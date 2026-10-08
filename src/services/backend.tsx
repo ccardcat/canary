@@ -1,4 +1,5 @@
 import {normalizeError} from "./errors";
+import {useStartupReady} from "./startup";
 import {taskStore,useTaskLifecycle} from "./taskStore";
 import {gameLogStore} from "./gameLogStore";
 import {availableProviders,configureProviders} from "./providers";
@@ -195,12 +196,12 @@ export function BackendProvider({ children }: { children: ReactNode }) {
   const retryRef=useRef<(()=>Promise<unknown>)|null>(null);
   const snapshotRef = useRef(snapshot);
   snapshotRef.current = snapshot;
-  const updateChecked = useRef(false);
+  const updateChecked = useRef(false);const startupReady=useStartupReady();
   const refreshSequence = useRef(0);
   const refresh = useCallback(async () => {
     if (isTauri()) {
       const sequence = ++refreshSequence.current;
-      const value = await invoke<Snapshot>("backend_snapshot");
+      const value = await invoke<Snapshot>("backend_snapshot",{localOnly:!snapshotRef.current});
       if (sequence === refreshSequence.current) {
         configureProviders(value.providers);
         setSnapshot(value);
@@ -321,6 +322,7 @@ export function BackendProvider({ children }: { children: ReactNode }) {
           ![
             "loader_versions",
             "minecraft_versions",
+            "list_wallpapers",
             "detect_java",
             "test_java",
             "game_logs",
@@ -423,9 +425,6 @@ export function BackendProvider({ children }: { children: ReactNode }) {
       }
       if (!cancelled) {
         await refresh();
-        void invoke("restore_accounts")
-          .then(refresh)
-          .catch(() => {});
       }
     };
     void subscribe().catch(setError);
@@ -435,18 +434,24 @@ export function BackendProvider({ children }: { children: ReactNode }) {
       taskStore.flush();gameLogStore.dispose();
     };
   }, [refresh, updateTask]);
+  useEffect(()=>{if(!isTauri()||!startupReady)return;let live=true;
+    const timer=setTimeout(()=>{void refresh().then(()=>invoke("restore_accounts")).then(()=>{if(live)return refresh();}).catch(()=>{});},250);
+    return()=>{live=false;clearTimeout(timer);};
+  },[startupReady,refresh]);
   useEffect(() => {
     if (
       !isTauri() ||
+      !startupReady ||
       !snapshot?.settings.update_checks ||
       updateChecked.current
     )
       return;
-    updateChecked.current = true;
+    const timer=setTimeout(()=>{updateChecked.current = true;
     void invoke("check_modpack_updates",{allowedProviders:availableProviders})
       .then(refresh)
-      .catch(() => {});
-  }, [snapshot?.settings.update_checks, refresh]);
+      .catch(() => {});},6000);
+    return()=>clearTimeout(timer);
+  }, [startupReady,snapshot?.settings.update_checks, refresh]);
   const clearError=useCallback(()=>{setError(null);retryRef.current=null;},[]);
   const retryError=useCallback(async()=>{const retry=retryRef.current;setError(null);retryRef.current=null;return retry?.();},[]);
   const context=useMemo(()=>({tasks:[],sessions,cancelTask,snapshot,progress:null,error,clearError,retryError,refresh,run,logs:[]}),[snapshot,error,cancelTask,clearError,retryError,refresh,run]);

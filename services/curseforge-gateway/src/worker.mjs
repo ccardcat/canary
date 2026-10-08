@@ -85,7 +85,7 @@ async function rewriteFiles(value, env, origin, now, permitted = true) {
 export function createGateway({fetchUpstream = fetch, now = Date.now} = {}) {
   async function api(path, query, env, origin, signal) {
     const url = new URL(path, API); url.search = query.toString(); url.searchParams.sort();
-    const response = await fetchUpstream(url, {cache:'no-store', redirect: 'manual', signal: AbortSignal.any([signal, AbortSignal.timeout(30000)]), headers: {'x-api-key': env.CURSEFORGE_API_KEY, 'accept': 'application/json', 'user-agent':'Canary/0.1.5 (+https://github.com/ccardcat/canary; identified server gateway)'}});
+    const response = await fetchUpstream(url, {cache:'no-store', redirect: 'manual', signal: AbortSignal.any([signal, AbortSignal.timeout(30000)]), headers: {'x-api-key': env.CURSEFORGE_API_KEY, 'accept': 'application/json', 'user-agent':'Canary/0.1.8 (+https://github.com/ccardcat/canary; identified server gateway)'}});
     if (!response.ok) {
       await response.body?.cancel();
       if (response.status === 429) fail(429, 'provider_rate_limit', 'CurseForge is temporarily rate limited');

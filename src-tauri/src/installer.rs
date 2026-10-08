@@ -260,7 +260,7 @@ pub async fn install_at_job<F:FnMut(Progress)>(project_id:&str,version_id:&str,n
             return Err(InstallError::new(stage, "Invalid project or version ID"));
         }
         let client = reqwest::Client::builder()
-            .user_agent("Canary/0.1.0 (github.com/ccardcat/canary)")
+            .user_agent(concat!("Canary/",env!("CARGO_PKG_VERSION")," (github.com/ccardcat/canary)"))
             .connect_timeout(Duration::from_secs(30))
             .timeout(Duration::from_secs(300))
             .build()

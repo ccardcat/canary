@@ -18,6 +18,7 @@ import ProjectCard from "./components/ProjectCard";
 import {DiscoverModInstall} from "./components/DiscoverModInstall";
 import {providerInvoke,providerAvailable,providerDetail,providerVersions,providerName,providerSite,type Provider} from "./services/providers";
 import { useDiscovery } from "./hooks/useDiscovery";
+import {useStartupReady} from "./services/startup";
 import { diagnostics, type Progress } from "./services/installation";
 import { externalLink } from "./services/links";
 import RemoteImage from "./components/RemoteImage";
@@ -145,7 +146,8 @@ function App() {
   const dict = lang === "ru" ? ru : en;
   const t = useCallback<T>((key) => dict[key] ?? en[key], [dict]);
   const [page, setPage] = useState<Page>("Home");
-  const discovery = useDiscovery();
+  const startupReady=useStartupReady();const {value:visual}=useVisualAppearance();
+  const discovery = useDiscovery(startupReady&&page==="Discover");
   const [community, setCommunity] = useState<Project[]>([]);
   const [communityError, setCommunityError] = useState(false);
   const [librarySelectionId,setLibrarySelectionId]=useState<string|null>(null);
@@ -174,7 +176,7 @@ function App() {
   const [accountOpen, setAccountOpen] = useState(false);
   const discordStatus=useDiscordPresence({kind:settingsOpen?"settings":detail?"project":page==="Home"?"home":page==="Discover"?"discover":page==="Library"?"library":"idle",locale:lang,projectName:detail?.title??"",provider:detail?.provider??discovery.provider,category:detail?.project_type??discovery.type});
   const [mode, setMode] = useState<Mode>(
-    () => (localStorage.getItem("canary-mode") as Mode) || "dark",
+    () => {const saved=localStorage.getItem("canary-mode");return ["light","dark","amoled","system"].includes(saved||"")?saved as Mode:"amoled";},
   );
   const [accent, setAccent] = useState<Accent>(
     () => (localStorage.getItem("canary-accent") as Accent) || "monochrome",
@@ -232,6 +234,7 @@ function App() {
     localStorage.setItem("canary-motion", reduceMotion ? "reduced" : "full");
   }, [mode, resolvedMode, resolvedPreset, accent, preset, compact, reduceMotion, lang]);
   useEffect(() => {
+    if(!startupReady||!visual.showCommunity)return;
     const controller = new AbortController();
     searchProjects(
       "modpack",
@@ -246,7 +249,7 @@ function App() {
         if (!controller.signal.aborted) setCommunityError(true);
       });
     return () => controller.abort();
-  }, []);
+  }, [startupReady,visual.showCommunity]);
   useEffect(() => {
     const close = (e: MouseEvent) => {
       if (!accountRef.current?.contains(e.target as Node))
@@ -389,7 +392,7 @@ function App() {
   return (
     <MotionConfig
       reducedMotion={reduceMotion ? "always" : "user"}
-      transition={{ duration: 0.2, ease: [0.2, 0.8, 0.2, 1] }}
+      transition={{ duration: 0.16, ease: [0.2, 0.8, 0.2, 1] }}
     >
       <TitleBar light={resolvedMode === "light"} russian={lang === "ru"} />
       <div className={"canary-app" + (busy ? " is-installing" : "")}>
@@ -471,10 +474,6 @@ function App() {
         <main className="content-shell">
           <header className="topbar">
             <div className="topbar-heading">
-              <div className="breadcrumb">
-                CANARY <span>/</span>{" "}
-                {detail ? t("view") : t(page.toLowerCase() as Key)}
-              </div>
               {page === "Home" && !detail ? <HomeGreeting russian={lang === "ru"} username={activeAccount && ("display_name" in activeAccount && typeof activeAccount.display_name === "string" ? activeAccount.display_name.trim() || activeAccount.username : activeAccount.username)}/> : <h1>{detail ? detail.title : t(page.toLowerCase() as Key)}</h1>}
               {page === "Home" && !detail && (
                 <p className="topbar-sub">{t("sub")}</p>
@@ -513,9 +512,9 @@ function App() {
             <motion.div
               className="page-transition"
               key={detail ? `project-${detail.provider || "modrinth"}-${detail.id}` : page}
-              initial={{ opacity: 0, y: 8 }}
-              animate={{ opacity: 1, y: 0 }}
-              exit={{ opacity: 0, y: -6 }}
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              exit={{ opacity: 0 }}
             >
               {modProject&&<DiscoverModInstall project={modProject} russian={lang==="ru"} onClose={()=>setModProject(null)} onQueued={()=>navigation("Downloads")}/>}
               {detail ? (
@@ -1269,7 +1268,6 @@ function LibraryPage({
     <section className="library-page">
       <div className="library-intro">
         <div>
-          <div className="overline">CANARY / {t("library").toUpperCase()}</div>
           <h2>{lib.length ? t("library") : t("emptyLibrary")}</h2>
           <p>
             {lib.length
@@ -1606,7 +1604,6 @@ function DownloadsPage({
 }) {
   return (
     <section className="downloads-page">
-      <div className="overline">CANARY / {t("downloads").toUpperCase()}</div>
       <h2>
         {progress?.status === "success"
           ? t("completed")
@@ -1783,7 +1780,6 @@ function SettingsModal({
       >
         <div className="settings-top">
           <div>
-            <div className="overline">CANARY</div>
             <h2>{t("settings")}</h2>
           </div>
           <button onClick={onClose} aria-label={t("close")}>
@@ -1912,7 +1908,6 @@ function Appearance({
   return (
     <div className="appearance-settings">
       <div className="setting-intro">
-        <div className="overline">CANARY / {t("appearance").toUpperCase()}</div>
         <h3>{t("appearance")}</h3>
         <p>{t("appearanceSub")}</p>
       </div>

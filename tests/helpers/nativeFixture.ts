@@ -22,7 +22,10 @@ globalThis.__materialQA={state,calls:[]};
 mockIPC((command,args)=>{
  globalThis.__materialQA.calls.push({command,args});
  if(globalThis.__materialQA.overrides?.[command])return globalThis.__materialQA.overrides[command](args);
- if(command==='backend_snapshot')return structuredClone(state);
+ if(command==='backend_snapshot'){
+  if(args?.localOnly&&globalThis.__startupQA?.holdSnapshot)return new Promise(resolve=>(globalThis.__startupQA.resolvers ||= []).push(()=>resolve(structuredClone(state))));
+  return structuredClone(state);
+ }
  if(command==='list_wallpapers')return globalThis.__customWallpapers||[];
  if(command==='game_log_sessions')return [];
  if(command==='read_game_log')return '';
@@ -35,7 +38,7 @@ mockIPC((command,args)=>{
  if(command==='content_project')return {id:'sodium',title:'Sodium',description:'Rendering improvements',body:'A readable description.',game_versions:['1.21.1'],loaders:['fabric']};
  if(command==='content_versions')return [{id:'sodium-v1',name:'Sodium 1',version_number:'1',version_type:'release'}];
  if(command==='storage_usage')return {path:'C:/Users/CanaryPlayer/AppData/Roaming/Canary/instances/very-long-folder-name-without-spaces-for-responsive-validation',used:1073741824,free:10737418240,available:true,breakdown:{instances:1073741824,cache:1073741824,java:1073741824,logs:1048576,total:3222274048}};
- if(command==='window_material_capabilities')return {platform:'windows',build:22621,supported:['solid']};
+ if(command==='window_material_capabilities')return globalThis.__startupQA?.nativeCaps||{platform:'windows',build:22621,supported:['solid']};
  if(command==='apply_window_material')return {requested:args.requested,actual:'solid',fallback:false};
  if(command==='minecraft_versions')return [{id:'1.21.1'}];
  if(command==='loader_versions')return [{loader:{version:'0.16.0'}}];

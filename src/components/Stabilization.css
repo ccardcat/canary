@@ -44,19 +44,22 @@
 :root[data-material-buttons="vibrancy"] button{border-color:transparent;box-shadow:none}
 :root[data-material-inputs="vibrancy"] :is(input,textarea,.glass-select-trigger){border-color:var(--border-subtle);box-shadow:none}
 .startup-app{display:contents}
-.startup-splash{position:fixed;inset:0;z-index:2000;display:grid;place-items:center;background:rgb(30 30 34 / .12);backdrop-filter:blur(26px) saturate(.85);animation:startup-overlay 2.15s cubic-bezier(.22,.61,.36,1) forwards}
+:root[data-startup="loading"] .startup-app{visibility:hidden}
+:root[data-startup="loading"] :is(.ambient-particles i,.global-wallpaper,.artwork-current){animation-play-state:paused!important}
+:root[data-document-visible="false"] :is(.ambient-particles i,.global-wallpaper,.sidebar-art){animation-play-state:paused!important}
+.startup-splash{position:fixed;inset:0;z-index:2000;display:grid;place-items:center;background:var(--bg,#000);backdrop-filter:none;opacity:1;transition:opacity 220ms ease}
+.startup-splash.leaving{opacity:0}
 .startup-brand{display:flex;align-items:center;justify-content:center;gap:20px;max-width:90vw;--logo-start-offset:100px}
-.startup-logo{position:relative;z-index:2;width:104px;height:104px;object-fit:contain;animation:startup-logo 2.15s cubic-bezier(.22,.61,.36,1) both}
-.startup-word-mask{overflow:hidden;clip-path:inset(-10px 0 -10px 0)}
-.startup-wordmark{display:block;color:var(--text);font:700 34px/1.2 var(--ui-font,Nunito);letter-spacing:.17em;animation:startup-wordmark 2.15s cubic-bezier(.22,.61,.36,1) both}
+.startup-logo{position:relative;z-index:2;width:104px;height:104px;object-fit:contain;animation:startup-logo 1.1s cubic-bezier(.22,.61,.36,1) both}
+.startup-word-mask{overflow:hidden}
+.startup-wordmark{display:block;color:var(--text,#fff);font:700 34px/1.2 "Segoe UI",sans-serif;letter-spacing:.17em;animation:startup-wordmark 1.1s cubic-bezier(.22,.61,.36,1) both}
 :root[data-mode="light"] .startup-logo{filter:brightness(.22)}
-@keyframes startup-logo{0%{opacity:0;transform:translateX(var(--logo-start-offset)) translateY(6px) scale(.92)}18%,25%{opacity:1;transform:translateX(var(--logo-start-offset)) scale(1)}48%,80%{opacity:1;transform:translateX(0) scale(1)}96%,100%{opacity:0;transform:translateX(0) scale(.98)}}
-@keyframes startup-wordmark{0%,25%{opacity:0;transform:translateX(-110%);filter:blur(3px)}48%,77%{opacity:1;transform:translateX(0);filter:blur(0)}92%,100%{opacity:0;transform:translateX(0);filter:blur(0)}}
-@keyframes startup-overlay{0%,77%{backdrop-filter:blur(26px) saturate(.85);background:rgb(30 30 34 / .12)}100%{backdrop-filter:blur(0) saturate(1);background:transparent}}
-.startup-splash.reduced{animation-duration:.55s}.reduced .startup-logo{animation:startup-reduced .5s both;transform:translateX(var(--logo-start-offset))}.reduced .startup-wordmark{display:none}
-@keyframes startup-reduced{0%{opacity:0}30%,65%{opacity:1}100%{opacity:0}}
+@keyframes startup-logo{0%{opacity:0;transform:translateX(var(--logo-start-offset)) translateY(4px) scale(.96)}18%,25%{opacity:1;transform:translateX(var(--logo-start-offset)) scale(1)}65%,100%{opacity:1;transform:translateX(0) scale(1)}}
+@keyframes startup-wordmark{0%,25%{opacity:0;transform:translateX(-100%)}65%,100%{opacity:1;transform:translateX(0)}}
+.startup-splash.reduced .startup-logo{animation:none;transform:translateX(var(--logo-start-offset))}
+.startup-splash.reduced .startup-wordmark{display:none}
 @media(max-width:700px){.startup-logo{width:88px;height:88px}.startup-wordmark{font-size:28px}.startup-brand{gap:16px}.game-log-toolbar{flex-wrap:wrap}.game-log-line{grid-template-columns:70px 48px minmax(0,1fr)}}
-@media(prefers-reduced-motion:reduce){.startup-splash{animation-duration:.55s}.startup-logo{animation:startup-reduced .5s both;transform:translateX(var(--logo-start-offset))}.startup-wordmark{display:none}}
+@media(prefers-reduced-motion:reduce){.startup-logo{animation:none;transform:translateX(var(--logo-start-offset))}.startup-wordmark{display:none}}
 
 /* Selection is expressed through fill; keyboard focus retains the shared ring. */
 :root .nav-capsule{border-color:transparent;box-shadow:none;backdrop-filter:none}

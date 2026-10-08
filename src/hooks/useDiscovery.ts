@@ -11,7 +11,7 @@ import {
   type DiscoveryState,
 } from "../services/discovery";
 
-export function useDiscovery() {
+export function useDiscovery(enabled=true) {
   const availability=useProviderAvailability();
   const [state, dispatch] = useReducer(discoveryReducer, initialDiscovery);
   const [result, setResult] = useState<{
@@ -22,6 +22,7 @@ export function useDiscovery() {
   }>({ projects: [], total: 0, loading: true, error: null });
   const [revision, setRevision] = useState(0);
   useEffect(() => {
+    if(!enabled)return;
     const controller = new AbortController();
     let active = true;
     if (state.type === "server" || !providerAvailable(state.provider)) {
@@ -55,7 +56,7 @@ export function useDiscovery() {
       clearTimeout(timer);
       controller.abort();
     };
-  }, [state, revision,availability]);
+  }, [state, revision,availability,enabled]);
   return {
     ...state,
     ...(providerAvailable(state.provider) ? result : {projects:[],total:0,loading:false,error:null}),

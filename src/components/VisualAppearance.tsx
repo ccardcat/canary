@@ -8,7 +8,7 @@ import type { CSSProperties } from "react";
 import "./VisualAppearance.css";
 import "./CursorPack.css";
 import "./LiquidGlass.css";
-import {materialDefaults,layoutDefaults,normalizeLayout,normalizeMaterials,applyLayoutTokens,applyMaterialTokens,type LayoutPreferences,type MaterialPreferences} from "./MaterialSystem";
+import {materialDefaults,materialPresetPatch,layoutDefaults,normalizeLayout,normalizeMaterials,applyLayoutTokens,applyMaterialTokens,type LayoutPreferences,type MaterialPreferences} from "./MaterialSystem";
 import MaterialSettings, {MaterialLayoutSettings} from "./MaterialSettings";
 import ArtworkFade from "./ArtworkFade";
 import DesktopBehavior from "./DesktopBehavior";
@@ -23,9 +23,11 @@ import {windowDefaults,useNativeMaterial,WindowMaterialSettings,WindowControlsSe
 const fonts = ["Nunito", "Manrope", "Plus Jakarta Sans", "Rubik", "Monocraft"];
 export type Preferences = DiscordPreferences & PolishPreferences & WindowPreferences & MaterialPreferences & LayoutPreferences & { app: string; sidebar: string; linked: boolean; intensity: number; blur: number; sidebarBlur: number; font: string; fontScale: 90 | 100 | 110 | 120; minecraft: "headings" | "full"; showCommunity:boolean; backgroundVersion:number;compactCardsVersion:number; ambient: "off" | "automatic" | "sakura" | "snow" | "autumn" };
 const defaults: Preferences = { ...discordDefaults, ...polishDefaults,...windowDefaults,...layoutDefaults,...materialDefaults, app: "green", sidebar: "default", linked: false, intensity: 85, blur: 8, sidebarBlur: 12, font: "Nunito", fontScale:100, minecraft: "headings", showCommunity:true, backgroundVersion:1, compactCardsVersion:1, ambient: "off" };
+const freshDefaults:Preferences={...defaults,...materialPresetPatch("solid"),backgroundSource:"solid",materialRadius:14,cursor:"system",showCommunity:false};
 export function normalizePreferences(input:unknown):Preferences {
  const saved=input&&typeof input==="object"?input as Record<string,unknown>:{};
- const result={...defaults,...normalizeMaterials(saved),...normalizeLayout(saved),globalTreatment:{...defaults.globalTreatment},sidebarTreatment:{...defaults.sidebarTreatment}};
+ const base=Object.keys(saved).length?defaults:freshDefaults;
+ const result={...base,...normalizeMaterials(Object.keys(saved).length?saved:base),...normalizeLayout(Object.keys(saved).length?saved:base),globalTreatment:{...base.globalTreatment},sidebarTreatment:{...base.sidebarTreatment}};
  const fields=result as unknown as Record<string,unknown>;
  for(const key of Object.keys(defaults).filter(key=>!(key in materialDefaults)&&!(key in layoutDefaults))){const value=saved[key];if(typeof value===typeof fields[key]&&(typeof value!=="number"||Number.isFinite(value)))fields[key]=value;}
  const enums:Record<string,string[]>={backgroundSource:["canary","desktop","solid"],material:["solid","transparent","acrylic","mica","mica-alt"],tint:["neutral","theme","strong"],vibrancyPreset:["off","subtle","balanced","glass","custom"],titlebarBranding:["icon","text","icon-text","hidden"],windowControls:["windows","minimal","compact","traffic-lights"],controlsPosition:["left","right"],effectPreset:["off","low","medium","high","custom"],ambient:["off","automatic","sakura","snow","autumn"],quality:["low","balanced","high"],sidebarSide:["left","right"],cursor:["system","custom"],minecraft:["headings","full"],font:fonts};
@@ -46,10 +48,10 @@ export function normalizePreferences(input:unknown):Preferences {
  result.backgroundVersion=1;
  return result;
 }
-const Context = createContext<{ registry:Background[];reload:()=>Promise<void>;value: Preferences; native:ReturnType<typeof useNativeMaterial>|null;update: (patch: Partial<Preferences>) => void;preview:(patch:Partial<Preferences>)=>void }>({registry:backgrounds,reload:async()=>{},value: defaults,native:null,update: () => {},preview:()=>{} });
+const Context = createContext<{ registry:Background[];wallpapersReady:boolean;reload:()=>Promise<void>;value: Preferences; native:ReturnType<typeof useNativeMaterial>|null;update: (patch: Partial<Preferences>) => void;preview:(patch:Partial<Preferences>)=>void }>({registry:backgrounds,wallpapersReady:true,reload:async()=>{},value: defaults,native:null,update: () => {},preview:()=>{} });
 export const useVisualAppearance=()=>useContext(Context);
 export function VisualAppearanceProvider({ children }: { children: ReactNode }) {
-  const {run}=useBackend();const [custom,setCustom]=useState<Background[]>([]);
+  const {run}=useBackend();const [custom,setCustom]=useState<Background[]>([]);const [wallpapersReady,setWallpapersReady]=useState(!isTauri());
   const objectUrls=useRef(new Set<string>());const loadSequence=useRef(0);
   useEffect(()=>()=>{loadSequence.current++;objectUrls.current.forEach(url=>URL.revokeObjectURL(url));objectUrls.current.clear();},[]);
   const reload=async()=>{
@@ -67,20 +69,13 @@ export function VisualAppearanceProvider({ children }: { children: ReactNode }) 
       setTimeout(()=>{retired.forEach(url=>{URL.revokeObjectURL(url);objectUrls.current.delete(url);});},1000);
     }catch(error){created.forEach(url=>URL.revokeObjectURL(url));throw error;}
   };
-  useEffect(()=>{void reload().catch(()=>{});},[run]);const registry=[...backgrounds,...custom];
+  useEffect(()=>{let live=true;void reload().catch(()=>{}).finally(()=>{if(live)setWallpapersReady(true);});return()=>{live=false;};},[run]);const registry=[...backgrounds,...custom];
 
   const [value, setValue] = useState<Preferences>(() => {
     try {
       const saved = JSON.parse(localStorage.getItem("canary-visual") || "{}");
-      return normalizePreferences({
-        ...saved,
-        fontScale: [90,100,110,120].includes(saved.fontScale) ? saved.fontScale : 100,
-        // Old generated cursor choices migrate to the supplied native pack.
-        cursor: saved.cursor === "system" ? "system" : "custom",
-        globalTreatment: { ...polishDefaults.globalTreatment, ...saved.globalTreatment },
-        sidebarTreatment: { ...polishDefaults.sidebarTreatment, ...saved.sidebarTreatment },
-      });
-    } catch { return defaults; }
+      return normalizePreferences(saved);
+    } catch { return freshDefaults; }
   });
   const [reduced, setReduced] = useState(false);
   const native=useNativeMaterial(value);
@@ -123,12 +118,12 @@ export function VisualAppearanceProvider({ children }: { children: ReactNode }) 
   useEffect(()=>{const flush=()=>localStorage.setItem("canary-visual",JSON.stringify(savedRef.current));window.addEventListener("pagehide",flush);return()=>{window.removeEventListener("pagehide",flush);flush();};},[]);
   useLayoutEffect(()=>{for(const key of ["density","particleOpacity","particleSpeed","particleSize","particleWind"] as const)previewParticle(key,value[key]);},[value.density,value.particleOpacity,value.particleSpeed,value.particleSize,value.particleWind,value.ambient,value.quality,value.app,value.sidebar,value.focus,reduced]);
   const update=useCallback((patch:Partial<Preferences>)=>{cancelAnimationFrame(previewFrame.current);previewFrame.current=0;pendingPreview.current={};setValue(old=>({...old,...patch,...(!("materialPreset" in patch)&&Object.keys(patch).some(key=>key in materialDefaults||["surfaceOpacity","surfaceBlur","glassIntensity"].includes(key))?{materialPreset:"custom"}:{})}));},[]);
-  useEffect(()=>{const pause=()=>{const layer=document.querySelector<HTMLElement>(".ambient-particles");layer?.getAnimations({subtree:true}).forEach(animation=>document.hidden?animation.pause():animation.play());};document.addEventListener("visibilitychange",pause);return()=>document.removeEventListener("visibilitychange",pause);},[]);
+  useEffect(()=>{const pause=()=>{document.documentElement.dataset.documentVisible=String(!document.hidden);document.querySelectorAll<HTMLElement>(".ambient-particles,.global-wallpaper,.sidebar-art").forEach(layer=>layer.getAnimations({subtree:true}).forEach(animation=>document.hidden?animation.pause():animation.play()));};pause();document.addEventListener("visibilitychange",pause);return()=>document.removeEventListener("visibilitychange",pause);},[]);
   const automaticSakura = value.sidebar === "default" ||
     registry.some(p => (p.id === value.app || p.id === value.sidebar) && p.ambient === "sakura");
   const effect = value.ambient === "automatic" ? (automaticSakura ? "sakura" : "off") : value.ambient;
-  const image = registry.find(p => p.id === value.app)?.app;
-  return <Context.Provider value={{registry,reload,value,native,update,preview }}>
+  const image = value.backgroundSource==="canary"?registry.find(p => p.id === value.app)?.app:undefined;
+  return <Context.Provider value={{registry,wallpapersReady,reload,value,native,update,preview }}>
     <div className="visual-backdrop" aria-hidden="true">
       <ArtworkFade source={image} className="global-wallpaper" />
       <div className="wallpaper-veil" />
@@ -157,6 +152,7 @@ export function VisualPreferences({ russian,group="all",effectsControls }: { rus
 
 export function SidebarArtwork() {
   const { value,registry } = useContext(Context);
+  if((value.materialLinked?value.materialStyle:value.materialCategories.sidebar)==="solid")return null;
   return <ArtworkFade source={registry.find(p => p.id === value.sidebar)?.sidebar || "/backgrounds/sidebar-bg.webp"} className="sidebar-art" />;
 }
 export function WindowPreferencesPanel({russian}:{russian:boolean}){const {value,update}=useContext(Context);return <WindowControlsSettings russian={russian} value={value} update={update}/>;}

@@ -77,9 +77,9 @@ impl Backend {
         for path in &store.instance_roots {transaction::recover(std::path::Path::new(path))?;}
         startup_phase("HTTP client initialization");
         Ok(Self { root,server_history_checked:Mutex::new(std::collections::HashSet::new()),curseforge_health:tokio::sync::Mutex::new(None),discord:Arc::new(discord::Manager::default()),tasks:Mutex::new(HashMap::new()),staged:Mutex::new(HashMap::new()),wallpaper_lock:Mutex::new(()),maintenance:AtomicBool::new(false),auth:tokio::sync::Mutex::new(()),account_resources:Mutex::new(HashMap::new()), store: Mutex::new(store), jobs: Mutex::new(HashMap::new()), provider_requests:Mutex::new(HashMap::new()), processes: Mutex::new(HashMap::new()),
-            private_api_client:reqwest::Client::builder().user_agent("Canary/0.1.0").redirect(reqwest::redirect::Policy::none()).timeout(std::time::Duration::from_secs(30)).build()?,
-            private_download_client:reqwest::Client::builder().user_agent("Canary/0.1.0").redirect(reqwest::redirect::Policy::none()).connect_timeout(std::time::Duration::from_secs(20)).timeout(std::time::Duration::from_secs(300)).build()?,
-            client: reqwest::Client::builder().user_agent("Canary/0.1.0 (https://github.com/ccardcat/canary)")
+            private_api_client:reqwest::Client::builder().user_agent(concat!("Canary/",env!("CARGO_PKG_VERSION"))).redirect(reqwest::redirect::Policy::none()).timeout(std::time::Duration::from_secs(30)).build()?,
+            private_download_client:reqwest::Client::builder().user_agent(concat!("Canary/",env!("CARGO_PKG_VERSION"))).redirect(reqwest::redirect::Policy::none()).connect_timeout(std::time::Duration::from_secs(20)).timeout(std::time::Duration::from_secs(300)).build()?,
+            client: reqwest::Client::builder().user_agent(concat!("Canary/",env!("CARGO_PKG_VERSION")," (https://github.com/ccardcat/canary)"))
                 .connect_timeout(std::time::Duration::from_secs(20)).timeout(std::time::Duration::from_secs(300)).build()? })
     }
     pub fn record_activity(&self,kind:&str,message:&str,instance:Option<&str>)->Result<()>{

@@ -1,0 +1,98 @@
+import {test,expect} from "@playwright/test";
+import {mkdirSync} from "node:fs";
+import {nativeFixture} from "./helpers/nativeFixture";
+
+test("fresh profile opens with an opaque splash and a simple black interface",async({page})=>{
+ mkdirSync(".qa/startup",{recursive:true});await nativeFixture(page);
+ const queries:string[]=[];page.on("request",request=>{if(request.url().includes("api.modrinth.com"))queries.push(request.url());});
+ await page.goto("/");const splash=page.locator(".startup-splash");
+ await expect(splash).toBeVisible();await expect(splash).toHaveCSS("backdrop-filter","none");
+ await expect(splash).toHaveCSS("background-color","rgb(0, 0, 0)");
+ await expect(page.locator(".startup-app")).toHaveAttribute("inert","");
+ await expect(page.locator(".startup-app")).toHaveCSS("visibility","hidden");
+ await page.screenshot({path:".qa/startup/splash.png"});
+ await expect(splash).toHaveCount(0);await expect(page.locator("html")).toHaveAttribute("data-startup","ready");
+ await expect(page.locator("html")).toHaveAttribute("data-mode","amoled");
+ await expect(page.locator("html")).toHaveAttribute("data-background-source","solid");
+ await expect(page.locator(".window-titlebar")).toHaveCSS("background-color","rgb(0, 0, 0)");
+ await expect(page.locator(".global-wallpaper,.sidebar-art,.ambient-particles,.home-hero,.community-section")).toHaveCount(0);
+ expect(queries).toEqual([]);
+ expect(await page.evaluate(()=>(globalThis as any).__materialQA.calls.find((c:any)=>c.command==="backend_snapshot").args.localOnly)).toBe(true);
+ await page.screenshot({path:".qa/startup/fresh-profile.png"});
+ await page.getByRole("button",{name:"Library",exact:true}).first().click();
+ await expect(page.locator(".library-intro .overline,.topbar .breadcrumb")).toHaveCount(0);
+ await page.getByRole("button",{name:"Discover",exact:true}).first().click();
+ await expect.poll(()=>queries.length).toBeGreaterThan(0);
+});
+
+test("splash waits for delayed local data and defers remote maintenance",async({page})=>{
+ await page.addInitScript(()=>{(globalThis as any).__startupQA={holdSnapshot:true};});
+ await nativeFixture(page);await page.goto("/");
+ await expect(page.locator(".startup-splash")).toBeVisible();
+ await page.waitForTimeout(3250);
+ await expect(page.locator(".startup-splash")).toBeVisible();
+ expect(await page.evaluate(()=>(globalThis as any).__materialQA.calls.some((c:any)=>["restore_accounts","check_modpack_updates"].includes(c.command)))).toBe(false);
+ await page.evaluate(()=>{const qa=(globalThis as any).__startupQA;qa.holdSnapshot=false;qa.resolvers.forEach((release:()=>void)=>release());});
+ await expect(page.locator(".startup-splash")).toHaveCount(0);
+ await expect(page.locator(".continuation-card")).toHaveCount(3);
+ await expect.poll(()=>page.evaluate(()=>(globalThis as any).__materialQA.calls.some((c:any)=>c.command==="restore_accounts"))).toBe(true);
+});
+
+test("startup preserves a saved light glass theme and background",async({page})=>{
+ await page.addInitScript(()=>{localStorage.setItem("canary-mode","light");localStorage.setItem("canary-preset","warm");localStorage.setItem("canary-visual",JSON.stringify({backgroundSource:"canary",app:"sakura1",sidebar:"green",materialPreset:"glass",materialLinked:true,materialStyle:"glass",surfaceOpacity:42,fontScale:110,showCommunity:false}));});
+ await nativeFixture(page);await page.goto("/");await expect(page.locator(".startup-splash")).toHaveCount(0);
+ await expect(page.locator("html")).toHaveAttribute("data-mode","light");await expect(page.locator("html")).toHaveAttribute("data-preset","warm");
+ await expect(page.locator("html")).toHaveAttribute("data-material-cards","glass");
+ await expect(page.locator(".global-wallpaper .artwork-current")).toBeVisible();
+ const saved=await page.evaluate(()=>JSON.parse(localStorage.getItem("canary-visual")!));
+ expect(saved).toMatchObject({app:"sakura1",sidebar:"green",surfaceOpacity:42,fontScale:110});
+ const material=await page.evaluate(()=>(globalThis as any).__materialQA.calls.filter((c:any)=>c.command==="apply_window_material"));
+ expect(material).toHaveLength(1);expect(material[0].args.theme).toBe("light");
+ await page.screenshot({path:".qa/startup/saved-light.png"});
+ await page.getByRole("button",{name:"Settings",exact:true}).first().click();
+ await page.locator(".settings-nav").getByRole("button",{name:"Background",exact:true}).click();
+ await page.getByRole("button",{name:/Solid color/}).click();
+ await expect(page.locator("html")).toHaveAttribute("data-background-source","solid");
+ await page.waitForTimeout(250);
+ expect(await page.evaluate(()=>(globalThis as any).__materialQA.calls.filter((c:any)=>c.command==="apply_window_material").length)).toBe(1);
+});
+
+test("background animations pause while the document is hidden",async({page})=>{
+ await page.addInitScript(()=>localStorage.setItem("canary-visual",JSON.stringify({backgroundSource:"canary",app:"green",ambient:"snow",showCommunity:false})));
+ await nativeFixture(page);await page.goto("/");await expect(page.locator(".startup-splash")).toHaveCount(0);
+ await page.evaluate(()=>{Object.defineProperty(document,"hidden",{configurable:true,value:true});document.dispatchEvent(new Event("visibilitychange"));});
+ await expect(page.locator("html")).toHaveAttribute("data-document-visible","false");
+ await expect(page.locator(".global-wallpaper")).toHaveCSS("animation-play-state","paused");
+ await page.evaluate(()=>{Object.defineProperty(document,"hidden",{configurable:true,value:false});document.dispatchEvent(new Event("visibilitychange"));});
+ await expect(page.locator("html")).toHaveAttribute("data-document-visible","true");
+});
+
+test("wallpaper changes remain paired and settle to a single decoded layer",async({page})=>{
+ await page.addInitScript(()=>{if(!localStorage.getItem("canary-visual"))localStorage.setItem("canary-visual",JSON.stringify({backgroundSource:"canary",app:"green",materialLinked:true,materialStyle:"glass",showCommunity:false}));});
+ await nativeFixture(page);await page.goto("/");await expect(page.locator(".startup-splash")).toHaveCount(0);
+ await page.getByRole("button",{name:"Settings",exact:true}).first().click();
+ await page.locator(".settings-nav").getByRole("button",{name:"Background",exact:true}).click();
+ await page.getByRole("checkbox",{name:"Use one picture for launcher and sidebar"}).check();
+ for(const number of [1,2]){
+  await page.locator(".background-options").getByRole("button",{name:`Sakura ${number}`,exact:true}).click();
+  await expect(page.locator(".global-wallpaper .artwork-current")).toHaveCSS("background-image",new RegExp(`sakura${number}-bg.jpg`));
+  await expect(page.locator(".sidebar-art .artwork-current")).toHaveCSS("background-image",new RegExp(`sakura${number}-sidebar.jpg`));
+  await expect(page.locator(".global-wallpaper .artwork-layer")).toHaveCount(1);
+ }
+ await page.reload();await expect(page.locator(".startup-splash")).toHaveCount(0);
+ await expect(page.locator(".global-wallpaper .artwork-current")).toHaveCSS("background-image",/sakura2-bg.jpg/);
+});
+
+test("native material deduplication restores Solid after a delayed Desktop request",async({page})=>{
+ await page.addInitScript(()=>{(globalThis as any).__startupQA={nativeCaps:{platform:"windows",build:22621,supported:["solid","acrylic"]}};});
+ await nativeFixture(page);await page.goto("/");await expect(page.locator(".startup-splash")).toHaveCount(0);
+ await page.evaluate(()=>{const qa=(globalThis as any).__startupQA;(globalThis as any).__materialQA.overrides={apply_window_material:(args:any)=>args.requested==="acrylic"?new Promise(resolve=>{qa.releaseMaterial=()=>resolve({requested:"acrylic",actual:"acrylic",fallback:false});}):{requested:args.requested,actual:args.requested,fallback:false}};});
+ await page.getByRole("button",{name:"Settings",exact:true}).first().click();
+ await page.locator(".settings-nav").getByRole("button",{name:"Background",exact:true}).click();
+ await page.getByRole("button",{name:/Desktop.*Transparent Windows window/}).click();
+ await expect.poll(()=>page.evaluate(()=>!!(globalThis as any).__startupQA.releaseMaterial)).toBe(true);
+ await page.getByRole("button",{name:/Solid color/}).click();
+ await page.evaluate(()=>(globalThis as any).__startupQA.releaseMaterial());
+ await expect.poll(()=>page.evaluate(()=>(globalThis as any).__materialQA.calls.filter((c:any)=>c.command==="apply_window_material").at(-1).args.requested)).toBe("solid");
+ await expect(page.locator("html")).toHaveAttribute("data-window-material","solid");
+});

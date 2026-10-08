@@ -9,7 +9,9 @@
         "decorations": false,
         "minWidth": 760,
         "minHeight": 540,
-        "transparent": true
+        "transparent": true,
+        "visible": false,
+        "backgroundColor": "#000000"
       }
     ]
   }

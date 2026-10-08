@@ -19,32 +19,38 @@ const fallbackCaps:Capabilities={platform:"browser",build:0,supported:["solid"]}
 const names:Record<Material,string>={solid:"Solid",transparent:"Transparent",acrylic:"Acrylic",mica:"Mica","mica-alt":"Mica Alt"};
 
 export function useNativeMaterial(value:WindowPreferences) {
+  const [capsReady,setCapsReady]=useState(!isTauri());const [ready,setReady]=useState(!isTauri());
   const [caps,setCaps]=useState(fallbackCaps);
   const [applied,setApplied]=useState<Applied>({requested:"solid",actual:"solid",fallback:false});
   const [theme,setTheme]=useState(document.documentElement.dataset.mode||"dark");
   const [fullscreen,setFullscreen]=useState(false);
-  const queue=useRef(Promise.resolve());const sequence=useRef(0);
-  useEffect(()=>{if(!isTauri())return;let live=true;void invoke<Capabilities>("window_material_capabilities").then(v=>{if(live&&v?.supported)setCaps(v);}).catch(()=>{});return()=>{live=false;};},[]);
+  const queue=useRef(Promise.resolve());const sequence=useRef(0);const lastApplied=useRef("");const inFlight=useRef(false);
+  useEffect(()=>{if(!isTauri())return;let live=true;void invoke<Capabilities>("window_material_capabilities").then(v=>{if(live&&v?.supported)setCaps(v);}).catch(()=>{}).finally(()=>{if(live)setCapsReady(true);});return()=>{live=false;};},[]);
   useEffect(()=>{
     const sync=()=>{setTheme(document.documentElement.dataset.mode||"dark");setFullscreen(document.documentElement.dataset.windowFullscreen==="true");};
     const observer=new MutationObserver(sync);observer.observe(document.documentElement,{attributes:true,attributeFilter:["data-mode","data-window-fullscreen"]});sync();return()=>observer.disconnect();
   },[]);
   useEffect(()=>{
+    if(!capsReady)return;
     const current=++sequence.current;
     const requested=value.backgroundSource==="desktop"?value.material:"solid";
     if(!isTauri()){setApplied({requested,actual:"solid",fallback:requested!=="solid",reason:"unsupported-platform-version"});return;}
+    const signature=JSON.stringify([requested,theme,requested==="solid"?null:value.tint,requested==="solid"?null:value.windowTransparency,requested==="solid"?null:fullscreen]);
+    if(lastApplied.current===signature&&!inFlight.current)return;
     const timer=setTimeout(()=>{
       queue.current=queue.current.catch(()=>{}).then(async()=>{
         if(current!==sequence.current)return;
+        inFlight.current=true;
         try{const result=await invoke<Applied>("apply_window_material",{requested,theme,tint:value.tint,transparency:value.windowTransparency});
-          if(current===sequence.current&&result?.actual)setApplied(result);
+          if(current===sequence.current&&result?.actual){lastApplied.current=signature;setApplied(result);}
         }catch{if(current===sequence.current)setApplied({requested,actual:"solid",fallback:true,reason:"native-effect-failed"});}
+        finally{inFlight.current=false;if(current===sequence.current)setReady(true);}
       });
     },160);
     return()=>{clearTimeout(timer);sequence.current++;};
-  },[value.backgroundSource,value.material,value.tint,value.windowTransparency,theme,fullscreen]);
+  },[capsReady,value.backgroundSource,value.material,value.tint,value.windowTransparency,theme,fullscreen]);
   useEffect(()=>{document.documentElement.dataset.windowMaterial=applied.actual;},[applied.actual]);
-  return {caps,applied};
+  return {caps,applied,ready};
 }
 
 type Props={russian:boolean;value:WindowPreferences;update:(patch:Partial<WindowPreferences>)=>void;caps:Capabilities;applied:Applied};
