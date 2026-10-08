@@ -4,22 +4,15 @@ use serde_json::{Value,json};
 use tokio::io::{AsyncBufReadExt,BufReader};
 fn location(instance:&Instance)->Result<(String,String)> {
     let version=instance.loader_version.as_deref().ok_or_else(||BackendError::new("loader","Select a loader version"))?;
-    if !version.chars().all(|c|c.is_ascii_alphanumeric()||matches!(c,'.'|'-'|'_')){return Err(BackendError::new("loader","Invalid loader version"));}
+    if !super::loader_catalog::valid_version(version){return Err(BackendError::new("loader","Invalid loader version"));}
     match instance.loader.as_str(){
         "forge"=>{let full=if version.starts_with(&format!("{}-",instance.minecraft)){version.into()}else{format!("{}-{version}",instance.minecraft)};Ok((format!("https://maven.minecraftforge.net/net/minecraftforge/forge/{full}/forge-{full}-installer.jar"),full))},
-        "neoforge"=>Ok((format!("https://maven.neoforged.net/releases/net/neoforged/neoforge/{version}/neoforge-{version}-installer.jar"),version.into())),
+        "neoforge"=>{let repo=super::loader_catalog::installer_repository(&instance.minecraft,"neoforge")?;let artifact=if instance.minecraft=="1.20.1"{"forge"}else{"neoforge"};Ok((format!("{repo}/{version}/{artifact}-{version}-installer.jar"),version.into()))},
         _=>Err(BackendError::new("loader_unsupported","Not an installer-based loader"))
     }
 }
 pub async fn versions(backend:&Backend,mc:&str,loader:&str)->Result<Value> {
-    let (url,prefix)=match loader {
-        "forge"=>("https://maven.minecraftforge.net/net/minecraftforge/forge/maven-metadata.xml",format!("{mc}-")),
-        "neoforge"=>{let mc=mc.strip_prefix("1.").unwrap_or(mc);("https://maven.neoforged.net/releases/net/neoforged/neoforge/maven-metadata.xml",format!("{mc}."))},
-        _=>return Err(BackendError::new("loader_unsupported","Unknown installer loader"))
-    };
-    let xml=backend.client.get(url).send().await?.error_for_status()?.text().await?;
-    let regex=regex::Regex::new(r"<version>([^<]+)</version>").unwrap();
-    Ok(json!(regex.captures_iter(&xml).map(|c|c[1].to_owned()).filter(|s|s.starts_with(&prefix)).collect::<Vec<_>>().into_iter().rev().map(|version|json!({"loader":{"version":version}})).collect::<Vec<_>>()))
+    super::loader_catalog::versions(backend,mc,loader).await
 }
 fn archive_json(path:&Path,name:&str)->Result<Value> {
     let mut archive=zip::ZipArchive::new(std::fs::File::open(path)?).map_err(|e|BackendError::new("loader",e.to_string()))?;

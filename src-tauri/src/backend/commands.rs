@@ -71,9 +71,7 @@ pub async fn minecraft_versions(backend:State<'_,B>)->Result<serde_json::Value>{
 }
 #[tauri::command]
 pub async fn loader_versions(backend:State<'_,B>,minecraft:String,loader:String)->Result<serde_json::Value>{
-    if matches!(loader.as_str(),"forge"|"neoforge"){return super::loaders::versions(&backend,&minecraft,&loader).await;}
-    let host=match loader.as_str(){"fabric"=>"https://meta.fabricmc.net/v2", "quilt"=>"https://meta.quiltmc.org/v3",_=>return Err(BackendError::new("loader_unsupported","This loader installer is not implemented"))};
-    let mut url=reqwest::Url::parse(host).unwrap();url.path_segments_mut().unwrap().extend(["versions","loader",&minecraft]);super::download::json(&backend,url.as_str()).await
+    super::loader_catalog::versions(&backend,&minecraft,&loader).await
 }
 pub async fn staged_work(b:B,id:&str,job:Arc<Job>,existing:bool,work:impl std::future::Future<Output=Result<()>>)->Result<Instance>{
     let mut stage=super::transaction::InstanceStage::new(b,id)?;
@@ -101,12 +99,13 @@ pub async fn prepare_instance(backend:State<'_,B>,app:AppHandle,id:String,repair
 pub async fn create_instance(backend:State<'_,B>,app:AppHandle,name:String,minecraft:String,loader:String,loader_version:Option<String>,request_id:Option<String>,task_id:Option<String>)->Result<Instance>{
     if name.trim().is_empty()||name.len()>256{return Err(BackendError::new("instance","Instance name required (up to 256 characters)"));}
     let valid_version=|v:&str|!v.is_empty()&&v.len()<=96&&v.chars().all(|c|c.is_ascii_alphanumeric()||matches!(c,'.'|'-'|'_'));
-    if !valid_version(&minecraft)||!matches!(loader.as_str(),"vanilla"|"fabric"|"quilt"|"forge"|"neoforge")||loader!="vanilla"&&!loader_version.as_deref().is_some_and(valid_version){return Err(BackendError::new("loader","Choose a supported Minecraft and loader version"));}
+    if !valid_version(&minecraft)||!matches!(loader.as_str(),"vanilla"|"fabric"|"quilt"|"forge"|"neoforge")||loader!="vanilla"&&!loader_version.as_deref().is_some_and(super::loader_catalog::valid_version){return Err(BackendError::new("loader_incompatible","Choose a supported Minecraft and loader version"));}
     let id=request_id.unwrap_or_else(||uuid::Uuid::new_v4().to_string());uuid::Uuid::parse_str(&id).map_err(|_|BackendError::new("instance","Invalid creation request ID"))?;
     let b=backend.inner().clone();let _creation=b.lease("create-instance")?;let lease=b.lease(&id)?;
     let existed=b.instance_path(&id)?.exists();
     let job=Job::tracked(b.clone(),&id,"install",name.trim(),Some(&id),Some(app.clone()),lease.cancel.clone(),task_id)?;
     let result=if existed{Err(BackendError::new("content_duplicate","This creation request already has an instance"))}else{staged_work(b.clone(),&id,job.clone(),false,async{
+        super::download::cancellable(&job,super::loader_catalog::validate(&b,&minecraft,&loader,loader_version.as_deref())).await?;
         let dir=b.instance_path(&id)?;std::fs::create_dir(&dir)?;for folder in ["mods","config","resourcepacks","shaderpacks","saves","screenshots","logs"]{std::fs::create_dir_all(dir.join(folder))?;}
         b.save_instance(&Instance{id:id.clone(),name:name.trim().into(),minecraft,loader,loader_version,provider:"vanilla".into(),directory:dir.to_string_lossy().into(),status:"installing".into(),..Instance::default()})?;
         prepare_leased(b.clone(),id.clone(),Some(app),false,job.clone()).await?;Ok(())

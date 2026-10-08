@@ -18,8 +18,13 @@ mockIPC((command,args)=>{
   if(command==='list_wallpapers')return [];
   if(command==='window_material_capabilities')return {platform:'windows',build:22621,supported:['solid','transparent','acrylic','mica','mica-alt']};
   if(command==='apply_window_material')return {requested:args.requested,actual:fullscreen&&args.requested.startsWith('mica')?'acrylic':args.requested,fallback:fullscreen&&args.requested.startsWith('mica')};
-  if(command==='minecraft_versions')return [{id:'1.21.1'},{id:'1.20.1'}];
-  if(command==='loader_versions')return [{loader:{version:'0.16.0'}}];
+  if(command==='minecraft_versions')return [{id:'1.21.1'},{id:'1.20.1'},{id:'1.8.9'},{id:'1.12.2'},{id:'1.0'}];
+  if(command==='loader_versions'){
+    if(globalThis.__backendTest.loaderFailure&&args.loader==='fabric')return Promise.reject({code:'loader_catalog',message:'HTTP 503'});
+    const supported=args.minecraft==='1.0'?[]:['1.8.9','1.12.2'].includes(args.minecraft)?['forge']:['fabric','quilt','forge','neoforge'];
+    const values=supported.includes(args.loader)?[{loader:{version:args.loader==='forge'?'11.15.1.2318':'0.16.0'}}]:[];
+    return globalThis.__backendTest.slowLoaders&&args.minecraft==='1.20.1'?new Promise(resolve=>setTimeout(()=>resolve(values),900)):values;
+  }
   if(command==='choose_mrpack_file')return {path:'C:/packs/example.mrpack',name:'Imported contract pack',minecraft:'1.21.1',loader:'fabric',loader_version:'0.16.0',version:'1',files:12,download_bytes:1048576,archive_bytes:1024,sha256:'preview-checksum'};
   if(command==='create_instance'||command==='import_mrpack'){const instance={...state.instances[0],id:args.requestId,name:args.name,provider:command==='import_mrpack'?'mrpack':'vanilla',minecraft:args.minecraft||'1.21.1',loader:args.loader||'fabric',status:'ready'};return new Promise((resolve,reject)=>{globalThis.__backendTest.cancelCreate=()=>reject({code:'cancelled',message:'Operation cancelled'});setTimeout(()=>{state.instances.push(instance);resolve(instance);},600);});}
   if(command==='cancel_operation'){globalThis.__backendTest.cancelCreate?.();return;}
@@ -62,6 +67,68 @@ mockIPC((command,args)=>{
   });
   await page.goto("/");
 });
+test("loader compatibility filters old versions and resets an incompatible selection",async({page})=>{
+  await page.getByRole("button",{name:"Library",exact:true}).first().click();
+  await page.getByRole("button",{name:"New instance",exact:true}).first().click();
+  const dialog=page.getByRole("dialog",{name:"New instance",exact:true});
+  const loader=dialog.getByRole("combobox",{name:"Loader",exact:true});
+  await expect(loader).toBeEnabled();await loader.click();
+  await page.getByRole("option",{name:"Fabric",exact:true}).click();
+  await expect(dialog.getByRole("combobox",{name:"Loader version",exact:true})).toContainText("0.16.0");
+  for(const version of ["1.8.9","1.12.2"]){
+    await dialog.getByRole("combobox",{name:"Minecraft version",exact:true}).click();
+    await page.getByRole("option",{name:version,exact:true}).click();
+    await expect(loader).toBeEnabled();await expect(loader).toContainText(version==="1.8.9"?"Vanilla":"Forge");
+    await loader.click();
+    await expect(page.getByRole("option")).toHaveText(["Vanilla","Forge"]);
+    await page.getByRole("option",{name:"Forge",exact:true}).click();
+  }
+  await dialog.getByRole("combobox",{name:"Minecraft version",exact:true}).click();
+  await page.getByRole("option",{name:"1.0",exact:true}).click();
+  await expect(loader).toBeEnabled();await loader.click();
+  await expect(page.getByRole("option")).toHaveText(["Vanilla"]);
+  await page.getByRole("option",{name:"Vanilla",exact:true}).click();
+  await expect(page.getByRole("dialog",{name:"Could not finish download"})).toHaveCount(0);
+});
+
+test("loader compatibility ignores a stale response after a fast Minecraft switch",async({page})=>{
+  await page.evaluate("globalThis.__backendTest.slowLoaders=true");
+  await page.getByRole("button",{name:"Library",exact:true}).first().click();
+  await page.getByRole("button",{name:"New instance",exact:true}).first().click();
+  const dialog=page.getByRole("dialog",{name:"New instance",exact:true});
+  await dialog.getByRole("textbox",{name:"Name",exact:true}).fill("Old Minecraft");
+  const mc=dialog.getByRole("combobox",{name:"Minecraft version",exact:true});
+  await mc.click();await page.getByRole("option",{name:"1.20.1",exact:true}).click();
+  await expect(dialog.getByRole("button",{name:"New instance",exact:true})).toBeDisabled();
+  await mc.click();await page.getByRole("option",{name:"1.8.9",exact:true}).click();
+  await expect(dialog.getByRole("combobox",{name:"Loader",exact:true})).toBeEnabled();
+  await expect.poll(()=>page.evaluate("globalThis.__backendTest.calls.filter(c=>c.command==='loader_versions'&&c.args.minecraft==='1.20.1').length")).toBe(4);
+  // Wait past the deliberately delayed response, then inspect the final options.
+  await page.waitForTimeout(1100);
+  await dialog.getByRole("combobox",{name:"Loader",exact:true}).click();
+  await expect(page.getByRole("option")).toHaveText(["Vanilla","Forge"]);
+  await page.getByRole("option",{name:"Forge",exact:true}).click();
+  await dialog.getByRole("button",{name:"New instance",exact:true}).click();
+  await expect.poll(()=>page.evaluate("globalThis.__backendTest.calls.find(c=>c.command==='create_instance')?.args")).toMatchObject({minecraft:"1.8.9",loader:"forge",loaderVersion:"11.15.1.2318"});
+});
+
+test("loader compatibility failures stay inline and can be retried",async({page})=>{
+  await page.evaluate("globalThis.__backendTest.loaderFailure=true");
+  await page.getByRole("button",{name:"Library",exact:true}).first().click();
+  await page.getByRole("button",{name:"New instance",exact:true}).first().click();
+  const dialog=page.getByRole("dialog",{name:"New instance",exact:true});
+  await expect(dialog).toContainText("Could not check mod loaders");
+  await expect(page.getByRole("dialog",{name:"Could not finish download"})).toHaveCount(0);
+  await dialog.getByRole("combobox",{name:"Loader",exact:true}).click();
+  await expect(page.getByRole("option",{name:"Fabric",exact:true})).toHaveCount(0);
+  await page.getByRole("option",{name:"Vanilla",exact:true}).click();
+  await page.evaluate("globalThis.__backendTest.loaderFailure=false");
+  await dialog.getByRole("button",{name:"Retry loader check",exact:true}).click();
+  await expect(dialog.getByRole("combobox",{name:"Loader",exact:true})).toBeEnabled();
+  await dialog.getByRole("combobox",{name:"Loader",exact:true}).click();
+  await expect(page.getByRole("option",{name:"Fabric",exact:true})).toBeVisible();
+});
+
 test("native account, Play/Stop and human error details connect to the backend",async({page})=>{
   await page.getByRole("button",{name:"Playing as",exact:true}).click();
   await page.getByRole("textbox",{name:"Username",exact:true}).fill("ContractPlayer");

@@ -18,6 +18,7 @@ pub mod curseforge_content;
 pub mod download;
 pub mod java;
 pub mod loaders;
+pub mod loader_catalog;
 pub mod minecraft;
 pub mod modpacks;
 pub mod mrpack_import;

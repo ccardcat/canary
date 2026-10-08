@@ -38,6 +38,7 @@ mockIPC((command,args)=>{
  if(command==='window_material_capabilities')return {platform:'windows',build:22621,supported:['solid']};
  if(command==='apply_window_material')return {requested:args.requested,actual:'solid',fallback:false};
  if(command==='minecraft_versions')return [{id:'1.21.1'}];
+ if(command==='loader_versions')return [{loader:{version:'0.16.0'}}];
  if(command==='update_instance'){Object.assign(state.instances.find(i=>i.id===args.instance.id),args.instance);return args.instance;}
  if(command==='switch_account'){state.settings.active_account=args.id;return;}
  if(command==='rename_local_account'){state.accounts.find(a=>a.id===args.id).username=args.username;return;}
