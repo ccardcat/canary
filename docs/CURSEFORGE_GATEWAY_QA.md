@@ -1,22 +1,36 @@
-# Public CurseForge integration
+# Canary CurseForge gateway: preparation and verification
 
-Validated locally on Windows, 2026-10-08, from main at `0f4fc0a`.
+Date: 2026-10-08 (Europe/Moscow). Starting main: `0217de9`.
 
-## Implemented
+## Real deployed endpoint
 
-The Cloudflare Worker in `services/curseforge-gateway` provides read-only Minecraft metadata and streams permitted official CDN downloads. The publisher credential exists only as a Worker secret. Download tickets are signed, expire after 30 minutes and bind project/file IDs. Incoming targets and publisher redirects are restricted; errors and outgoing headers do not expose upstream credentials. Author distribution restrictions remain enforced. Raw metadata is cached briefly; ticketed responses are not cached. Rate bindings limit per-IP requests and total traffic per Cloudflare location.
+The owner supplied `https://canaryclientcurseforge.forwildcraft222.workers.dev` and confirmed the server secret name `CURSEFORGE_API_KEY`. Its value was not requested, read, printed or saved.
 
-Rust requests use the configured gateway without an API key. The public origin comes from the non-secret `CANARY_CURSEFORGE_PROXY_URL` build variable, with a runtime override for development. Release and verification workflows include it. Direct developer API-key mode remains available with authenticated CDN requests and checked redirects. Java inherits neither CurseForge configuration variable.
+Real HTTP requests to /health, permitted search, a different-game search and categories all returned HTTP 200, Content-Type text/plain, and `Hello World!`. Therefore the created Worker is still the starter deployment. This is not proof of CurseForge API authorization or installation.
 
-The frontend derives provider availability from the backend snapshot. Configured builds enable Discover, content, installation, repair and updates. Unconfigured builds show an unavailable state without making provider requests. Gateway ticket rotation does not change the content approval fingerprint, while changed checksums/identities/destinations still do.
+The owner explicitly confirmed that gateway/file streaming had not been separately discussed with CurseForge. Public API access stays disabled pending publisher confirmation. The earlier metadata cache was removed. See the [third-party API terms, `3.1](https://support.curseforge.com/support/solutions/articles/9000207405-curseforge-3rd-party-api-terms-and-conditions) and the [owner's setup guide](../services/curseforge-gateway/README.md).
 
-## Results
+## Prepared code
 
-- `npm run build`: passed.
-- Rust unit suite: 87 passed, 7 ignored. New cases cover gateway URL/CDN validation and stable approval across ticket rotation; existing integrity, cancellation, content transaction and account checks passed.
-- Gateway Node tests: 9 passed. Cover authenticated search, signed streamed downloads, expiry/tampering, restricted distribution, other-game/arbitrary-target rejection, redirects, rate limiting, error redaction and raw cache behavior.
-- Wrangler deployment dry run: passed, including all three rate limit bindings. No production deployment occurred.
-- Actual local Cloudflare workerd runtime: `/health` returned 200 with a synthetic test credential; a non-Minecraft search returned 400 before contacting CurseForge. The disposable local server was stopped afterward.
-- Eleven targeted browser checks passed across backend-ui, home-polish, material-install-state and stabilization. Includes configured provider search/details/HTML sanitization and installation IPC without a key, twelve-item pagination, unconfigured state, request cancellation and existing task identity. An initial run had three startup timeouts under simultaneous native compilation; the subsequent serial run passed all eight with a 60-second test timeout. Three additional content/account/about geometry checks passed in both languages.
+- Exact read-only Minecraft routes for search, category discovery, Minecraft versions, project details, file lists and approved file streaming. Requests validate methods, bodies, URL/header sizes, parameters, duplicates, IDs, pagination and filters.
+- No Cache API use or persistent API/archive storage. API/CDN fetches and client responses use no-store. Publisher errors/headers are redacted. Credentials are attached only to exact official upstream hosts and checked redirects.
+- Rate bindings remain required; missing bindings fail closed. Public endpoints additionally require the owner-side CURSEFORGE_GATEWAY_APPROVED flag after confirmation. Health safely reports configuration/readiness without returning secrets. API health probes only after these prerequisites.
+- Worker name matches the existing canaryclientcurseforge deployment. keep_vars preserves owner-managed dashboard variables during Git deployments.
+- The provided origin is the client's default public address. Backend availability checks actual protocol-2 API health; a Hello World response cannot enable CurseForge. The short local memo stores only the gateway's own health boolean, not publisher metadata.
+- Discover has provider category IDs, remote Minecraft-version options, loader filters, compact cards, project details and filenames. Restricted/unavailable projects have disabled installation actions.
+- Discover mod installation selects an eligible existing instance, resolves compatible releases/dependencies, reviews the plan, then queues the existing install_content task in Downloads. Modpack installation retains the existing installer. Publisher restrictions, hashes, cancellation and atomic content application remain in place.
+- The publisher's 10000-result pagination limit is enforced, including a partial final page.
 
-Real publisher authorization and real CurseForge file installation remain unverified: the owner has not entered the issued key into a deployed Worker. Wrangler was not authenticated; browser OAuth was started but timed out waiting for user authorization. No production URL or Cloudflare account was invented. Complete [deployment and release configuration](../services/curseforge-gateway/README.md) to enable this for distributed Canary builds.
+## Local checks
+
+- Frontend production build passed.
+- Full Rust suite passed: 87 tests, 8 ignored. After the final CurseForge pagination/availability changes, the targeted CurseForge suite passed: 7 tests, 1 live test ignored.
+- Worker tests passed: 13. Synthetic credentials only. Covers signed streamed bytes, API/CDN authentication, expiry/tampering, permitted endpoints, other-game/target rejection, author restrictions, no-cache behavior, approval gating, health errors, request size/filter bounds and rate limits.
+- Final targeted browser run passed: 11. Covers both configured and unavailable provider states, real category-ID/loader/version request contracts, project details sanitization, mod and modpack installation IPC, Downloads handoff, restricted projects, pagination, provider cancellation and Modrinth restoration. These tests use mocked IPC and do not claim a live CurseForge download.
+- Wrangler dry run passed with the three configured rate bindings. No production deployment or secret modification occurred.
+
+## Explicitly not verified
+
+Live publisher API access, a real permitted mod download/installation, and a real modpack installation are not verified. No gateway approval was assumed from an API key. The ignored real_gateway_mod_install test is prepared to create a disposable instance, install a compatible permitted Fabric API release through the actual gateway, verify the publisher SHA-1 and inventory, then clean up. It requires explicit live verification opt-in and successful deployed API health.
+
+The browser-only deployment guide provides source-paste/Deploy instructions, GitHub Builds configuration for rate bindings, safe health links and a ready-to-send publisher confirmation request. Until the owner completes deployment/confirmation and real-file validation passes, this is a prepared integration, not an activated/verified production service.

@@ -20,10 +20,11 @@ pub async fn install_curseforge_pack(backend:State<'_,B>,app:AppHandle,project_i
 #[tauri::command]
 pub async fn check_modpack_updates(backend:State<'_,B>,allowed_providers:Option<Vec<String>>)->Result<serde_json::Value>{super::modpacks::updates_for_providers(backend.inner().clone(),allowed_providers.as_deref()).await}
 #[tauri::command]
-pub fn backend_snapshot(backend:State<'_,B>)->Result<serde_json::Value>{
+pub async fn backend_snapshot(backend:State<'_,B>)->Result<serde_json::Value>{
     let mut instances=backend.instances()?;let store=backend.store.lock().unwrap().clone();
     let processes:std::collections::HashMap<_,_>=backend.processes.lock().unwrap().iter().map(|(id,p)|(id.clone(),p.stopping.load(Ordering::Relaxed))).collect();let preparing:std::collections::HashSet<_>=backend.jobs.lock().unwrap().keys().cloned().collect();for instance in &mut instances{if let Some(process)=processes.get(&instance.id){instance.status=if *process{"stopping"}else{"running"}.into();}else if preparing.contains(&instance.id){instance.status="preparing".into();}}
-    Ok(serde_json::json!({"instances":instances,"accounts":store.accounts,"settings":store.settings,"providers":accounts::providers(),"activity":store.activity,"data_folder":backend.root,"physical_memory_mb":super::system::memory_mb(),"tasks":backend.tasks.lock().unwrap().values().map(|r|r.task.clone()).collect::<Vec<_>>()}))
+    let mut providers=accounts::providers();providers["curseforge"]["configured"]=serde_json::json!(super::curseforge::available(&backend).await);
+    Ok(serde_json::json!({"instances":instances,"accounts":store.accounts,"settings":store.settings,"providers":providers,"activity":store.activity,"data_folder":backend.root,"physical_memory_mb":super::system::memory_mb(),"tasks":backend.tasks.lock().unwrap().values().map(|r|r.task.clone()).collect::<Vec<_>>()}))
 }
 #[tauri::command]
 pub fn save_backend_settings(backend:State<'_,B>,mut settings:Settings)->Result<()> {
@@ -213,7 +214,7 @@ async fn provider_request<T>(backend:&B,id:Option<String>,future:impl std::futur
     }
 }
 #[tauri::command]
-pub async fn content_search(backend:State<'_,B>,id:String,kind:String,query:String,sort:String,offset:u32,strict:bool,provider:Option<String>,request_id:Option<String>)->Result<serde_json::Value>{provider_request(&backend,request_id,async{let i=backend.instance(&id)?;match provider.as_deref().unwrap_or("modrinth"){"modrinth"=>super::content_provider::search(&backend,&i,&kind,&query,&sort,offset,strict).await,"curseforge"=>super::curseforge_content::search(&backend,&kind,&query,&sort,offset,20,if strict{&i.minecraft}else{""},if strict{&i.loader}else{""}).await,_=>Err(BackendError::new("provider","Unknown provider"))}}).await}
+pub async fn content_search(backend:State<'_,B>,id:String,kind:String,query:String,sort:String,offset:u32,strict:bool,provider:Option<String>,request_id:Option<String>)->Result<serde_json::Value>{provider_request(&backend,request_id,async{let i=backend.instance(&id)?;match provider.as_deref().unwrap_or("modrinth"){"modrinth"=>super::content_provider::search(&backend,&i,&kind,&query,&sort,offset,strict).await,"curseforge"=>super::curseforge_content::search(&backend,&kind,&query,&sort,offset,20,if strict{&i.minecraft}else{""},if strict{&i.loader}else{""},"").await,_=>Err(BackendError::new("provider","Unknown provider"))}}).await}
 #[tauri::command]
 pub async fn content_project(backend:State<'_,B>,project:String,provider:Option<String>,request_id:Option<String>)->Result<serde_json::Value>{provider_request(&backend,request_id,async{if provider.as_deref()==Some("curseforge"){super::curseforge_content::detail(&backend,&project).await}else{super::content_provider::detail(&backend,&project).await}}).await}
 #[tauri::command]
@@ -223,7 +224,8 @@ pub async fn content_preview(backend:State<'_,B>,id:String,project:String,versio
 #[tauri::command]
 pub async fn install_content(backend:State<'_,B>,app:AppHandle,id:String,project:String,version:Option<String>,kind:String,world:Option<String>,beta:bool,fingerprint:String,provider:Option<String>,task_id:Option<String>)->Result<super::content::State>{
  let lease=backend.inner().lease(&id)?;let job=Job::tracked(backend.inner().clone(),&id,"install",&backend.instance(&id)?.name,Some(&id),Some(app.clone()),lease.cancel.clone(),task_id)?;job.content_history.store(true,Ordering::Relaxed);
- let result=async {let instance=backend.instance(&id)?;job.emit("content_resolve","running",&project);let plan=super::download::cancellable(&job,super::content_provider::provider_preview(&backend,provider.as_deref().unwrap_or("modrinth"),&instance,&project,version.as_deref(),&kind,world,beta)).await?;if plan.fingerprint!=fingerprint{return Err(BackendError::new("content_plan_changed","Install plan changed; review it again"));}super::content_provider::install(backend.inner().clone(),&id,plan,job.clone()).await}.await;
+ let result=async {let instance=backend.instance(&id)?;job.emit("content_resolve","running",&project);let plan=super::download::cancellable(&job,super::content_provider::provider_preview(&backend,provider.as_deref().unwrap_or("modrinth"),&instance,&project,version.as_deref(),&kind,world,beta)).await?;if plan.fingerprint!=fingerprint{return Err(BackendError::new("content_plan_changed","Install plan changed; review it again"));}if let Some(primary)=plan.items.iter().find(|p|p.project==project&&!p.required){job.project_identity(&primary.provider,&primary.project,&primary.version);}
+super::content_provider::install(backend.inner().clone(),&id,plan,job.clone()).await}.await;
  job.finish(&result);let _=app.emit("content-changed",serde_json::json!({"id":id}));result
 }
 #[tauri::command]
@@ -271,7 +273,7 @@ pub async fn begin_microsoft_login(app:AppHandle,backend:State<'_,B>)->Result<se
 #[tauri::command]pub async fn change_storage(backend:State<'_,B>,app:AppHandle,path:String,migrate:bool)->Result<serde_json::Value>{let b=backend.inner().clone();tokio::task::spawn_blocking(move||super::storage_settings::change(b,Some(app),path,migrate)).await.map_err(|_|BackendError::new("storage","Storage migration failed"))?}
 #[tauri::command]pub fn open_storage_folder(backend:State<'_,B>,app:AppHandle)->Result<()>{use tauri_plugin_opener::OpenerExt;app.opener().open_path(backend.instances_root().to_string_lossy(),None::<&str>).map_err(|_|BackendError::new("open_folder","Cannot open storage folder"))}
 
-#[tauri::command]pub async fn catalog_search(backend:State<'_,B>,kind:String,query:String,sort:String,offset:u32,limit:u32,game:String,loader:String,request_id:Option<String>)->Result<serde_json::Value>{provider_request(&backend,request_id,async{super::curseforge_content::search(&backend,&kind,&query,&sort,offset,limit,&game,&loader).await}).await}
+#[tauri::command]pub async fn catalog_search(backend:State<'_,B>,kind:String,query:String,sort:String,offset:u32,limit:u32,game:String,loader:String,category:Option<String>,request_id:Option<String>)->Result<serde_json::Value>{provider_request(&backend,request_id,async{super::curseforge_content::search(&backend,&kind,&query,&sort,offset,limit,&game,&loader,category.as_deref().unwrap_or("")).await}).await}
 #[tauri::command]pub async fn catalog_versions(backend:State<'_,B>,project:String,kind:String,request_id:Option<String>)->Result<Vec<serde_json::Value>>{provider_request(&backend,request_id,async{super::curseforge_content::versions(&backend,&project,&kind,"","",true).await}).await}
 
 #[tauri::command]pub fn reset_backend_settings(backend:State<'_,B>)->Result<()>{let old=backend.settings();backend.store.lock().unwrap().settings=Settings{instances_path:old.instances_path,active_account:old.active_account,..Settings::default()};backend.persist()}
@@ -282,3 +284,7 @@ pub async fn begin_microsoft_login(app:AppHandle,backend:State<'_,B>)->Result<se
 #[tauri::command]pub fn list_wallpapers(backend:State<'_,B>)->Result<Vec<super::wallpapers::Wallpaper>>{super::wallpapers::list(&backend)}
 #[tauri::command]pub async fn import_wallpaper(backend:State<'_,B>,app:AppHandle,target:String)->Result<Option<super::wallpapers::Wallpaper>>{let b=backend.inner().clone();tokio::task::spawn_blocking(move||{use tauri_plugin_dialog::DialogExt;if let Some(file)=app.dialog().file().add_filter("Background image",&["png","jpg","jpeg","webp"]).blocking_pick_file(){let path=file.into_path().map_err(|_|BackendError::new("wallpaper","Invalid image path"))?;return Ok(Some(super::wallpapers::import_file(&b,&path,&target)?));}Ok(None)}).await.map_err(|_|BackendError::new("wallpaper","Background import failed"))?}
 #[tauri::command]pub fn remove_wallpaper(backend:State<'_,B>,id:String)->Result<()>{super::wallpapers::remove(&backend,&id)}
+
+#[tauri::command]pub async fn catalog_filters(backend:State<'_,B>,kind:String,request_id:Option<String>)->Result<serde_json::Value>{
+ provider_request(&backend,request_id,async{super::curseforge_content::filters(&backend,&kind).await}).await
+}

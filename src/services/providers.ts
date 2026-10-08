@@ -35,7 +35,7 @@ export async function searchProvider(state:DiscoveryState,signal:AbortSignal){
  if(!providerAvailable(state.provider))return {hits:[] as Project[],total_hits:0};
  if(state.provider==="modrinth")return searchProjects(state.type,state.query,state.sort,(state.page-1)*12,state.filters,signal);
  if(!isTauri())throw Error("CurseForge requires the desktop app");
- return providerInvoke<{hits:Project[];total_hits:number}>("catalog_search",{provider:state.provider,kind:state.type,query:state.query,sort:state.sort,offset:(state.page-1)*12,limit:12,game:state.filters.game,loader:state.filters.loader},signal);
+ return providerInvoke<{hits:Project[];total_hits:number}>("catalog_search",{provider:state.provider,kind:state.type,query:state.query,sort:state.sort,offset:(state.page-1)*12,limit:12,game:state.filters.game,loader:state.filters.loader,category:state.filters.category},signal);
 }
 export async function providerDetail(p:Project,signal?:AbortSignal){requireAvailableProvider(p.provider);return p.provider==="curseforge"?providerInvoke<Detail>("content_project",{project:p.project_id,provider:p.provider},signal):api<Detail>(`project/${p.project_id}`,signal);}
 export async function providerVersions(p:Project,signal?:AbortSignal){requireAvailableProvider(p.provider);return p.provider==="curseforge"?providerInvoke<Version[]>("catalog_versions",{provider:p.provider,project:p.project_id,kind:p.project_type||"modpack"},signal):api<Version[]>(`project/${p.project_id}/version`,signal);}

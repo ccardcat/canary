@@ -22,7 +22,7 @@ type ProjectCardProps = {
 function ProjectCard(props:ProjectCardProps) {
   const {tasks}=useBackend();
   const task=projectInstallTask(tasks,props.p.provider||'modrinth',props.p.project_id);
-  const blocked=!!props.installationDisabled||tasks.some(current=>current.projectId&&!isTerminal(current));
+  const blocked=!!props.installationDisabled||props.type==="modpack"&&tasks.some(current=>current.projectId&&!isTerminal(current));
   const handlers=useRef(props);handlers.current=props;
   const onOpen=useCallback(()=>handlers.current.onOpen(),[]);
   const onInstall=useCallback(()=>handlers.current.onInstall(),[]);
@@ -53,14 +53,14 @@ const CardView=memo(function CardView({p,t,type,installed,onOpen,onInstall,compa
             }).format(p.downloads || 0)}
           </span>
           <button className="material-icon project-open-action" disabled={interactionDisabled} aria-label={t("view")} data-tooltip={t("view")} onClick={onOpen}><Info size={16}/></button>
-          {(type === "modpack"||!!selection) && (
+          {(type === "modpack"||type==="mod"&&p.provider==="curseforge"||!!selection) && (
             <button
               className={
                 installed
                   ? "compact-action installed"
                   : "compact-action install-action"
               }
-              disabled={installed || blocked || !providerAvailable(p.provider)}
+              disabled={installed || blocked || p.download_allowed===false || !providerAvailable(p.provider)}
               onClick={onInstall}
               aria-label={busy&&percent!==undefined?`${t("installing")} · ${percent}%`:undefined}
             >

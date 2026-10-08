@@ -337,7 +337,7 @@ export function BackendProvider({ children }: { children: ReactNode }) {
             "pack_update_preview",
             "storage_usage",
             "choose_storage_folder",
-            "catalog_search",
+            "catalog_search","catalog_filters",
             "catalog_versions",
             "cancel_operation",
           ].includes(command)

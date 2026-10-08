@@ -1,53 +1,73 @@
-# Canary CurseForge gateway
+# CurseForge для всех пользователей Canary
 
-This Cloudflare Worker keeps the publisher API key on the server. Canary users do not enter a key. Only the public Worker origin is included in the launcher. Metadata and downloads use the official CurseForge API/CDN, with author distribution restrictions preserved.
+Рабочий адрес: **https://canaryclientcurseforge.forwildcraft222.workers.dev**. Ключ хранится только в существующем Cloudflare Secret `CURSEFORGE_API_KEY`. Пользователям вводить ключ не требуется.
 
-## First deployment (launcher owner only)
+## Текущий статус и согласование
 
-In PowerShell, from the repository:
+8 октября 2026 года Worker отвечал `Hello World!` на health и поиск. Исходник интеграции ещё не опубликован. Владелец подтвердил выдачу ключа, но не отдельное согласование gateway.
 
-```powershell
-cd F:\Canary\services\curseforge-gateway
-npm ci
-npx wrangler login
-npx wrangler secret put CURSEFORGE_API_KEY
-npm run deploy
-```
+[Условия стороннего API, пункт 3.1](https://support.curseforge.com/support/solutions/articles/9000207405-curseforge-3rd-party-api-terms-and-conditions) ограничивают proxy/VPN при сокрытии идентичности или местоположения, запрещают сохранение/кэширование данных API и ограничивают конкурирующие сервисы. Явного разрешения этой серверной схеме из публичных условий не следует. Для публичного включения нужно письменное подтверждение CurseForge. У ранее подготовленного Worker теперь удалён кэш API; маршруты сервиса выключены по умолчанию. Health показывает безопасный статус без секретов.
 
-The secret command prompts for the key interactively. Do not paste the key into source files, chat, GitHub Variables or a command argument. `CURSEFORGE_API_KEY` is a Cloudflare Worker secret, separate from the launcher's optional development environment variable. Wrangler may offer to create the Worker during secret setup; accept the configured `canary-curseforge` Worker. Alternatively deploy first, then add the secret: the service returns 503 until configured.
+Отправьте через канал, где получили ключ, следующий запрос. Сам ключ в письмо не вставляйте:
 
-After deployment, verify `https://YOUR-WORKER.workers.dev/health`. It should return `{ "service": "canary-curseforge", "configured": true }`. Health verifies that the server has configuration and rate limit bindings; it does not prove that the publisher key is authorized. Verify real access with `/v1/mods/search?gameId=432&classId=4471&pageSize=1`, then install a permitted small project through Canary.
+> We received an API key for Canary, an open-source Minecraft launcher: https://github.com/ccardcat/canary. Please confirm in writing that our approved application may use a developer-operated Cloudflare Worker gateway for all Canary users, without distributing the API key to desktop clients. It identifies Canary, exposes only specific read-only Minecraft routes, enforces rate limits, and never saves/caches API responses or archives. Downloads stream from the official CDN using our key and respect permissions, allowModDistribution, isAvailable and missing downloadUrl. The launcher retains installed file hashes and project/version IDs locally for integrity, updates and rollback. Please confirm this architecture, file streaming, local installation records and any additional agreement, attribution, geographic reporting or limits required for Canary.
 
-## Connect every Canary release
+Настройку `CURSEFORGE_GATEWAY_APPROVED=true` добавляйте только после отдельного подтверждения. Наличие ключа само по себе не подтверждает разрешение gateway.
 
-Set the GitHub repository **Actions Variable** `CANARY_CURSEFORGE_PROXY_URL` to the public Worker origin, e.g. `https://canary-curseforge.YOUR-SUBDOMAIN.workers.dev`. Use the origin only, with no `/v1`, query, credential or secret. Desktop verification and release workflows pass this non-secret address to the Rust compiler. Create the next desktop build after setting it. Changing the variable does not alter installers that were already built.
+## Публикация через Cloudflare, без программирования
 
-For a local rebuild:
+Cloudflare сам применит подготовленный код и лимиты запросов из GitHub. Команды на компьютере выполнять не нужно.
 
-```powershell
-cd F:\Canary
-$env:CANARY_CURSEFORGE_PROXY_URL = 'https://canary-curseforge.YOUR-SUBDOMAIN.workers.dev'
-npm run tauri build
-```
+1. Войдите на https://dash.cloudflare.com/.
+2. Откройте **Workers & Pages → canaryclientcurseforge**.
+3. Выберите **Settings → Builds → Connect**.
+4. Выберите **GitHub**, предоставьте доступ к **ccardcat/canary** и выберите этот репозиторий.
+5. Ветка: **main**.
+6. Поле **Root directory / Path**: `services/curseforge-gateway`.
+7. Поле **Build command**: `npm ci`.
+8. Поле **Deploy command**: `npx wrangler deploy`.
+9. Сохраните подключение. Нажмите **Save and Deploy**, если панель предлагает эту кнопку. Если сборка не стартовала, в разделе **Builds / Deployments** используйте предложенную повторную сборку (**Retry / Redeploy**). Последующие обновления main запускают сборку автоматически.
+10. Дождитесь успешного завершения. Имя в конфигурации уже совпадает с вашим Worker: **canaryclientcurseforge**.
+11. В **Settings → Variables and Secrets** проверьте наличие Secret `CURSEFORGE_API_KEY`. Значение раскрывать или переносить в GitHub не нужно.
+12. **После письменного подтверждения CurseForge** нажмите **Add**, тип **Text**, имя `CURSEFORGE_GATEWAY_APPROVED`, значение `true`. Сохраните и подтвердите предлагаемую публикацию (**Deploy**).
 
-This address is compiled into the executable, so end users only install/update Canary. A runtime variable with the same name overrides it for development. Builds without a configured origin show CurseForge as unavailable and make no provider requests. A direct developer key via `CANARY_CURSEFORGE_API_KEY` remains supported, but is never compiled into the application or passed to Java.
+Подключение существующего Worker описано в [документации Cloudflare Builds](https://developers.cloudflare.com/workers/ci-cd/builds/). Rate-limit bindings пока [не видны в панели](https://developers.cloudflare.com/workers/runtime-apis/bindings/rate-limit/); сборка применяет три готовых binding из `wrangler.jsonc` автоматически. Не нужно искать несуществующую кнопку их добавления.
 
-## Behavior and operation
+## Как вставить файл через Edit Code
 
-- Only read-only Minecraft search, project, description and file routes are exposed. Other games, arbitrary target URLs, oversized pages, duplicate/unknown parameters and write methods are rejected.
-- API and CDN requests send the publisher key only to exact official hosts. Redirects are checked before credentials are sent. Publisher errors and response headers containing credentials are not forwarded.
-- File metadata receives a signed download ticket valid for 30 minutes, bound to project/file IDs. The gateway rechecks publisher metadata and restrictions, then streams the official archive. It does not buffer game files or invent download URLs. The launcher still verifies publisher sizes/hashes and retains cancellation and atomic content installation.
-- Approval fingerprints ignore rotating gateway authorization tickets, while retaining project/version IDs, destinations, sizes, filenames, checksums and stable URLs. Refresh expired links by reviewing installation again.
-- Raw public metadata is cached for 60 seconds. Ticketed responses and streamed downloads use `no-store`. Rate bindings limit API and download requests per IP and total requests per Cloudflare location; these are not a global billing cap. Shared networks may need higher limits. Account quotas, CPU limits and availability still apply; monitor usage in Cloudflare and adjust the plan/limits for actual traffic.
-- The Worker includes no request/secret logging. Optional Cloudflare request logging should avoid storing download tickets. Rotate the secret with `wrangler secret put CURSEFORGE_API_KEY`; rotation also invalidates existing tickets unless an independent `DOWNLOAD_SIGNING_KEY` Worker secret is set.
+Этот способ позволяет заменить заготовку и проверить health. Для полноценного включения лимитов всё равно понадобится подключение GitHub из предыдущего раздела.
 
-## Verification
+1. Откройте в проекте **services/curseforge-gateway/src/worker.mjs**. На GitHub: [исходный файл](https://github.com/ccardcat/canary/blob/main/services/curseforge-gateway/src/worker.mjs). Кнопка **Raw** открывает только код.
+2. Скопируйте весь файл: **Ctrl+A → Ctrl+C**. Ключа в этом файле нет.
+3. В Cloudflare откройте **canaryclientcurseforge → Edit Code**.
+4. Выберите основной файл, обычно **worker.js**, выделите весь стандартный код и вставьте скопированный текст.
+5. Нажмите **Deploy** и подтвердите публикацию.
+6. В **Settings → Runtime** дата совместимости должна быть не раньше **2024-11-11**. Конфигурация проекта устанавливает **2026-10-08**.
+7. Откройте health по ссылке ниже: вместо Hello World должен появиться JSON с `canary-curseforge`.
 
-```powershell
-npm test
-npx wrangler deploy --dry-run
-```
+Вставка исходника не создаёт rate-limit bindings. Пока они отсутствуют, health показывает `missing_rate_bindings`, а API выключен. Примените конфигурацию через GitHub Builds. Так код не запускает публичный сервис без обязательных ограничений.
 
-Tests cover authenticated upstream search, signed downloads and exact streamed bytes, ticket expiry/tampering, publisher restrictions, endpoint/host validation, credential-safe redirects, rate limits, redacted failures and raw metadata caching. Test credentials are synthetic. A real publisher key is required for live validation; a local test pass is not evidence of a deployed/authorized production service.
+## Проверка в браузере и Canary
 
-References: [CurseForge API](https://docs.curseforge.com/rest-api/), [required CDN authentication](https://blog.curseforge.com/introducing-api-key-authentication-for-curseforge-file-downloads/), [Worker rate limit bindings](https://developers.cloudflare.com/workers/runtime-apis/bindings/rate-limit/), [Worker limits](https://developers.cloudflare.com/workers/platform/limits/).
+- [Health](https://canaryclientcurseforge.forwildcraft222.workers.dev/health): до согласования ожидается `ready: false`. `terms_approval_required` означает ожидание разрешения; `missing_rate_bindings` означает, что не применена конфигурация сборки.
+- [Проверка API](https://canaryclientcurseforge.forwildcraft222.workers.dev/health?check=api): после разрешения и настройки ожидаются `ready: true` и `api: "reachable"`. Без подтверждения этот маршрут не обращается к CurseForge. Статус `unavailable` не раскрывает закрытые ответы авторизации.
+- [Поиск одного мода](https://canaryclientcurseforge.forwildcraft222.workers.dev/v1/mods/search?gameId=432&classId=6&pageSize=1): после включения ожидается JSON с `data` и проектом, до включения — безопасный отказ.
+- [Проверка неверной игры](https://canaryclientcurseforge.forwildcraft222.workers.dev/v1/mods/search?gameId=1): ожидается HTTP 400 без запроса к CurseForge.
+
+После публикации и разрешения обновите Canary. В **Discover → CurseForge → Mods** найдите **Fabric API**, выберите существующую сборку **Minecraft 1.21.1 / Fabric**, проверьте зависимости и подтвердите установку. Операция появится в **Downloads**, файл — в контенте сборки. Проекты с запретом автора или без разрешённой ссылки требуют ручной загрузки с официальной страницы.
+
+Health не доказывает успешную установку. Отдельно проверяются поиск, список файлов, настоящая загрузка, хэш и запись в сборке. До этих проверок интеграция не объявляется готовой.
+
+## Защита и работа сервиса
+
+- Только конкретные GET-маршруты Minecraft; HEAD используется для скачивания. Произвольных URL, общего проксирования и записи нет.
+- URL ограничен 2048 символами, заголовки — 8192 байтами. Тело запроса запрещено. Проверяются фильтры, ID, страницы и дубли параметров; JSON ограничен 8 MiB.
+- Лимиты: 600 запросов API и 300 скачиваний в минуту на IP, 5000 запросов в минуту на расположение Cloudflare. Это не глобальный предел оплаты. Общие IP, квоты и план аккаунта учитываются по реальному трафику.
+- Кэш API и архивов не используется, fetch и ответы имеют no-store. Архивы передаются потоком.
+- x-api-key отправляется только точным официальным адресам. Переадресации проверяются до передачи ключа. Ключ, cookies и закрытые ошибки не возвращаются клиентам и не логируются кодом.
+- Подписанная ссылка связана с project/file ID и действует 30 минут. Она разрешает скачать файл, но не доказывает, что клиент — Canary. Общий секрет в desktop-клиенте не используется как защита.
+- Лаунчер проверяет хэши/размеры и сохраняет существующие отмену и транзакционную установку.
+
+Адрес Worker уже включён в исходный клиент. Canary включает источник только после проверки безопасного health и доступности API. Старые установщики нужно заменить новой сборкой. GitHub Actions Variable `CANARY_CURSEFORGE_PROXY_URL` остаётся необязательным способом сменить публичный адрес; ключ в неё не записывается.
+
+Для разработчиков: `npm test` и `npx wrangler deploy --dry-run` проверяют исходник с синтетическими ключами. Живой тест `real_gateway_mod_install` запускается отдельно, только после разрешения и публикации; он использует временную сборку и настоящий разрешённый файл.

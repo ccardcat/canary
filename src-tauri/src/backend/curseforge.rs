@@ -8,7 +8,8 @@ fn parse_gateway(value:&str)->Option<reqwest::Url>{
  (secure&&url.host_str().is_some()&&url.username().is_empty()&&url.password().is_none()&&url.query().is_none()&&url.fragment().is_none()&&url.path()=="/").then_some(url)
 }
 fn gateway()->Option<reqwest::Url>{
- let value=std::env::var("CANARY_CURSEFORGE_PROXY_URL").ok().or_else(||option_env!("CANARY_CURSEFORGE_PROXY_URL").map(str::to_owned));
+ if std::env::var("CANARY_CURSEFORGE_DIRECT_API").as_deref()==Ok("true"){return None;}
+ let value=std::env::var("CANARY_CURSEFORGE_PROXY_URL").ok().filter(|s|!s.trim().is_empty()).or_else(||option_env!("CANARY_CURSEFORGE_PROXY_URL").filter(|s|!s.trim().is_empty()).map(str::to_owned)).or_else(||Some("https://canaryclientcurseforge.forwildcraft222.workers.dev".into()));
  value.as_deref().and_then(parse_gateway)
 }
 pub fn configured()->bool {gateway().is_some()||std::env::var("CANARY_CURSEFORGE_API_KEY").is_ok_and(|s|!s.trim().is_empty())}
@@ -55,7 +56,7 @@ fn copy_overrides(source:&Path,destination:&Path,job:&Job)->Result<()> {
 }
 pub async fn install(backend:Arc<Backend>,project_id:u32,file_id:u32,job:Arc<Job>)->Result<Instance>{
     let project=download::cancellable(&job,project(&backend,project_id)).await?;let project=&project["data"];job.title(project["name"].as_str().unwrap_or("CurseForge"));
-    if project["allowModDistribution"]==false{return Err(BackendError::new("manual_download_required","The author has disabled third-party distribution"));}
+    if project["allowModDistribution"]==false||project["isAvailable"]==false{return Err(BackendError::new("manual_download_required","The author has disabled third-party distribution"));}
     let response=download::cancellable(&job,request(&backend,&format!("mods/{project_id}/files/{file_id}"),&[])).await?;let data=&response["data"];
     if data["modId"].as_u64()!=Some(project_id as u64){return Err(BackendError::new("metadata","CurseForge project/file mismatch"));}
     let archive=backend.root.join("cache").join(format!("curseforge-{project_id}-{file_id}.zip"));download::batch(backend.clone(),vec![artifact(data,archive.clone())?],job.clone(),"modpack").await?;
@@ -70,7 +71,7 @@ pub async fn install(backend:Arc<Backend>,project_id:u32,file_id:u32,job:Arc<Job
         let project=entry["projectID"].as_u64().ok_or_else(||BackendError::new("modpack","File project ID missing"))?;let file=entry["fileID"].as_u64().ok_or_else(||BackendError::new("modpack","File ID missing"))?;
         let detail=download::cancellable(&job,request(&backend,&format!("mods/{project}/files/{file}"),&[])).await?;let file=&detail["data"];let name=file["fileName"].as_str().ok_or_else(||BackendError::new("modpack","File name missing"))?;
         if file["modId"].as_u64()!=Some(project){return Err(BackendError::new("metadata","Manifest project/file mismatch"));}
-        let metadata=download::cancellable(&job,request(&backend,&format!("mods/{project}"),&[])).await?;if metadata["data"]["allowModDistribution"]==false{return Err(BackendError::new("manual_download_required","A required project forbids third-party distribution"));}
+        let metadata=download::cancellable(&job,request(&backend,&format!("mods/{project}"),&[])).await?;if metadata["data"]["allowModDistribution"]==false||metadata["data"]["isAvailable"]==false{return Err(BackendError::new("manual_download_required","A required project forbids third-party distribution"));}
         let folder=match metadata["data"]["classId"].as_u64(){Some(6)=>"mods",Some(12)=>"resourcepacks",Some(6552)=>"shaderpacks",_=>return Err(BackendError::new("content_type","Manifest references an unsupported content class"))};
         if name.contains(['/', '\\']){return Err(BackendError::new("unsafe_path","Manifest filename contains a directory"));}let rel=format!("{folder}/{name}");let item=artifact(file,storage::safe_join(&stage,&rel)?)?;
         receipts.push(json!({"path":rel,"project":project.to_string(),"file":file["id"].as_u64().unwrap_or(0).to_string(),"url":item.url,"sha1":item.hash,"size":item.size,"name":metadata["data"]["name"],"icon":metadata["data"]["logo"]["url"]}));plan.push(item);
@@ -97,4 +98,18 @@ pub async fn verify(b:Arc<Backend>,instance:&Instance,job:Arc<Job>)->Result<()>{
   for source in ["https://edge.forgecdn.net/files/a.jar","https://mediafilez.forgecdn.net/files/a.jar"]{assert!(publisher_cdn(&reqwest::Url::parse(source).unwrap()));}
   for source in ["https://edge.forgecdn.net.evil.example/file","http://edge.forgecdn.net/file","https://edge.forgecdn.net:8443/file"]{assert!(!publisher_cdn(&reqwest::Url::parse(source).unwrap()));}
  }
+}
+
+// This cache holds only our gateway health result, never CurseForge metadata.
+pub async fn available(backend:&Backend)->bool{
+ let Some(base)=gateway() else{return configured();};
+ let mut health=backend.curseforge_health.lock().await;
+ if let Some((checked,ready))=*health{if checked.elapsed()<std::time::Duration::from_secs(30){return ready;}}
+ let ready=async{
+  let response=backend.private_api_client.get(base.join("health?check=api").ok()?).timeout(std::time::Duration::from_secs(5)).send().await.ok()?;
+  if !response.status().is_success()||!response.headers().get("content-type")?.to_str().ok()?.starts_with("application/json"){return None;}
+  let value:Value=response.json().await.ok()?;
+  Some(value["service"]=="canary-curseforge"&&value["protocol"]==2&&value["ready"]==true&&value["api"]=="reachable")
+ }.await.unwrap_or(false);
+ *health=Some((std::time::Instant::now(),ready));ready
 }

@@ -6,7 +6,7 @@ const project = {id: 100, gameId: 432, classId: 6, allowModDistribution: true, n
 const file = {id: 200, modId: 100, downloadUrl: 'https://edge.forgecdn.net/files/1/2/mod.jar', fileLength: 3, fileName: 'mod.jar', hashes: [{algo: 1, value: 'publisher-hash'}]};
 function fixture() {
   const calls = [];
-  const env = {CURSEFORGE_API_KEY: 'test-publisher-secret', API_RATE_LIMIT: {limit: async () => ({success: true})}, DOWNLOAD_RATE_LIMIT: {limit: async () => ({success: true})}, BUDGET_RATE_LIMIT: {limit: async () => ({success: true})}};
+  const env = {CURSEFORGE_GATEWAY_APPROVED:'true', CURSEFORGE_API_KEY: 'test-publisher-secret', API_RATE_LIMIT: {limit: async () => ({success: true})}, DOWNLOAD_RATE_LIMIT: {limit: async () => ({success: true})}, BUDGET_RATE_LIMIT: {limit: async () => ({success: true})}};
   let clock = 1791450000000;
   const state = {project: structuredClone(project), file: structuredClone(file), upstreamStatus: 200, redirect: null};
   const upstream = async (url, options) => {
@@ -16,6 +16,8 @@ function fixture() {
       if (state.redirect) return new Response(null, {status: 302, headers: {location: state.redirect}});
       return new Response(new ReadableStream({start(controller) { controller.enqueue(new Uint8Array([1, 2, 3])); controller.close(); }}), {headers: {'content-length': '3', 'x-api-key': env.CURSEFORGE_API_KEY, 'set-cookie': 'private'}});
     }
+    if (source.pathname === '/v1/categories') return Response.json({data:[{id:411,gameId:432,classId:6,name:'Technology'}]});
+    if (source.pathname === '/v1/minecraft/version') return Response.json({data:[{versionString:'1.21.1',approved:true}]});
     if (source.pathname === '/v1/mods/search') return Response.json({data: [{...state.project, latestFiles: [state.file]}], pagination: {totalCount: 1}});
     if (source.pathname === '/v1/mods/100') return Response.json({data: state.project});
     if (source.pathname === '/v1/mods/100/files/200') return Response.json({data: state.file});
@@ -34,7 +36,7 @@ test('Minecraft search is authenticated only upstream and signed URLs contain no
   assert.match(body.data[0].latestFiles[0].downloadUrl, /^https:\/\/canary.example\/v1\/download\/100\/200\?ticket=/);
   assert.ok(!JSON.stringify(body).includes(f.env.CURSEFORGE_API_KEY));
   assert.equal(f.calls[0].options.headers['x-api-key'], f.env.CURSEFORGE_API_KEY);
-  assert.equal(f.calls[0].options.redirect, 'manual'); assert.equal(f.calls[0].options.headers.authorization, undefined);
+  assert.equal(f.calls[0].options.cache,'no-store'); assert.equal(f.calls[0].options.redirect, 'manual'); assert.equal(f.calls[0].options.headers.authorization, undefined);
 });
 test('signed downloads stream exact bytes and do not forward publisher response secrets', async () => {
   const f = fixture(); const metadata = await (await f.request('/v1/mods/100/files/200')).json();
@@ -75,18 +77,44 @@ test('download URL spoofing and cross-host redirects never receive credentials',
 test('missing configuration and rate limits fail before contacting the publisher', async () => {
   const f = fixture(); f.env.API_RATE_LIMIT.limit = async () => ({success: false});
   const limited = await f.request('/v1/mods/100'); assert.equal(limited.status, 429); assert.equal(limited.headers.get('retry-after'), '60'); assert.equal(f.calls.length, 0);
-  delete f.env.CURSEFORGE_API_KEY; assert.equal((await f.request('/health')).status, 503); assert.equal(f.calls.length, 0);
+  delete f.env.CURSEFORGE_API_KEY; assert.equal((await (await f.request('/health')).json()).ready, false); assert.equal(f.calls.length, 0);
 });
 test('publisher errors are redacted and do not expose the API key', async () => {
   const f = fixture(); f.state.upstreamStatus = 401;
   const response = await f.request('/v1/mods/100'); assert.equal(response.status, 503); assert.ok(!(await response.text()).includes(f.env.CURSEFORGE_API_KEY));
   f.state.upstreamStatus = 429; assert.equal((await f.request('/v1/mods/100')).status, 429);
 });
-test('raw metadata cache regenerates tickets and preserves publisher restrictions', async () => {
-  const f = fixture(); const entries = new Map();
-  const cache = {match: async key => entries.get(key.url)?.clone(), put: async (key, response) => entries.set(key.url, response)};
-  const gateway = createGateway({fetchUpstream: async (url, options) => { f.calls.push({url: String(url), options}); return Response.json({data: [{...project, latestFiles: [file]}]}); }, cache, now: Date.now});
-  const req = new Request('https://canary.example/v1/mods/search?classId=6');
-  await gateway(req, f.env); await gateway(req, f.env); assert.equal(f.calls.length, 1);
-  const cached = await [...entries.values()][0].clone().json(); assert.equal(cached.data[0].latestFiles[0].downloadUrl, file.downloadUrl);
+
+test('metadata is never read from or written to a cache',async()=>{
+ const f=fixture();let called=0;
+ const gateway=createGateway({fetchUpstream:async()=>{called++;return Response.json({data:[project]});},cache:{match:()=>{throw Error("Cache must not be used");},put:()=>{throw Error("Cache must not be used");}}});
+ const req=new Request('https://canary.example/v1/mods/search?classId=6');
+ assert.equal((await gateway(req,f.env)).status,200);assert.equal((await gateway(req,f.env)).status,200);assert.equal(called,2);
+});
+test('unapproved gateway exposes only safe health and never calls CurseForge',async()=>{
+ const f=fixture();delete f.env.CURSEFORGE_GATEWAY_APPROVED;
+ const health=await (await f.request('/health')).json();assert.equal(health.ready,false);assert.equal(health.reason,'terms_approval_required');
+ assert.equal((await f.request('/v1/mods/100')).status,403);assert.equal(f.calls.length,0);
+});
+test('API health distinguishes an authorized publisher from upstream failures',async()=>{
+ const f=fixture();assert.equal((await (await f.request('/health?check=api')).json()).api,'reachable');
+ f.state.upstreamStatus=401;const health=await (await f.request('/health?check=api')).json();assert.equal(health.ready,false);assert.equal(health.api,'unavailable');assert.ok(!JSON.stringify(health).includes(f.env.CURSEFORGE_API_KEY));
+});
+test('size limits, bodies and filter ranges are rejected before publisher requests',async()=>{
+ const f=fixture();
+ for(const path of ['/v1/mods/search?index=9999&pageSize=50','/v1/mods/search?sortField=999','/v1/mods/search?modLoaderType=999','/v1/mods/search?categoryId=0','/v1/mods/search?searchFilter='+('a'.repeat(2100))]){
+  assert.ok((await f.request(path)).status>=400);
+ }
+ assert.equal((await f.request('/v1/mods/100',{headers:{'content-length':'100000'}})).status,413);
+ assert.equal((await f.request('/v1/mods/100',{headers:{'x-padding':'a'.repeat(8200)}})).status,413);
+ assert.equal(f.calls.length,0);
+});
+
+test('specific category and Minecraft version routes are allowed, without arbitrary game access',async()=>{
+ const f=fixture();
+ assert.equal((await f.request('/v1/categories?gameId=432&classId=6')).status,200);
+ assert.equal((await f.request('/v1/minecraft/version?sortDescending=true')).status,200);
+ assert.equal((await f.request('/v1/categories?gameId=1&classId=6')).status,400);
+ assert.equal((await f.request('/v1/minecraft/version?sortDescending=evil')).status,400);
+ assert.equal((await f.request('/v1/categories?gameId=432&classId=6&url=https://evil.example')).status,400);
 });

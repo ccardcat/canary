@@ -15,7 +15,8 @@ import {
 import { AnimatePresence, MotionConfig, motion } from "motion/react";
 import {isTerminal,projectInstallTask} from "./services/activity";
 import ProjectCard from "./components/ProjectCard";
-import {providerAvailable,providerDetail,providerVersions,providerName,providerSite,type Provider} from "./services/providers";
+import {DiscoverModInstall} from "./components/DiscoverModInstall";
+import {providerInvoke,providerAvailable,providerDetail,providerVersions,providerName,providerSite,type Provider} from "./services/providers";
 import { useDiscovery } from "./hooks/useDiscovery";
 import { diagnostics, type Progress } from "./services/installation";
 import { externalLink } from "./services/links";
@@ -138,6 +139,7 @@ function getInitialLanguage() {
 }
 function App() {
   const backend = useBackend();
+  const [modProject,setModProject]=useState<Project|null>(null);
   const activeAccount=defaultAccount(backend.snapshot);
   const [lang, setLang] = useState<"en" | "ru">(getInitialLanguage);
   const dict = lang === "ru" ? ru : en;
@@ -314,6 +316,7 @@ function App() {
   }
   async function install(p: Project, versionId?: string) {
     if (!providerAvailable(p.provider)) return;
+    if(p.provider==="curseforge"&&p.project_type==="mod"){setModProject(p);return;}
     if (backend.tasks.some(task=>task.projectId&&!isTerminal(task)) || backend.snapshot?.instances.some(x=>x.project_id===p.project_id&&x.provider===(p.provider||"modrinth")) || lib.some((x) => x.project_id === p.project_id&&(x.provider||"modrinth")===(p.provider||"modrinth")))
       return;
     if (!isTauri()) {
@@ -328,7 +331,7 @@ function App() {
       const command=p.provider==='curseforge'?'install_curseforge_pack':'install_modpack';
       const result=await backend.run<string|{directory:string}>(command,{projectId:p.provider==='curseforge'?Number(p.project_id):p.project_id,versionId,name:p.title},{reportError:false,prepare:async signal=>{
         const list=await providerVersions(p,signal);
-        version=versionId?list.find(v=>v.id===versionId):p.provider==='curseforge'?list[0]:list.find(v=>v.files.some(f=>f.filename.endsWith('.mrpack')));
+        version=versionId?list.find(v=>v.id===versionId):p.provider==='curseforge'?list.find(v=>v.files.some(f=>!!f.url)):list.find(v=>v.files.some(f=>f.filename.endsWith('.mrpack')));
         if(!version)throw Error('No compatible modpack version');
         return p.provider==='curseforge'?{fileId:Number(version.id)}:{versionId:version.id};
       }});
@@ -514,6 +517,7 @@ function App() {
               animate={{ opacity: 1, y: 0 }}
               exit={{ opacity: 0, y: -6 }}
             >
+              {modProject&&<DiscoverModInstall project={modProject} russian={lang==="ru"} onClose={()=>setModProject(null)} onQueued={()=>navigation("Downloads")}/>}
               {detail ? (
                 <DetailPage
                   detail={detail}
@@ -1133,6 +1137,14 @@ function FilterPopover({
   }) => void;
   type: ContentType;
 }) {
+  const [remoteFilters,setRemoteFilters]=useState<{categories:{id:string;name:string}[];versions:string[]}|null>(null);
+  const [filterError,setFilterError]=useState(false);
+  useEffect(()=>{
+   setRemoteFilters(null);setFilterError(false);if(provider!=="curseforge"||type==="server")return;
+   const controller=new AbortController();
+   void providerInvoke<{categories:{id:string;name:string}[];versions:string[]}>("catalog_filters",{kind:type,provider},controller.signal).then(data=>{if(!controller.signal.aborted)setRemoteFilters(data);}).catch(()=>{if(!controller.signal.aborted)setFilterError(true);});
+   return()=>controller.abort();
+  },[provider,type]);
   const ref = useAnchoredPopover();
   const update = (key: keyof typeof filters, value: string) =>
     setFilters({ ...filters, [key]: value });
@@ -1160,7 +1172,7 @@ function FilterPopover({
           onChange={(e) => update("game", e.target.value)}
         >
           <option value="">{t("any")}</option>
-          {["1.21.1", "1.21", "1.20.1", "1.20", "1.19.2", "1.16.5"].map((x) => (
+          {(provider==="curseforge"?(remoteFilters?.versions||[]):["1.21.1", "1.21", "1.20.1", "1.20", "1.19.2", "1.16.5"]).map((x) => (
             <option key={x}>{x}</option>
           ))}
         </GlassSelect>
@@ -1181,14 +1193,14 @@ function FilterPopover({
           </GlassSelect>
         </label>
       )}
-      {provider==="modrinth"&&(<label>
+      {<label>
         {t("category")}
         <GlassSelect
           value={filters.category}
           onChange={(e) => update("category", e.target.value)}
         >
           <option value="">{t("any")}</option>
-          {Object.entries(categories)
+          {provider==="curseforge"?(remoteFilters?.categories||[]).map(c=><option value={c.id} key={c.id}>{c.name}</option>):Object.entries(categories)
             .slice(0, 10)
             .map(([value, key]) => (
               <option value={value} key={value}>
@@ -1196,7 +1208,8 @@ function FilterPopover({
               </option>
             ))}
         </GlassSelect>
-      </label>)}
+      </label>}
+      {provider==="curseforge"&&filterError&&<small role="status">{t("home")==="Главная"?"Не удалось загрузить фильтры. Попробуйте открыть их снова.":"Could not load filters. Try opening them again."}</small>}
       {type === "mod" && provider==="modrinth" && (
         <label>
           {t("environment")}
@@ -1335,7 +1348,7 @@ function DetailPage({
   const [tab, setTab] = useState("description");
   const gallery = detail.gallery?.filter((x) => x.url) || [];
   const available =
-    detail.project_type === "modpack" && detail.provider !== "curseforge"
+    detail.provider==="curseforge" ? versions.filter(v=>v.files.some(f=>!!f.url)) : detail.project_type === "modpack"
       ? versions.filter((v) =>
           v.files.some((f) => f.filename.endsWith(".mrpack")),
         )
@@ -1376,7 +1389,7 @@ function DetailPage({
           </div>
           <div className="detail-actions">
             {detail.project_type !== "modpack" ? (
-              <button
+              <><button
                 className="primary-button"
                 onClick={() =>
                   externalLink(
@@ -1386,7 +1399,7 @@ function DetailPage({
               >
                 <ExternalLink size={16} />
                 {t("projectSite")}
-              </button>
+              </button>{detail.provider==="curseforge"&&detail.project_type==="mod"&&<button className="primary-button" disabled={blocked||detail.download_allowed===false||!providerAvailable(detail.provider)} onClick={onInstall}><Download size={16}/>{t("install")}</button>}</>
             ) : installed ? (
               <button className="primary-button" onClick={onLibrary}>
                 <LibraryIcon size={16} />
@@ -1416,7 +1429,7 @@ function DetailPage({
                   onClick={onInstall}
                   disabled={
                     blocked ||
-                    !providerAvailable(detail.provider) ||
+                    !providerAvailable(detail.provider) || detail.download_allowed===false ||
                     !selected ||
                     !available.some((v) => v.id === selected)
                   }
@@ -1473,7 +1486,7 @@ function DetailPage({
               {versions.map((v) => (
                 <details key={v.id}>
                   <summary>
-                    <b>{v.version_number}</b>
+                    <b>{v.version_number}</b><small>{v.files.map(f=>f.filename).join(" · ")}{v.files.every(f=>!f.url)?(t("home")==="Главная"?" · Ручная загрузка":" · Manual download"):""}</small>
                     <span>{v.game_versions.join(" · ")}</span>
                     <small>
                       {new Date(v.date_published).toLocaleDateString()}

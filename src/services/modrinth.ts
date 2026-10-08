@@ -1,6 +1,7 @@
 export type ContentType =
   "modpack" | "mod" | "resourcepack" | "datapack" | "shader" | "server";
 export interface Project {
+  download_allowed?:boolean;
   native_instance_id?:string;
   provider?: "modrinth" | "curseforge";
   project_id: string;
@@ -39,6 +40,7 @@ export interface Version {
   files: { filename: string; url: string }[];
 }
 export interface Detail {
+  download_allowed?:boolean;
   provider?: "modrinth" | "curseforge";
   body_format?: "html" | "markdown";
   website_url?: string;

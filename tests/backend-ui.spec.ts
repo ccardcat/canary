@@ -25,14 +25,16 @@ mockIPC((command,args)=>{
   if(command==='cancel_operation'){globalThis.__backendTest.cancelCreate?.();return;}
 
   if(command==='storage_usage')return {path:'D:/Canary',free:10737418240,used:1073741824,available:true,breakdown:{instances:1073741824,cache:2147483648,java:1073741824,logs:0,total:4294967296}};
-  if(command==='catalog_search'){if(globalThis.__backendTest.manyPages)return {hits:Array.from({length:args.limit},(_,i)=>({provider:'curseforge',project_id:String(args.offset+i),title:'CF page item '+(args.offset+i),description:'Pagination contract',author:'Author',downloads:123,versions:['1.21.1'],categories:['fabric'],project_type:'modpack'})),total_hits:96};const data={hits:[{provider:'curseforge',project_id:'100',title:globalThis.__backendTest.slowSearch&&args.query?args.query+' CF pack':'CurseForge contract pack',description:'Provider contract',author:'Author',downloads:123,versions:['1.21.1'],categories:['fabric'],project_type:'modpack'}],total_hits:1};return globalThis.__backendTest.slowSearch&&args.query?new Promise(resolve=>setTimeout(()=>resolve(data),600)):data;}
+  if(command==='catalog_search'){if(globalThis.__backendTest.manyPages)return {hits:Array.from({length:args.limit},(_,i)=>({provider:'curseforge',project_id:String(args.offset+i),title:'CF page item '+(args.offset+i),description:'Pagination contract',author:'Author',downloads:123,versions:['1.21.1'],categories:['fabric'],project_type:globalThis.__backendTest.cfKind||'modpack',download_allowed:!globalThis.__backendTest.cfRestricted})),total_hits:96};const data={hits:[{provider:'curseforge',project_id:'100',title:globalThis.__backendTest.slowSearch&&args.query?args.query+' CF pack':'CurseForge contract pack',description:'Provider contract',author:'Author',downloads:123,versions:['1.21.1'],categories:['fabric'],project_type:globalThis.__backendTest.cfKind||'modpack',download_allowed:!globalThis.__backendTest.cfRestricted}],total_hits:1};return globalThis.__backendTest.slowSearch&&args.query?new Promise(resolve=>setTimeout(()=>resolve(data),600)):data;}
+  if(command==='catalog_filters')return {categories:[{id:'411',name:'Technology'}],versions:['1.21.1','1.20.1','1.12.2']};
   if(command==='catalog_versions')return [{provider:'curseforge',id:'200',project_id:'100',name:'Pack 2',version_number:'2',version_type:'release',game_versions:['1.21.1'],loaders:['fabric'],date_published:'2026-10-01',files:[{filename:'pack.zip',url:'https://example.invalid/pack.zip',size:1,hashes:{sha1:'contract'}}]}];
-  if(command==='content_project'&&args.provider==='curseforge')return {provider:'curseforge',id:'100',slug:'contract-pack',title:'CurseForge contract pack',description:'Provider contract',body:'<p>Safe CF description</p><script>window.cfUnsafe=true</script>',body_format:'html',project_type:'modpack',downloads:123,followers:0,game_versions:['1.21.1'],categories:['fabric'],updated:'2026-10-01',gallery:[]};
+  if(command==='content_project'&&args.provider==='curseforge')return {provider:'curseforge',id:'100',slug:'contract-pack',title:'CurseForge contract pack',description:'Provider contract',body:'<p>Safe CF description</p><script>window.cfUnsafe=true</script>',body_format:'html',project_type:globalThis.__backendTest.cfKind||'modpack',download_allowed:!globalThis.__backendTest.cfRestricted,downloads:123,followers:0,game_versions:['1.21.1'],categories:['fabric'],updated:'2026-10-01',gallery:[]};
   if(command==='install_curseforge_pack'){const instance={...state.instances[0],id:'curseforge-100-200',provider:'curseforge',project_id:'100',version_id:'200',name:'CurseForge contract pack',directory:'C:/Canary/instances/curseforge-100-200'};state.instances.push(instance);return instance;}
   if(command==='content_inventory')return structuredClone(inventory);
   if(command==='content_worlds')return [];
   if(command==='content_search'){const data={hits:[{project_id:'sodium',title:'Sodium',author:'Author',description:'A compatible optimization mod',downloads:123,versions:['1.21.1'],categories:['fabric']}],total_hits:1};return globalThis.__backendTest.slowContent?new Promise(resolve=>setTimeout(()=>resolve(data),600)):data;}
   if(command==='content_project')return {id:'sodium',title:'Sodium',description:'Optimized rendering',body:'**Safe description**',game_versions:['1.21.1'],loaders:['fabric']};
+  if(command==='content_versions'&&args.provider==='curseforge')return [{id:'200',name:'Compatible CF mod',version_number:'1',version_type:'release'}];
   if(command==='content_versions')return [{id:'sodium-v1',name:'Sodium 1',version_number:'1',version_type:'release'}];
   if(command==='content_preview')return {items:[{project:'sodium',version:'sodium-v1',name:'Sodium',number:'1',kind:'mod'},{project:'fabric-api',version:'api-v1',name:'Fabric API',number:'1',kind:'mod'}],optional:['Optional recommendation'],fingerprint:'contract-plan'};
   if(command==='install_content'){inventory.items=[{id:'item-sodium',name:'Sodium',version:'1',kind:'mod',path:'mods/sodium.jar',enabled:true,source:'modrinth',project:'sodium',provider_version:'sodium-v1',hash:'contract',dependencies:['fabric-api'],compatibility:'compatible'},{id:'item-api',name:'Fabric API',version:'1',kind:'mod',path:'mods/api.jar',enabled:true,source:'modrinth',project:'fabric-api',provider_version:'api-v1',hash:'contract-api',dependencies:[],compatibility:'compatible'}];inventory.snapshots.push({});return structuredClone(inventory);}
@@ -325,4 +327,32 @@ test("Configured CurseForge uses twelve-item pages and stale searches are cancel
  expect(calls[0].args.limit).toBe(12);expect(calls[0].args.offset).toBe(0);
  await page.getByRole("textbox",{name:"Search projects",exact:true}).fill("second");
  await expect.poll(()=>page.evaluate(()=>(globalThis as any).__backendTest.calls.some((c:any)=>c.command==="catalog_search"&&c.args.query==="second"))).toBe(true);
+});
+
+test("CurseForge filters send real category IDs, Minecraft versions and loader values",async({page})=>{
+ await page.evaluate(()=>(globalThis as any).__backendTest.cfKind='mod');await connectCurseForge(page);
+ await page.getByRole('tab',{name:'Mods',exact:true}).click();
+ await page.getByRole('button',{name:'Filters',exact:true}).click();
+ const filters=page.locator('.filter-popover');await expect(filters).toBeVisible();
+ for(const [label,value] of [['Category','Technology'],['Minecraft version','1.12.2'],['Loader','Forge']]){
+  await filters.getByRole('combobox',{name:label,exact:true}).click();await page.getByRole('option',{name:value,exact:true}).click();
+ }
+ await expect.poll(()=>page.evaluate(()=>(globalThis as any).__backendTest.calls.some((c:any)=>c.command==='catalog_search'&&c.args.category==='411'&&c.args.game==='1.12.2'&&c.args.loader==='forge'))).toBe(true);
+});
+test("Discover CurseForge mod installation targets an existing instance and joins Downloads",async({page})=>{
+ await page.evaluate(()=>(globalThis as any).__backendTest.cfKind='mod');await connectCurseForge(page);
+ await page.getByRole('tab',{name:'Mods',exact:true}).click();await expect(page.locator('.discover-page .project-card')).toHaveCount(1);
+ await page.locator('.discover-page .project-card').getByRole('button',{name:'Install',exact:true}).click();
+ const dialog=page.getByRole('dialog',{name:'Install mod in an instance',exact:true});await expect(dialog).toBeVisible();
+ await dialog.getByRole('combobox',{name:'Instance',exact:true}).click();await page.getByRole('option',{name:/Contract instance/}).click();
+ await dialog.getByRole('button',{name:'Review installation',exact:true}).click();await expect(dialog).toContainText('Fabric API');
+ await dialog.getByRole('button',{name:'Confirm installation',exact:true}).click();await expect(page.locator('.activity-downloads')).toBeVisible();
+ const calls=await page.evaluate(()=>(globalThis as any).__backendTest.calls.filter((c:any)=>c.command==='install_content'));
+ expect(calls).toHaveLength(1);expect(calls[0].args).toMatchObject({id:'contract-instance',provider:'curseforge',project:'100',kind:'mod',fingerprint:'contract-plan'});
+});
+test("CurseForge restricted projects do not offer installation",async({page})=>{
+ await page.evaluate(()=>(globalThis as any).__backendTest.cfRestricted=true);await connectCurseForge(page);
+ await expect(page.locator('.discover-page .project-card').getByRole('button',{name:'Install',exact:true})).toBeDisabled();
+ await page.locator('.card-title').click();await expect(page.locator('.detail-page').getByRole('button',{name:'Install',exact:true})).toBeDisabled();
+ expect(await page.evaluate(()=>(globalThis as any).__backendTest.calls.some((c:any)=>c.command==='install_curseforge_pack'))).toBe(false);
 });
