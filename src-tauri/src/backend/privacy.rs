@@ -5,9 +5,10 @@ use std::sync::OnceLock;
 pub fn redact(text:&str)->String{
     static RULES:OnceLock<Vec<Regex>>=OnceLock::new();
     let rules=RULES.get_or_init(||vec![
-        Regex::new(r"(?im)(\b(?:authorization|cookie|set-cookie)\s*:\s*)[^\r\n]+").unwrap(),
+        Regex::new(r"(?im)(\b(?:authorization|proxy-authorization|cookie|set-cookie)\s*:\s*)[^\r\n]+").unwrap(),
         Regex::new(r"(?i)(\b(?:bearer|basic)\s+)[a-z0-9._~+/=-]+").unwrap(),
-        Regex::new(r#"(?i)(\b(?:access[_-]?token|refresh[_-]?token|id[_-]?token|client[_-]?token|client[_-]?secret|session(?:[_-]?(?:id|secret|token))?|authorization(?:[_-]?code)?|auth[_-]?code|cookie|set-cookie|api[_-]?key|x-api-key|password|passwd|code_verifier)\b["']?\s*(?:[:=]\s*|\s+))(?:(?:"[^"]*")|(?:'[^']*')|[^\s,;&}\]]+)"#).unwrap(),
+        Regex::new(r#"(?i)(\b(?:access[_-]?token|refresh[_-]?token|id[_-]?token|identity[_-]?token|rps[_-]?ticket|user[_-]?tokens|client[_-]?token|client[_-]?secret|session(?:[_-]?(?:id|secret|token))?|authorization(?:[_-]?code)?|proxy-authorization|auth[_-]?code|cookies?|set-cookie|api[_-]?key|x-api-key|password|passwd|code_verifier)\b["']?\s*(?:[:=]\s*|\s+))(?:(?:"(?:\\.|[^"\\])*")|(?:'(?:\\.|[^'\\])*')|\[[^\]]*\]|[^\s,;&}\]]+)"#).unwrap(),
+        Regex::new(r#"(?i)(\b(?:token|secret|credentials?)\b["']?\s*[:=]\s*)(?:(?:"(?:\\.|[^"\\])*")|(?:'(?:\\.|[^'\\])*')|\[[^\]]*\]|[^\s,;&}\]]+)"#).unwrap(),
         Regex::new(r"(?i)([?&](?:code|state|ticket|token|api-key|api_key|key|sig|signature|x-amz-signature|x-amz-credential|x-amz-security-token|access_token|refresh_token|password)=)[^&#\s]+").unwrap(),
     ]);
     let mut safe=text.to_owned();
@@ -60,5 +61,16 @@ pub async fn lines<R:tokio::io::AsyncRead+Unpin>(reader:R,sender:tokio::sync::mp
         let task=tokio::spawn(lines(reader,sender,vec!["known-synthetic-secret".into()]));
         let producer=tokio::spawn(async move{writer.write_all(&vec![b'x';1024*1024]).await.unwrap();writer.write_all(b"\nBearer synthetic-secret\nnormal diagnostic\n").await.unwrap();});
         let first=receiver.recv().await.unwrap();assert!(first.len()<=8192);assert!(!receiver.recv().await.unwrap().contains("synthetic-secret"));assert_eq!(receiver.recv().await.unwrap(),"normal diagnostic");producer.await.unwrap();task.await.unwrap();
+    }
+    #[test]fn opaque_tokens_arrays_proxy_credentials_and_escaped_passwords_are_removed(){
+        for text in [r#"{"token":"synthetic-opaque-token","code":"network"}"#,
+            r#"identityToken="XBL3.0 x=123;synthetic-xbox-token""#,
+            r#"RpsTicket="d=synthetic-microsoft-token""#,
+            r#"UserTokens=["synthetic-first-token","synthetic-second-token"]"#,
+            "Proxy-Authorization: NTLM synthetic-proxy-token",
+            r#"password="synthetic-start\"synthetic-end"; code=network"#]{
+            assert!(!redact(text).contains("synthetic-"),"{}",redact(text));
+        }
+        for text in ["Token expired; sign in again","Secret storage is unavailable"]{assert_eq!(redact(text),text);}
     }
 }
