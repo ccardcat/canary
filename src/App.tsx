@@ -14,6 +14,7 @@ import {
 } from "react";
 import { AnimatePresence, MotionConfig, motion } from "motion/react";
 import {isTerminal,projectInstallTask} from "./services/activity";
+import {isProjectInstalled} from "./services/library";
 import ProjectCard from "./components/ProjectCard";
 import ContinueCard from "./components/ContinueCard";
 import {CatalogControls} from "./components/CatalogControls";
@@ -322,7 +323,7 @@ function App() {
   async function install(p: Project, versionId?: string) {
     if (!providerAvailable(p.provider)) return;
     if(p.provider==="curseforge"&&p.project_type==="mod"){setModProject(p);return;}
-    if (backend.tasks.some(task=>task.projectId&&!isTerminal(task)) || backend.snapshot?.instances.some(x=>x.project_id===p.project_id&&x.provider===(p.provider||"modrinth")) || lib.some((x) => x.project_id === p.project_id&&(x.provider||"modrinth")===(p.provider||"modrinth")))
+    if (backend.tasks.some(task=>task.projectId&&!isTerminal(task)) || isInstalled(p.project_id, p.provider || "modrinth"))
       return;
     if (!isTauri()) {
       setError({ title: t("installError"), message: t("nativeRequired") });
@@ -376,7 +377,11 @@ function App() {
       });
     }
   }
-  const isInstalled = (id: string,provider:Provider=discovery.provider) => backend.snapshot?.instances.some(x=>x.project_id===id&&x.provider===provider)||lib.some((x) => x.project_id === id&&(x.provider||"modrinth")===provider);
+  const isInstalled = (id: string, provider: Provider = discovery.provider) => isProjectInstalled(id, provider, {
+    native: isTauri(),
+    instances: backend.snapshot?.instances,
+    cachedProjects: lib,
+  });
   const navigation = (next: Page) => {
     if (next === "Settings") {
       setSettingsOpen(true);
