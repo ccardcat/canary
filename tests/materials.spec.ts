@@ -3,6 +3,7 @@ import {mkdirSync} from 'node:fs';
 import {nativeFixture} from './helpers/nativeFixture';
 
 async function choose(page:Page,name:string,option:string){
+ await page.getByRole('combobox',{name,exact:true}).evaluate(el=>{for(let details=el.closest('details');details;details=details.parentElement?.closest('details')??null)details.open=true;});
  await page.getByRole('combobox',{name,exact:true}).click();
  await page.getByRole('option',{name:option,exact:true}).click();
 }
@@ -118,6 +119,7 @@ test('install 43/97 progress and preparation/cancel actions keep readable spacin
 });
 
 test('project description badge links keep intrinsic widths instead of empty action bars',async({page})=>{
+ await page.addInitScript(()=>localStorage.setItem('canary-visual',JSON.stringify({showCommunity:true})));
  await page.route('https://api.modrinth.com/v2/**',async route=>{
   const url=new URL(route.request().url());const p={project_id:'fo-qa',slug:'fo-qa',title:'Fabulously Optimized',description:'Minecraft optimization',downloads:1000,project_type:'modpack',categories:['fabric'],versions:['1.21.1']};
   if(url.pathname.endsWith('/search'))return route.fulfill({json:{hits:[p],total_hits:1}});
@@ -142,3 +144,4 @@ test('long Library uses one backdrop per card and records scrolling frame sample
  });
  await info.attach('scroll-samples',{body:JSON.stringify(results,null,2),contentType:'application/json'});console.log('Material scroll samples',JSON.stringify(results));
 });
+

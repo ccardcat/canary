@@ -11,7 +11,10 @@ Audit base: `2ac633d89cfb4555d55b9315aed70a2f4c553199`, 9 October 2026.
 - First-error navigation waits for log filters to reset and uses the virtual list's wrapped offsets instead of assuming every row is 28px tall. Changing log filters/session resets the Copy confirmation.
 - A stalled wallpaper load or native-material capability call can no longer leave the native window hidden after the 12-second startup deadline.
 - Settings search results show localized section names rather than internal search keywords.
+- Committed appearance changes now persist in the render commit rather than after a 400ms timer. Slider previews still avoid persistence until the interaction commits.
+- Darkened secondary text in the default light palette after rendered Discover contrast fell below 4.5:1 over colorful artwork in Transparent mode.
 - Windows QA explicitly selects Desktop and a non-Solid surface preset before changing their sliders, and reports missing/disabled controls clearly.
+- Native restart QA waits for the actual saved preset before capturing its expected state. Desktop screenshots that would extend outside the monitor working area use a complete WebView capture instead of clipped screen pixels.
 - Fixed ANSI-bearing Actions log collection. The latest upstream Windows run failed at the missing-slider invocation; its follow-up reporting job also failed because `gh api` refused terminal escape sequences.
 - Added complete browser QA to pull requests/main and tagged release builds. Publication requires successful browser QA, including when installer artifacts are reused. Release metadata checks cover npm, Tauri, Cargo, the notes version and the requested tag, including reuse-only publication. Failures retain traces, screenshots and an HTML report.
 
@@ -26,6 +29,8 @@ Audit base: `2ac633d89cfb4555d55b9315aed70a2f4c553199`, 9 October 2026.
 | Material token inspection in Node | All seven styles produce finite tokens; zero edge works; Low quality gives 100% opacity/no blur |
 | `npx playwright test --list` | 170 tests discovered, including five new regressions; this is discovery, not execution |
 | Linux CI on `3aa3e585` | Rust check passed; 95 tests passed, 9 ignored; `.deb` built successfully |
+| Windows CI on `3aa3e585` | Rust check passed; 92 tests passed, 9 ignored; `.exe`/`.msi` built; CSP QA passed; window QA failed on a stale pre-save expectation |
+| Browser CI on `3aa3e585` | 121 passed, 20 failed before the 20-minute job deadline; not a successful full run |
 | Release tag validation | `v0.1.8` passed; wrong tag `v0.1.7` correctly rejected |
 | Workflow YAML and embedded Python parsing | Passed |
 | Windows smoke script syntax / `git diff --check` | Passed |
@@ -34,7 +39,9 @@ The local checkout was materialized through the GitHub connector at the exact ba
 
 ## Required release checks still pending
 
-The revised browser suite and Windows/Linux native build/QA must pass on the PR before declaring the release ready. Local Chromium could not run in this restricted environment, and the cloud preview timed out. Historical repository screenshots were inspected, but fresh after-change screenshots were not obtained locally. Rust tooling and a real native desktop session were unavailable here. None of these checks is represented as passed.
+The revised browser suite and Windows/Linux native build/QA must pass on the final PR commit before declaring the release ready. The first full browser attempt exposed outdated Settings navigation, fresh-profile/community assumptions, fixture progress payloads and repeated preference seeding; these were corrected without removing the scenarios. Matrix scenarios now have enough time to finish, and the browser jobs allow 40 minutes. The measured contrast and persistence issues above were fixed in the application.
+
+Local Chromium could not run in this restricted environment, and the cloud preview timed out. Fresh native CI captures from `3aa3e585` were downloaded and reviewed in Dark, Light and AMOLED, including all seven surface presets at 960px/1200px. Some native captures were clipped by the runner's smaller monitor; the screenshot guard above corrects this evidence issue. Those captures precede the final pressed/selected border, contrast and persistence fixes; final screenshots and CI results remain required. Rust tooling and a real local desktop session were unavailable here.
 
 The upstream run [37835939965](https://github.com/ccardcat/canary/actions/runs/37835939965) passed gateway, Linux checks and both installer builds, but failed Windows QA and its reporting job. Those results apply to the base commit, not this change.
 

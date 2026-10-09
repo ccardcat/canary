@@ -1,3 +1,4 @@
+import {reloadWithPreferences} from './helpers/preferences';
 import {test,expect,type Page,type Route} from '@playwright/test';
 import {mkdirSync,writeFileSync} from 'node:fs';
 import {nativeFixture} from './helpers/nativeFixture';
@@ -96,7 +97,7 @@ async function scoped(page:Page,index=0){await expect(page.locator('.discover-pa
 test('one install stays scoped through progress, search, filter, sort, pagination, scroll and navigation; Downloads cancellation clears it',async({page})=>{
  test.setTimeout(60000);await discover(page);await start(page);await scoped(page);
  const taskId=await card(page).getAttribute('data-task-id');expect(taskId).toMatch(/^[0-9a-f-]{36}$/);
- await page.evaluate(()=>(globalThis as any).__materialQA.emitInstall(0,{revision:2,percent:67,completed:67}));await expect(card(page).getByRole('button',{name:'Installing · 67%',exact:true})).toBeDisabled();await expect(card(page)).toContainText('67%');
+ await page.evaluate(()=>(globalThis as any).__materialQA.emitInstall(0,{revision:2,percent:67,completed:67,downloaded:67}));await expect(card(page).getByRole('button',{name:'Installing · 67%',exact:true})).toBeDisabled();await expect(card(page)).toContainText('67%');
  await page.locator('.search-field input').fill('Sodium');await expect(page.locator('.discover-page .project-card')).toHaveCount(1);await expect(page.locator('.discover-page .project-card')).not.toContainText('Installing');await page.locator('.search-field input').fill('');await expect(page.locator('.discover-page .project-card')).toHaveCount(5);await scoped(page);
  await choose(page,'Sort','Newest');await scoped(page);
  await page.locator('.filter-wrap>.control-button').click();await page.locator('.filter-popover .glass-select-trigger').first().click();await page.getByRole('option',{name:'1.21.1',exact:true}).click();await page.locator('.filter-wrap>.control-button').click();await scoped(page);
@@ -161,8 +162,9 @@ test('changing layout and corner radius keeps the selected material preset',asyn
 
 test('material rendering retains independent sidebar background treatment controls',async({page})=>{
  await page.goto('/');await nav(page,'Settings').click();await preset(page,4);
- const change=async(patch:any)=>{await page.evaluate(patch=>{const old=JSON.parse(localStorage.getItem('canary-visual')!);localStorage.setItem('canary-visual',JSON.stringify({...old,...patch}));},patch);await page.reload();};
+ const change=(patch:Record<string,unknown>)=>reloadWithPreferences(page,patch);
  const rendered=()=>page.locator('.sidebar-art').evaluate(e=>({filter:getComputedStyle(e).filter,overlay:getComputedStyle(e,'::after').backgroundImage}));
  const before=await rendered();await change({sidebarBlur:2,sidebarTreatment:{brightness:110,saturation:60,overlay:35,vignette:10,zoom:100,position:'center'}});const after=await rendered();expect(after.filter).toContain('blur(2px)');expect(after.filter).toContain('brightness(1.1)');expect(after.overlay).not.toBe(before.overlay);
  await nav(page,'Settings').click();await preset(page,5);expect(await page.evaluate(()=>JSON.parse(localStorage.getItem('canary-visual')!))).toMatchObject({sidebarBlur:2,sidebarTreatment:{brightness:110,saturation:60,overlay:35,vignette:10}});
 });
+

@@ -1,3 +1,4 @@
+import {reloadWithPreferences} from './helpers/preferences';
 import { test, expect } from "@playwright/test";
 
 test.beforeEach(async ({ page }) => {
@@ -67,7 +68,7 @@ test("custom cursors preserve editing; ordinary right click is suppressed", asyn
 });
 test("advanced backgrounds reset, crossfade and effect budgets persist", async ({ page }) => {
   await page.getByRole("button", { name:"Settings",exact:true }).click();
-  await page.locator(".settings-nav").getByRole("button",{name:"Background",exact:true}).click();await page.getByText("Color and framing",{exact:true}).click();
+  await page.locator(".settings-nav").getByRole("button",{name:"Background",exact:true}).click();await page.getByRole("group",{name:"Background source",exact:true}).getByRole("button",{name:/Picture/}).click();await page.getByText("Color and framing",{exact:true}).click();
   const brightness = page.getByRole("slider",{name:"Brightness",exact:true});
   await brightness.focus(); await page.keyboard.press("End");
   await expect(page.locator("html")).toHaveCSS("--wallpaper-brightness","1.3");
@@ -91,8 +92,7 @@ test("advanced backgrounds reset, crossfade and effect budgets persist", async (
 });
 
 test("native cursor roles, hotspots and migration", async ({ page, request }) => {
-  await page.addInitScript(() => localStorage.setItem("canary-visual", JSON.stringify({ cursor:"mono", sidebarSide:"right" })));
-  await page.reload();
+  await reloadWithPreferences(page,{cursor:"mono",sidebarSide:"right"});
   await expect(page.locator("html")).toHaveAttribute("data-cursor", "custom");
   const roles = { help:"help", crosshair:"precision", "ew-resize":"horz", "ns-resize":"vert",
     "nwse-resize":"dgn1", "nesw-resize":"dgn2", move:"move", wait:"busy-static",
@@ -125,3 +125,4 @@ test("native cursor roles, hotspots and migration", async ({ page, request }) =>
   await page.reload();
   await expect(page.locator("html")).toHaveAttribute("data-cursor", "system");
 });
+

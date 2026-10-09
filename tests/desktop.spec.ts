@@ -69,6 +69,7 @@ async function discover(page: Page) {
 
 test.beforeEach(async ({ page }) => {
   await mockApi(page);
+  await page.addInitScript(()=>{if(!localStorage.getItem("canary-visual"))localStorage.setItem("canary-visual",JSON.stringify({showCommunity:true,backgroundSource:"canary",materialLinked:true,materialStyle:"glass"}));});
   await page.goto("/");
 });
 test("pagination keeps results and offset through 1 → 2 → 3 → 2 → 1", async ({
@@ -198,6 +199,7 @@ test("account repeated click, outside click and Escape; Settings trap and live l
       .first()
       .evaluate((el) => getComputedStyle(el).color),
   ).not.toBe("rgb(255, 255, 255)");
+  await page.locator(".settings-nav").getByRole("button",{name:"Effects",exact:true}).click();
   await page
     .getByRole("switch", { name: "Reduce motion", exact: true })
     .click();
@@ -315,3 +317,4 @@ test("System responds live, AMOLED remains black, and OS reduced motion stops am
     ),
   ).toBe(true);
 });
+
