@@ -62,6 +62,25 @@ test('Settings search shows translated section names without internal keywords',
   await expect(page.locator('.material-settings')).toBeVisible();
 });
 
+test('decorative borders stay quiet when selected or pressed, with keyboard and system focus intact',async({page})=>{
+  await setup(page);
+  await page.getByRole('button',{name:'Settings',exact:true}).click();
+  const selected=page.locator('.mode-grid button.selected');
+  await expect(selected).toHaveCSS('border-top-color','rgba(0, 0, 0, 0)');
+  await selected.hover();
+  await expect(selected).toHaveCSS('border-top-color','rgba(0, 0, 0, 0)');
+  await page.mouse.down();
+  await expect(selected).toHaveCSS('border-top-color','rgba(0, 0, 0, 0)');
+  await page.mouse.move(4,4);
+  await page.mouse.up();
+  await page.keyboard.press('Tab');
+  await selected.focus();
+  await expect(selected).toHaveCSS('outline-style','solid');
+  await expect(selected).not.toHaveCSS('outline-width','0px');
+  await page.emulateMedia({forcedColors:'active'});
+  await expect(selected).not.toHaveCSS('border-top-color','rgba(0, 0, 0, 0)');
+});
+
 test('startup deadline reveals the native window even if wallpaper loading stalls',async({page})=>{
   await nativeFixture(page);
   await page.emulateMedia({reducedMotion:'reduce'});

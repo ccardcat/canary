@@ -13,7 +13,7 @@ Audit base: `2ac633d89cfb4555d55b9315aed70a2f4c553199`, 9 October 2026.
 - Settings search results show localized section names rather than internal search keywords.
 - Windows QA explicitly selects Desktop and a non-Solid surface preset before changing their sliders, and reports missing/disabled controls clearly.
 - Fixed ANSI-bearing Actions log collection. The latest upstream Windows run failed at the missing-slider invocation; its follow-up reporting job also failed because `gh api` refused terminal escape sequences.
-- Added complete browser QA to pull requests/main and tagged release builds. Publication requires successful browser QA, including when installer artifacts are reused. Release metadata checks cover npm, Tauri, Cargo and the notes version. Failures retain traces, screenshots and an HTML report.
+- Added complete browser QA to pull requests/main and tagged release builds. Publication requires successful browser QA, including when installer artifacts are reused. Release metadata checks cover npm, Tauri, Cargo, the notes version and the requested tag, including reuse-only publication. Failures retain traces, screenshots and an HTML report.
 
 ## Executed checks
 
@@ -24,7 +24,9 @@ Audit base: `2ac633d89cfb4555d55b9315aed70a2f4c553199`, 9 October 2026.
 | `node scripts/check-release.mjs` | Passed: 0.1.8 matches npm/Tauri/Cargo/notes |
 | Gateway `node --test` | 13 passed, 0 failed |
 | Material token inspection in Node | All seven styles produce finite tokens; zero edge works; Low quality gives 100% opacity/no blur |
-| `npx playwright test --list` | 169 tests discovered, including four new regressions; this is discovery, not execution |
+| `npx playwright test --list` | 170 tests discovered, including five new regressions; this is discovery, not execution |
+| Linux CI on `3aa3e585` | Rust check passed; 95 tests passed, 9 ignored; `.deb` built successfully |
+| Release tag validation | `v0.1.8` passed; wrong tag `v0.1.7` correctly rejected |
 | Workflow YAML and embedded Python parsing | Passed |
 | Windows smoke script syntax / `git diff --check` | Passed |
 
