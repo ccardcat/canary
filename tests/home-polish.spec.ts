@@ -1,3 +1,4 @@
+import {reloadWithPreferences} from './helpers/preferences';
 import { test, expect, type Page } from "@playwright/test";
 import { mkdirSync } from "node:fs";
 import { nativeFixture } from "./helpers/nativeFixture";
@@ -12,6 +13,7 @@ async function settings(page: Page) {
     .click();
 }
 async function choose(page: Page, name: string, option: string) {
+  await page.getByRole("combobox", { name, exact: true }).evaluate(el=>{for(let details=el.closest("details");details;details=details.parentElement?.closest("details")??null)details.open=true;});
   await page.getByRole("combobox", { name, exact: true }).click();
   await page.getByRole("option", { name: option, exact: true }).click();
 }
@@ -22,6 +24,7 @@ async function refresh(page: Page) {
   });
 }
 async function catalog(page: Page) {
+  await page.addInitScript(()=>{const saved=JSON.parse(localStorage.getItem("canary-visual")||"{}");if(saved.showCommunity===undefined)localStorage.setItem("canary-visual",JSON.stringify({...saved,showCommunity:true}));});
   await page.route("https://api.modrinth.com/v2/**", (route) => {
     const url = new URL(route.request().url());
     const project = {
@@ -284,8 +287,10 @@ test("RU Monocraft particle labels have a real gap and regrouped settings retain
     .click();
   const headings = await page.locator(".settings-content h3").allTextContents();
   expect(headings).toEqual(
-    expect.arrayContaining(["Материалы", "Фон", "Эффекты", "Типографика"]),
+    expect.arrayContaining(["Оформление", "Поверхности"]),
   );
+  for(const section of ["Фон","Эффекты","Типографика"]){await page.locator(".settings-nav").getByRole("button",{name:section,exact:true}).click();await expect(page.locator(".settings-content h3").first()).toContainText(section);}
+  await page.locator(".settings-nav").getByRole("button",{name:"Эффекты",exact:true}).click();
   const preset = page.getByRole("combobox", {
     name: "Пресет частиц",
     exact: true,
@@ -460,23 +465,7 @@ test("sidebar hover/focus matches full hit area on both sides and layouts withou
   await page.goto("/");
   for (const side of ["left", "right"])
     for (const layout of ["attached", "floating"]) {
-      await page.evaluate(
-        ({ side, layout }) => {
-          const value = JSON.parse(localStorage.getItem("canary-visual")!);
-          localStorage.setItem(
-            "canary-visual",
-            JSON.stringify({
-              ...value,
-              sidebarSide: side,
-              sidebarMode: layout,
-              materialLinked: true,
-              materialStyle: "liquid",
-            }),
-          );
-        },
-        { side, layout },
-      );
-      await page.reload();
+      await reloadWithPreferences(page,{sidebarSide:side,sidebarMode:layout,materialLinked:true,materialStyle:"liquid"});
       for (let compact = 0; compact < 2; compact++) {
         await expect
           .poll(() =>
@@ -487,6 +476,7 @@ test("sidebar hover/focus matches full hit area on both sides and layouts withou
           .toBe(compact ? 76 : 224);
         const home = page.locator(".sidebar nav button").first();
         const before = await home.boundingBox();
+        await page.locator("h1").click();
         await home.hover();
         const after = await home.boundingBox();
         expect(after).toEqual(before);
@@ -495,10 +485,9 @@ test("sidebar hover/focus matches full hit area on both sides and layouts withou
         await page.keyboard.press("Tab");
         await page.keyboard.press("Shift+Tab");
         await expect(home).toBeFocused();
-        await expect(home).toHaveCSS("outline-style", "none");
-        expect(
-          await home.evaluate((el) => getComputedStyle(el).boxShadow),
-        ).toContain("inset");
+        await expect(home).toHaveCSS("outline-style", "solid");
+        await expect(home).not.toHaveCSS("outline-width", "0px");
+        expect(await home.boundingBox()).toEqual(before);
         expect(
           await page.evaluate(
             () => document.documentElement.scrollWidth <= innerWidth,
@@ -531,6 +520,7 @@ test("long Home names and empty Continue remain readable at desktop scale equiva
       .getByRole("button", { name: "Настройки", exact: true })
       .first()
       .click();
+    await page.locator(".settings-nav").getByRole("button",{name:"Типографика",exact:true}).click();
     await page
       .locator(".font-options")
       .getByRole("button", { name: font, exact: true })
@@ -596,3 +586,4 @@ test("long Home names and empty Continue remain readable at desktop scale equiva
       .getByRole("button", { name: "Найти сборки", exact: true }),
   ).toBeVisible();
 });
+

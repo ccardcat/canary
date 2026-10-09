@@ -143,10 +143,10 @@
 :root .nav-capsule,:root .segment-capsule { background:linear-gradient(150deg,var(--mat-buttons-light),transparent 65%),var(--surface-selected); border:1px solid var(--mat-buttons-edge); box-shadow:inset 0 1px var(--mat-buttons-light),0 2px 6px #0002; backdrop-filter:none; }
 :root button:not(:disabled) { transition:background-color 160ms,border-color 160ms,color 160ms,box-shadow 160ms,transform 160ms; }
 :root button:where(:hover:not(:disabled):not(.card-visual):not(.card-title):not(.window-close)) { background-color:var(--surface-hover); border-color:var(--border-strong); }
-:root button:where(:active:not(:disabled):not(.card-visual):not(.toggle)) { background:var(--mat-buttons-sheen),var(--surface-pressed); border-color:var(--accent-pressed); box-shadow:inset 0 1px var(--m-light); }
+:root button:where(:active:not(:disabled):not(.card-visual):not(.toggle)) { background:var(--mat-buttons-sheen),var(--surface-pressed); border-color:var(--mat-buttons-edge); box-shadow:inset 0 1px var(--m-light); }
 :root button:is(.selected,[aria-pressed="true"],[aria-selected="true"]):not(:disabled) { background:var(--mat-buttons-sheen),var(--surface-selected); border-color:var(--border-selected); color:var(--text); }
-:root :is(.primary-button,.play-action,.install-action) { background:var(--mat-buttons-sheen),color-mix(in srgb,var(--accent) 20%,var(--mat-buttons-fill)); border-color:color-mix(in srgb,var(--accent) 48%,var(--line)); color:var(--text); font-weight:700; box-shadow:var(--mat-buttons-shadow); }
-:root :is(.primary-button,.play-action,.install-action):hover:not(:disabled) { background-color:var(--surface-hover); border-color:var(--accent-hover); }
+:root :is(.primary-button,.play-action,.install-action) { background:var(--mat-buttons-sheen),color-mix(in srgb,var(--accent) 20%,var(--mat-buttons-fill)); border-color:var(--mat-buttons-edge); color:var(--text); font-weight:700; box-shadow:var(--mat-buttons-shadow); }
+:root :is(.primary-button,.play-action,.install-action):hover:not(:disabled) { background-color:var(--surface-hover); border-color:var(--mat-buttons-edge); }
 :root :is(button,input,textarea,select,a,summary):focus-visible { outline:1.5px solid var(--focus-ring); outline-offset:2px; }
 :root :is(button,input,textarea,select):disabled,:root button:is(.selected,[aria-pressed="true"],[aria-selected="true"]):disabled { opacity:1; color:var(--text-disabled); background:var(--surface-disabled); border-color:var(--border-subtle); box-shadow:none; cursor:not-allowed; transform:none; }
 :root button:disabled svg { color:var(--icon-disabled); }
@@ -268,7 +268,7 @@
 :root .provider-badge .glass-select-trigger { min-height:42px; }
 :root .discover-toolbar :is(.control-button,.glass-select-trigger) { min-height:42px; height:auto; line-height:1.5; }
 :root .control-button { gap:8px; padding:10px 12px; }
-:root .glass-select-trigger:hover:not(:disabled),:root .glass-select-trigger[aria-expanded="true"] { border-color:var(--focus-ring); background:var(--mat-inputs-sheen),var(--mat-inputs-fill); }
+:root .glass-select-trigger:hover:not(:disabled),:root .glass-select-trigger[aria-expanded="true"] { border-color:var(--mat-inputs-edge); background:var(--mat-inputs-sheen),var(--mat-inputs-fill); }
 
 /* Search owns one input surface. Its editable child has no second fill/ring. */
 :root .search-field { min-height:42px; height:auto; padding:0 12px; gap:10px; }
@@ -337,7 +337,7 @@
 :root .settings-search input { color:var(--text-primary); box-shadow:inset 0 1px var(--mat-inputs-light); }
 :root .settings-search input:focus-visible { outline:0; border-color:var(--focus-ring); box-shadow:0 0 0 1px var(--focus-ring),0 0 0 3px var(--focus-halo); }
 :root :is(.mode-grid,.preset-grid,.accent-grid) button:not(:disabled) { color:var(--text-secondary); }
-:root :is(.mode-grid,.preset-grid,.accent-grid) button.selected:not(:disabled) { color:var(--text-primary); border-color:var(--border-selected); box-shadow:inset 0 1px var(--mat-buttons-light),0 0 0 1px var(--border-selected); font-weight:700; }
+:root :is(.mode-grid,.preset-grid,.accent-grid) button.selected:not(:disabled) { color:var(--text-primary); border-color:var(--border-selected); box-shadow:none; font-weight:700; }
 :root .accent-grid i { border-color:var(--border-strong); box-shadow:inset 0 0 0 1px var(--border-subtle); }
 :root :is(.search-field,.glass-select-trigger)>svg { color:var(--icon-secondary); opacity:1; }
 :root .modal-backdrop,:root .runtime-dialog::backdrop { background:var(--backdrop-overlay); }
@@ -348,8 +348,8 @@
 :root .settings-note { color:var(--text-secondary); }
 
 /* Selected controls still react to pointer pressure. */
-:root button:is(.selected,[aria-selected="true"],[aria-pressed="true"]):hover:not(:disabled) { border-color:var(--accent-hover); background:var(--mat-buttons-sheen),var(--surface-hover); }
-:root button:active:not(:disabled):not(.toggle):where(:not(.card-visual):not(.card-title):not(.window-minimize):not(.window-maximize):not(.window-close)) { background:var(--mat-buttons-sheen),var(--surface-pressed); border-color:var(--accent-pressed); }
+:root button:is(.selected,[aria-selected="true"],[aria-pressed="true"]):hover:not(:disabled) { border-color:var(--mat-buttons-edge); background:var(--mat-buttons-sheen),var(--surface-hover); }
+:root button:active:not(:disabled):not(.toggle):where(:not(.card-visual):not(.card-title):not(.window-minimize):not(.window-maximize):not(.window-close)) { background:var(--mat-buttons-sheen),var(--surface-pressed); border-color:var(--mat-buttons-edge); }
 :root :is(.settings-nav,.sidebar nav) button:active .nav-capsule { background:var(--surface-pressed); }
 /* Carousel controls sit over artwork, with the same protected floating tint. */
 :root .hero-carousel-controls .hero-arrow { background:var(--mat-floating-fill); color:var(--icon-primary); border-color:var(--border-default); box-shadow:none; }
@@ -357,7 +357,7 @@
 /* The miniature is an isolated artwork scene using the same semantic tokens. */
 .material-preset-grid { display:grid; grid-template-columns:repeat(auto-fit,minmax(min(100%,170px),1fr)); gap:12px; margin:16px 0; }
 :root .material-preset-control { display:grid; align-content:start; gap:6px; padding:10px; min-width:0; text-align:left; border:1px solid var(--border-default); height:auto; }
-:root .material-preset-control[aria-pressed="true"] { border-color:var(--border-selected); box-shadow:inset 0 0 0 1px var(--border-selected); }
+:root .material-preset-control[aria-pressed="true"] { border-color:var(--border-selected); box-shadow:none; }
 .material-preset-control small { color:var(--text-secondary); font-size:.7rem; line-height:1.5; }
 .material-swatch { display:block; position:relative; overflow:hidden; width:100%; height:60px; border-radius:8px; background:linear-gradient(125deg,#728f98 0 25%,#a17e87 25% 50%,#626e80 50% 75%,#869781 75%); }
 .material-swatch-sheet { display:grid; gap:4px; position:absolute; inset:9px 12px; padding:8px; border:1px solid var(--mat-cards-edge); border-radius:8px; background:var(--mat-cards-sheen),var(--mat-cards-fill); backdrop-filter:var(--mat-cards-filter); box-shadow:var(--mat-cards-shadow); }
@@ -462,3 +462,4 @@
 @media(max-width:600px) {
   :root .material-layout-controls { grid-template-columns:minmax(0,1fr); }
 }
+

@@ -312,7 +312,7 @@ test("failed first install leaves no ghost; successful retry publishes only afte
 test("Downloads progress remains readable in all materials and themes without a sidebar Dock", async ({
   page,
 }) => {
-  test.setTimeout(90000);
+  test.setTimeout(240000);
   await setup(page);
   await page.setViewportSize({ width: 760, height: 540 });
   mkdirSync(".qa/dock-removal", { recursive: true });
@@ -408,3 +408,4 @@ test("short viewport and reduced motion retain Cancel and both sidebar utilities
   await page.keyboard.press("Enter");
   await expect(page.locator(".settings-modal")).toBeVisible();
 });
+

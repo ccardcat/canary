@@ -40,6 +40,7 @@ async function start(page: Page, russian = false) {
 }
 
 async function choose(page: Page, name: string, option: string) {
+  await page.getByRole("combobox", { name, exact: true }).evaluate(el=>{for(let details=el.closest("details");details;details=details.parentElement?.closest("details")??null)details.open=true;});
   await page.getByRole("combobox", { name, exact: true }).click();
   await page.getByRole("option", { name: option, exact: true }).click();
 }
@@ -459,3 +460,4 @@ test("small-height sidebar side and surface settings switch without losing utili
   );
   await contained(page, ".sidebar-bottom button:last-child");
 });
+

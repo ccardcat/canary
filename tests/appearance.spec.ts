@@ -2,6 +2,7 @@ import { test, expect } from "@playwright/test";
 
 test.beforeEach(async ({ page }) => {
   await page.route("https://api.modrinth.com/**", route => route.fulfill({ json: { hits: [], total_hits: 0 } }));
+  await page.addInitScript(()=>{if(!localStorage.getItem("canary-visual"))localStorage.setItem("canary-visual",JSON.stringify({backgroundSource:"canary",materialLinked:true,materialStyle:"glass"}));});
   await page.goto("/");
   await page.getByRole("button", { name: "Settings", exact: true }).click();
 });
@@ -155,3 +156,4 @@ test("light dialogs remain readable and low quality limits surface blur",async({
  expect(await alpha("dialog.glass-select-popup[open]")).toBeGreaterThanOrEqual(.68);
  await page.keyboard.press("Escape");await expect(page.locator(".settings-modal")).toBeVisible();
 });
+

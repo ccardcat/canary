@@ -114,7 +114,7 @@ export function VisualAppearanceProvider({ children }: { children: ReactNode }) 
    });
   },[]);
   useEffect(()=>()=>cancelAnimationFrame(previewFrame.current),[]);
-  useEffect(()=>{const timer=setTimeout(()=>localStorage.setItem("canary-visual",JSON.stringify(value)),400);return()=>clearTimeout(timer);},[value]);
+  useLayoutEffect(()=>{localStorage.setItem("canary-visual",JSON.stringify(value));},[value]);
   useEffect(()=>{const flush=()=>localStorage.setItem("canary-visual",JSON.stringify(savedRef.current));window.addEventListener("pagehide",flush);return()=>{window.removeEventListener("pagehide",flush);flush();};},[]);
   useLayoutEffect(()=>{for(const key of ["density","particleOpacity","particleSpeed","particleSize","particleWind"] as const)previewParticle(key,value[key]);},[value.density,value.particleOpacity,value.particleSpeed,value.particleSize,value.particleWind,value.ambient,value.quality,value.app,value.sidebar,value.focus,reduced]);
   const update=useCallback((patch:Partial<Preferences>)=>{cancelAnimationFrame(previewFrame.current);previewFrame.current=0;pendingPreview.current={};setValue(old=>({...old,...patch,...(!("materialPreset" in patch)&&Object.keys(patch).some(key=>key in materialDefaults||["surfaceOpacity","surfaceBlur","glassIntensity"].includes(key))?{materialPreset:"custom"}:{})}));},[]);
@@ -202,3 +202,4 @@ export function InterfaceVisibilityPanel({ russian }: { russian: boolean }) {
     </section>
   );
 }
+

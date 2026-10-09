@@ -1717,10 +1717,11 @@ function SettingsModal({
     const previous = document.activeElement as HTMLElement | null;
     panel.current?.querySelector<HTMLElement>("button")?.focus();
     const trap = (event: KeyboardEvent) => {
-      if (event.key !== "Tab") return;
+      // Native dropdowns/dialogs own focus while they occupy the top layer.
+      if (event.key !== "Tab" || event.defaultPrevented || document.querySelector("dialog[open]")) return;
       const elements = [
         ...(panel.current?.querySelectorAll<HTMLElement>(
-          "button:not(:disabled),select:not([aria-hidden='true']),input,a[href],[tabindex='0']",
+          "button:not(:disabled),select:not(:disabled):not([aria-hidden='true']),input:not(:disabled),textarea:not(:disabled),summary,a[href],[tabindex='0']",
         ) || []),
       ].filter(element=>element.getClientRects().length>0&&element.tabIndex>=0);
       const first = elements[0],
@@ -1816,7 +1817,7 @@ function SettingsModal({
                 exit={{ opacity: 0 }}
                 transition={{duration:.12}}
               >
-                {search.trim()?<div className="settings-results">{results.length?results.map(([id,label,Icon,words])=><button key={id} onClick={()=>{setTab(id);setSearch("");}}><Icon size={17}/> {label}<small>{words.split(" ").slice(0,7).join(" · ")}</small></button>):<p>{russian?"Настройки не найдены":"No settings found"}</p>}</div>:tab === "discord" ? <DiscordSettings russian={russian} status={discordStatus}/> :tab === "window" ? <WindowPreferencesPanel russian={russian}/> :tab === "background" ? <><VisualPreferences russian={russian} group="background"/><HeroSettings russian={russian}/></> :tab === "effects" ? <EffectsPreferences russian={russian}><MotionPreference t={t} reduceMotion={reduceMotion} setReduceMotion={setReduceMotion}/></EffectsPreferences> :tab === "typography" ? <VisualPreferences russian={russian} group="typography"/> :tab === "storage" ? <StorageSettings russian={russian}/> :tab === "minecraft"?<RuntimeSettingsPanel russian={russian} section="minecraft"/> :tab === "downloads"?<RuntimeSettingsPanel russian={russian} section="downloads"/> :tab === "appearance" ? (
+                {search.trim()?<div className="settings-results">{results.length?results.map(([id,label,Icon])=><button key={id} onClick={()=>{setTab(id);setSearch("");}}><Icon size={17}/> {label}</button>):<p>{russian?"Настройки не найдены":"No settings found"}</p>}</div>:tab === "discord" ? <DiscordSettings russian={russian} status={discordStatus}/> :tab === "window" ? <WindowPreferencesPanel russian={russian}/> :tab === "background" ? <><VisualPreferences russian={russian} group="background"/><HeroSettings russian={russian}/></> :tab === "effects" ? <EffectsPreferences russian={russian}><MotionPreference t={t} reduceMotion={reduceMotion} setReduceMotion={setReduceMotion}/></EffectsPreferences> :tab === "typography" ? <VisualPreferences russian={russian} group="typography"/> :tab === "storage" ? <StorageSettings russian={russian}/> :tab === "minecraft"?<RuntimeSettingsPanel russian={russian} section="minecraft"/> :tab === "downloads"?<RuntimeSettingsPanel russian={russian} section="downloads"/> :tab === "appearance" ? (
                   <Appearance
                     t={t}
                     mode={mode}
@@ -2073,3 +2074,4 @@ function SettingsInfo({
   );
 }
 export default App;
+

@@ -67,7 +67,7 @@ export function normalizeMaterials(saved:Record<string,unknown>):MaterialPrefere
   if(!valid(result.materialStyle))result.materialStyle='glass';
   const input=saved.materialCategories&&typeof saved.materialCategories==='object'?saved.materialCategories as Record<string,unknown>:{};
   for(const key of materialCategories)if(valid(input[key]))result.materialCategories[key]=input[key];
-  for(const [key,[min,max]] of Object.entries({materialIntensity:[0,100],materialSaturation:[50,160],materialBrightness:[80,120],materialContrast:[80,120],materialHighlight:[0,160],materialBorder:[30,160],materialShadow:[0,160],sidebarMaterialIntensity:[0,150],titlebarMaterialIntensity:[0,150]})){
+  for(const [key,[min,max]] of Object.entries({materialIntensity:[0,100],materialSaturation:[50,160],materialBrightness:[80,120],materialContrast:[80,120],materialHighlight:[0,160],materialBorder:[0,160],materialShadow:[0,160],sidebarMaterialIntensity:[0,150],titlebarMaterialIntensity:[0,150]})){
     const n=fields[key];fields[key]=typeof n==='number'&&Number.isFinite(n)?clamp(n,min,max):(materialDefaults as unknown as Record<string,unknown>)[key];
   }
   if(result.materialPreset!=='custom'&&!(result.materialPreset in materialPresets))result.materialPreset='canary';
@@ -79,12 +79,12 @@ export type TokenPreferences=MaterialPreferences & {surfaceOpacity:number;surfac
 // Profiles share one token pipeline. Depth belongs to the semantic category,
 // not the page. Controls use a foreground variant to avoid nested backdrop work.
 export const materialProfiles:Record<SurfaceMaterial,{opacity:number;blur:number;saturation:number;light:number;edge:number;shadow:number;influence:number}>={
-  solid:{opacity:100,blur:0,saturation:1,light:0,edge:.16,shadow:.035,influence:0},
-  soft:{opacity:90,blur:.12,saturation:1,light:.012,edge:.08,shadow:.055,influence:.16},
+  solid:{opacity:100,blur:0,saturation:1,light:0,edge:.065,shadow:.025,influence:0},
+  soft:{opacity:86,blur:.12,saturation:1,light:.012,edge:.045,shadow:.04,influence:.16},
   vibrancy:{opacity:70,blur:1.3,saturation:1.18,light:0,edge:.018,shadow:.07,influence:.88},
-  glass:{opacity:76,blur:1,saturation:1,light:.045,edge:.15,shadow:.09,influence:.55},
-  clear:{opacity:48,blur:1,saturation:1,light:.018,edge:.075,shadow:.055,influence:.92},
-  liquid:{opacity:58,blur:.9,saturation:1.08,light:.075,edge:.13,shadow:.1,influence:.72},
+  glass:{opacity:72,blur:1,saturation:1,light:.03,edge:.065,shadow:.065,influence:.55},
+  clear:{opacity:48,blur:1,saturation:1,light:.018,edge:.04,shadow:.045,influence:.92},
+  liquid:{opacity:58,blur:.9,saturation:1.08,light:.055,edge:.06,shadow:.075,influence:.72},
   transparent:{opacity:8,blur:0,saturation:1,light:0,edge:.025,shadow:0,influence:1},
 };
 const depth:Record<MaterialCategory,number>={cards:1,buttons:.55,sidebar:1.1,popovers:1.25,dialogs:1.3,inputs:.35,titlebar:.4,floating:1.15};
@@ -107,7 +107,7 @@ export function applyMaterialTokens(root:HTMLElement,value:TokenPreferences){
     const blur=fallback||foreground?0:clamp(value.surfaceBlur*p.blur*d*(.75+strength*.5),0,32);
     const light=clamp(p.light*(.65+strength)*value.materialHighlight/100*(.7+value.glassIntensity/70),0,.14);
     const shadow=clamp(p.shadow*(.4+strength)*d*value.materialShadow/100,0,.18);
-    const edge=clamp(Math.max(p.edge,desktop?.075:0)*(.7+strength*.4)*value.materialBorder/100,0,.22);
+    const edge=clamp(Math.max(p.edge,desktop?.04:0)*(.7+strength*.4)*value.materialBorder/100,0,.16);
     const prefix=`--mat-${category}-`;
     const token=(key:string,v:string)=>root.style.setProperty(prefix+key,v);
     // Readable control tints follow user opacity instead of imposing opaque fills.
@@ -143,3 +143,4 @@ export function applyLayoutTokens(root:HTMLElement,value:LayoutPreferences) {
     root.style.setProperty(`--mat-${category}-radius`,`${foreground?clamp(value.materialRadius*.55,8,16):category==='titlebar'?0:clamp(value.materialRadius*depth[category],8,32)}px`);
   }
 }
+

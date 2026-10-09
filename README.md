@@ -41,6 +41,7 @@ This removes generated Rust build artifacts; launcher profiles, accounts and ins
 ## Checks
 
 ```sh
+node scripts/check-release.mjs
 npm run build
 cargo check --locked --manifest-path src-tauri/Cargo.toml
 cargo test --locked --manifest-path src-tauri/Cargo.toml
@@ -74,7 +75,7 @@ See [validation notes](docs/QA.md) for the verified scenario and remaining platf
 
 ## Releases
 
-Each push to main runs **Desktop verification** on Windows/Linux, builds EXE/MSI/DEB artifacts, and checks real packaged Windows window transitions, materials and themes through its WebView2. Windows screenshots/results are uploaded as artifacts. Receipts are saved in `refs/notes/qa-windows` and `refs/notes/qa-linux`.
+Pull requests and each push to main run **Desktop verification** on Windows/Linux, builds EXE/MSI/DEB artifacts, and checks real packaged Windows window transitions, materials and themes through its WebView2. The full browser suite runs before merge and again on the tagged release; publication requires its success. Windows screenshots/results are uploaded as artifacts. Receipts are saved in `refs/notes/qa-windows` and `refs/notes/qa-linux`.
 
 Pushing a `v<version>` tag matching `package.json` and the Tauri configuration builds Windows x64 EXE/MSI and Linux x64 DEB/AppImage through GitHub Actions. The workflow publishes a GitHub Release only after both platform builds pass, with `SHA256SUMS` and [release notes](docs/RELEASE.md). No signing certificate is configured.
 
@@ -88,3 +89,4 @@ The publication receipt is saved in `refs/notes/releases` on the tagged commit, 
 git fetch origin refs/notes/releases:refs/notes/releases
 git notes --ref=releases show 'v0.1.0^{}'
 ```
+

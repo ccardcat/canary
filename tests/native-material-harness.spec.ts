@@ -1,3 +1,4 @@
+import {reloadWithSeed} from './helpers/preferences';
 import {test,expect} from '@playwright/test';
 import {nativeFixture} from './helpers/nativeFixture';
 import {materialPresetQA} from '../.github/scripts/material-preset-qa.mjs';
@@ -5,10 +6,11 @@ import {discoverInstallQA} from '../.github/scripts/discover-install-qa.mjs';
 import {mkdirSync} from 'node:fs';
 
 test('Windows preset QA harness exercises actual renderer controls before native CI',async({page})=>{
- test.setTimeout(180000);await nativeFixture(page);await page.emulateMedia({reducedMotion:'reduce'});await page.goto('/');
+ test.setTimeout(240000);await nativeFixture(page);await page.addInitScript(()=>{if(!localStorage.getItem('canary-visual'))localStorage.setItem('canary-visual',JSON.stringify({showHero:true}));});await page.emulateMedia({reducedMotion:'reduce'});await page.goto('/');
  await page.locator('.sidebar').getByRole('button',{name:'Settings',exact:true}).click();
  const report:any={cases:[]};mkdirSync('.qa/native-material-harness',{recursive:true});
  await materialPresetQA({
+  reloadWithPreferences:(source:string)=>reloadWithSeed(page,source),
   evaluate:(expression:string)=>page.evaluate(expression),
   choose:async(name:string,text:string)=>{await page.getByRole('combobox',{name,exact:true}).click();await page.getByRole('option',{name:text,exact:true}).click();},
   click:(expression:string)=>page.evaluate(`${expression}.click()`),
@@ -46,3 +48,4 @@ test('native live Discover QA harness validates scoped tasks and cancellation be
  expect(report.liveDiscover).toMatchObject({status:'success',cards:5,installingCards:1,terminal:'cancelled',ghostInstance:false,versionId:'version-one'});
  // The adapters above are explicitly fixtures; CI supplies real IPC/network.
 });
+

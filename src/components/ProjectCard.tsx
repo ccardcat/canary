@@ -1,5 +1,5 @@
 import {memo,useCallback,useRef} from "react";
-import {useBackend} from "../services/backend";
+import {useLiveTasks} from "../services/taskStore";
 import {projectInstallTask,isTerminal} from "../services/activity";
 import {Download,Info,Plus} from "lucide-react";
 import {categories,type T} from "../locales";
@@ -20,7 +20,7 @@ type ProjectCardProps = {
   onInstall: () => void;
 };
 function ProjectCard(props:ProjectCardProps) {
-  const {tasks}=useBackend();
+  const tasks=useLiveTasks();
   const task=projectInstallTask(tasks,props.p.provider||'modrinth',props.p.project_id);
   const blocked=!!props.installationDisabled||props.type==="modpack"&&tasks.some(current=>current.projectId&&!isTerminal(current));
   const handlers=useRef(props);handlers.current=props;
@@ -81,3 +81,4 @@ const CardView=memo(function CardView({p,t,type,installed,onOpen,onInstall,compa
 });
 
 export default memo(ProjectCard);
+
