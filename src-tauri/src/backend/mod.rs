@@ -20,6 +20,7 @@ pub mod network;
 pub mod protected_fs;
 pub mod privacy;
 pub mod java;
+pub mod launch_arguments;
 pub mod loaders;
 pub mod loader_catalog;
 pub mod server_history;

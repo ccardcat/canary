@@ -27,9 +27,10 @@ pub fn trusted_custom(backend:&Backend,path:&Path)->Result<PathBuf>{
     if backend.store.lock().unwrap().trusted_java.get(canonical.to_string_lossy().as_ref())!=Some(&hash){return Err(BackendError::new("java_consent","Test and approve this custom Java executable in Minecraft settings before use"));}Ok(canonical)
 }
 pub fn validate_arguments(jvm:&[String],game:&[String])->Result<()> {
-    if jvm.len()+game.len()>256||jvm.iter().chain(game).any(|s|s.len()>16*1024||s.contains('\0')){return Err(BackendError::new("arguments","Too many launch arguments or an invalid argument"));}Ok(())
+    if jvm.len()+game.len()>256||jvm.iter().chain(game).any(|s|s.len()>16*1024||s.contains('\0')){return Err(BackendError::new("arguments","Too many launch arguments or an invalid argument"));}
+    super::launch_arguments::validate_jvm(jvm).and_then(|_|super::launch_arguments::validate_game(game)).map_err(|message|BackendError::new("arguments",message))
 }
-pub fn risky_arguments(jvm:&[String])->bool{jvm.iter().any(|s|["-javaagent","-agentlib","-agentpath","-Xbootclasspath","--patch-module","-Djava.system.class.loader","-Djava.library.path","@"].iter().any(|prefix|s.starts_with(prefix)))}
+pub fn risky_arguments(jvm:&[String])->bool{super::launch_arguments::requires_consent(jvm)}
 pub fn authorize_arguments(backend:&Backend,app:&tauri::AppHandle,jvm:&[String],game:&[String])->Result<()> {
     use tauri_plugin_dialog::{DialogExt,MessageDialogButtons,MessageDialogKind};validate_arguments(jvm,game)?;
     if !risky_arguments(jvm){return Ok(());}let fingerprint=argument_fingerprint(jvm)?;

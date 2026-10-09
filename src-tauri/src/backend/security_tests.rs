@@ -35,8 +35,18 @@ fn fixture()->(std::path::PathBuf,storage::Staging){let root=std::env::temp_dir(
  assert!(java::executable_path(Path::new("relative-java")).is_err());
 }
 #[cfg(unix)]#[tokio::test]async fn shell_metacharacters_are_literal_process_arguments(){
- let (root,_cleanup)=fixture();let marker=root.join("must-not-exist");let value=format!("$(touch {}) ; & | `touch {}`",marker.display(),marker.display());
+ let (root,_cleanup)=fixture();let marker=root.join("must-not-exist");let value=format!("-Dcanary.literal=$(touch {}) ; & | `touch {}`",marker.display(),marker.display());
  java::validate_arguments(&[value.clone()],&[]).unwrap();let output=tokio::process::Command::new("/bin/echo").arg(&value).output().await.unwrap();assert!(output.status.success());assert_eq!(String::from_utf8(output.stdout).unwrap().trim(),value);assert!(!marker.exists());
+}
+#[test]fn imported_custom_options_cannot_replace_minecraft_or_account_identity(){
+ for jvm in [vec!["-jar".into(),"mods/payload.jar".into()],vec!["PayloadMain".into()],vec!["@payload.txt".into()]]{
+  assert_eq!(java::validate_arguments(&jvm,&[]).unwrap_err().code,"arguments");
+ }
+ for game in [vec!["--accessToken=synthetic-token".into()],vec!["--session=synthetic-session".into()]]{
+  assert_eq!(java::validate_arguments(&[],&game).unwrap_err().code,"arguments");
+ }
+ java::validate_arguments(&["-Xmx4G".into(),"--add-opens".into(),"java.base/java.lang=ALL-UNNAMED".into()],&["--server".into(),"play.example.org".into()]).unwrap();
+ assert!(java::risky_arguments(&["-XX:OnOutOfMemoryError=echo harmless".into()]));
 }
 #[tokio::test]async fn hash_mismatch_and_future_drop_do_not_publish_partial_files(){
  use tokio::{net::TcpListener,io::{AsyncReadExt,AsyncWriteExt}};let (root,_cleanup)=fixture();let backend=Arc::new(Backend::with_root(root.clone()).unwrap());let path=root.join("cache/test/artifact.jar");protected_fs::write(&path,b"old verified data").unwrap();
