@@ -1,5 +1,7 @@
 import {applyBackgroundTokens} from "./appearancePreview";
 import {BackgroundSettings} from "./BackgroundSettings";
+import {catalogDefaults, normalizeCatalog, type CatalogPreferences} from "../services/catalog";
+import {CatalogSettings} from "./CatalogControls";
 import {SmoothRange,previewParticle} from "./SmoothRange";
 import {discordDefaults,type DiscordPreferences} from "../services/discord";
 import GlassSelect from "./GlassSelect";
@@ -21,15 +23,15 @@ import {isTauri,convertFileSrc} from "@tauri-apps/api/core";
 import {useBackend} from "../services/backend";
 import {windowDefaults,useNativeMaterial,WindowMaterialSettings,WindowControlsSettings,type WindowPreferences} from "./WindowMaterial";
 const fonts = ["Nunito", "Manrope", "Plus Jakarta Sans", "Rubik", "Monocraft"];
-export type Preferences = DiscordPreferences & PolishPreferences & WindowPreferences & MaterialPreferences & LayoutPreferences & { app: string; sidebar: string; linked: boolean; intensity: number; blur: number; sidebarBlur: number; font: string; fontScale: 90 | 100 | 110 | 120; minecraft: "headings" | "full"; showCommunity:boolean; backgroundVersion:number;compactCardsVersion:number; ambient: "off" | "automatic" | "sakura" | "snow" | "autumn" };
-const defaults: Preferences = { ...discordDefaults, ...polishDefaults,...windowDefaults,...layoutDefaults,...materialDefaults, app: "green", sidebar: "default", linked: false, intensity: 85, blur: 8, sidebarBlur: 12, font: "Nunito", fontScale:100, minecraft: "headings", showCommunity:true, backgroundVersion:1, compactCardsVersion:1, ambient: "off" };
+export type Preferences = CatalogPreferences & DiscordPreferences & PolishPreferences & WindowPreferences & MaterialPreferences & LayoutPreferences & { app: string; sidebar: string; linked: boolean; intensity: number; blur: number; sidebarBlur: number; font: string; fontScale: 90 | 100 | 110 | 120; minecraft: "headings" | "full"; showCommunity:boolean; backgroundVersion:number;compactCardsVersion:number; ambient: "off" | "automatic" | "sakura" | "snow" | "autumn" };
+const defaults: Preferences = { ...catalogDefaults,...discordDefaults, ...polishDefaults,...windowDefaults,...layoutDefaults,...materialDefaults, app: "green", sidebar: "default", linked: false, intensity: 85, blur: 8, sidebarBlur: 12, font: "Nunito", fontScale:100, minecraft: "headings", showCommunity:true, backgroundVersion:1, compactCardsVersion:1, ambient: "off" };
 const freshDefaults:Preferences={...defaults,...materialPresetPatch("solid"),backgroundSource:"solid",materialRadius:14,cursor:"system",showCommunity:false};
 export function normalizePreferences(input:unknown):Preferences {
  const saved=input&&typeof input==="object"?input as Record<string,unknown>:{};
  const base=Object.keys(saved).length?defaults:freshDefaults;
- const result={...base,...normalizeMaterials(Object.keys(saved).length?saved:base),...normalizeLayout(Object.keys(saved).length?saved:base),globalTreatment:{...base.globalTreatment},sidebarTreatment:{...base.sidebarTreatment}};
+ const result={...base,...normalizeCatalog(saved),...normalizeMaterials(Object.keys(saved).length?saved:base),...normalizeLayout(Object.keys(saved).length?saved:base),globalTreatment:{...base.globalTreatment},sidebarTreatment:{...base.sidebarTreatment}};
  const fields=result as unknown as Record<string,unknown>;
- for(const key of Object.keys(defaults).filter(key=>!(key in materialDefaults)&&!(key in layoutDefaults))){const value=saved[key];if(typeof value===typeof fields[key]&&(typeof value!=="number"||Number.isFinite(value)))fields[key]=value;}
+ for(const key of Object.keys(defaults).filter(key=>!(key in materialDefaults)&&!(key in layoutDefaults)&&!(key in catalogDefaults))){const value=saved[key];if(typeof value===typeof fields[key]&&(typeof value!=="number"||Number.isFinite(value)))fields[key]=value;}
  const enums:Record<string,string[]>={backgroundSource:["canary","desktop","solid"],material:["solid","transparent","acrylic","mica","mica-alt"],tint:["neutral","theme","strong"],vibrancyPreset:["off","subtle","balanced","glass","custom"],titlebarBranding:["icon","text","icon-text","hidden"],windowControls:["windows","minimal","compact","traffic-lights"],controlsPosition:["left","right"],effectPreset:["off","low","medium","high","custom"],ambient:["off","automatic","sakura","snow","autumn"],quality:["low","balanced","high"],sidebarSide:["left","right"],cursor:["system","custom"],minecraft:["headings","full"],font:fonts};
  for(const [key,allowed] of Object.entries(enums))if(!allowed.includes(String(fields[key])))fields[key]=(defaults as unknown as Record<string,unknown>)[key];
  const ranges:Record<string,[number,number]>={windowTransparency:[0,100],surfaceOpacity:[20,100],surfaceBlur:[0,32],glassIntensity:[0,70],heroSpeed:[7,20],particleWind:[0,200],density:[4,24],particleSpeed:[40,180],particleOpacity:[5,70],particleSize:[50,160],glass:[5,35],intensity:[0,100],blur:[0,32],sidebarBlur:[0,20],sidebarIntensity:[0,100]};
@@ -140,7 +142,7 @@ export function VisualPreferences({ russian,group="all",effectsControls }: { rus
 
   return <section className="visual-preferences" data-visual-group={group}>
 
-    {(group==="all"||group==="layout")&&<div className="visual-appearance-group"><MaterialLayoutSettings russian={russian} value={value} update={update}/><PolishControls russian={russian} value={value} update={update} group="layout"/>{group==="all"&&native&&<details className="material-disclosure"><summary>{russian?"Материал окна Windows":"Windows window material"}</summary><WindowMaterialSettings russian={russian} value={value} update={update} preview={preview} nativeOnly {...native}/></details>}</div>}
+    {(group==="all"||group==="layout")&&<div className="visual-appearance-group"><MaterialLayoutSettings russian={russian} value={value} update={update}/><CatalogSettings russian={russian} value={value} update={update}/><PolishControls russian={russian} value={value} update={update} group="layout"/>{group==="all"&&native&&<details className="material-disclosure"><summary>{russian?"Материал окна Windows":"Windows window material"}</summary><WindowMaterialSettings russian={russian} value={value} update={update} preview={preview} nativeOnly {...native}/></details>}</div>}
     {(group==="all"||group==="background")&&<BackgroundSettings russian={russian}/>}
     {group==="all"&&<EffectsPreferences russian={russian}>{effectsControls}</EffectsPreferences>}
     {(group==="all"||group==="typography")&&<div className="visual-typography-group"><h3>{russian?"Типографика":"Typography"}</h3><h4>{text["Interface font"]}</h4><div className="font-options">{fonts.map(font => <button key={font} style={{ fontFamily: `"${font}", Nunito, sans-serif` }} className={value.font === font ? "selected" : ""} aria-pressed={value.font === font} onClick={() => update({ font })}>{font}</button>)}</div>

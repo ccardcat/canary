@@ -1,0 +1,77 @@
+/* Catalog uses the same card materials and foreground tokens as the rest of Canary. */
+:root .catalog-project-grid{display:grid;gap:12px;min-width:0;container-type:inline-size}
+:root .catalog-project-grid[data-layout="grid"]{grid-template-columns:repeat(auto-fill,minmax(min(100%,300px),1fr))}
+:root .catalog-project-grid[data-layout="list"]{grid-template-columns:minmax(0,1fr)}
+:root .catalog-project-card{min-width:0}
+:root .catalog-project-card .project-heading-copy{min-width:0;gap:4px}
+:root .catalog-project-card .card-title{font-size:1.05rem;overflow-wrap:anywhere;line-height:1.35}
+:root .catalog-project-card .project-author{color:var(--muted);font-size:.76rem;overflow-wrap:anywhere}
+:root .catalog-project-card .card-body>p{font-size:.84rem;line-height:1.55;-webkit-line-clamp:2;min-height:0;height:auto;max-height:none;margin:0 0 10px}
+:root .catalog-project-card .card-foot{gap:10px;flex-wrap:wrap}
+:root .catalog-project-card .card-provider{margin-top:6px}
+:root .catalog-project-card .project-updated{color:var(--muted);font-size:.7rem}
+:root .catalog-project-grid[data-layout="list"] .catalog-project-card{display:grid;grid-template-columns:100px minmax(0,1fr);column-gap:18px;min-height:0;padding:18px}
+:root .catalog-project-grid[data-layout="list"] .project-card-heading{display:contents}
+:root .catalog-project-grid[data-layout="list"] .project-icon-button{grid-column:1;grid-row:1 / span 2;width:100px;height:100px;align-self:start;border-radius:var(--mat-cards-radius,14px);overflow:hidden}
+:root .catalog-project-grid[data-layout="list"] .project-heading-copy{grid-column:2;grid-row:1}
+:root .catalog-project-grid[data-layout="list"] .card-body{grid-column:2;grid-row:2;padding:7px 0 0;min-width:0}
+:root .catalog-project-grid[data-layout="list"] .card-foot{margin-top:12px}
+:root .catalog-project-grid[data-density="compact"] .catalog-project-card{padding:12px;gap:12px;min-height:0}
+:root .catalog-project-grid[data-layout="list"][data-density="compact"] .catalog-project-card{grid-template-columns:72px minmax(0,1fr)}
+:root .catalog-project-grid[data-layout="list"][data-density="compact"] .project-icon-button{width:72px;height:72px}
+:root .catalog-project-grid[data-density="compact"] .card-body>p{-webkit-line-clamp:1;margin-bottom:7px}
+:root .catalog-project-grid[data-layout="list"] .skeleton-card{min-height:172px}
+:root .project-tags,:root .selected-filter-tags{display:flex;flex-wrap:wrap;align-items:center;gap:5px;min-width:0}
+:root :is(.project-tag,.loader-label){display:inline-flex;align-items:center;gap:5px;max-width:100%;padding:4px 8px;border:0;border-radius:7px;background:color-mix(in srgb,var(--surface) 85%,transparent);color:var(--muted);font-size:.7rem;line-height:1.3;overflow-wrap:anywhere}
+:root .loader-label{font-weight:750;color:var(--loader-color,var(--text))}
+:root .loader-fabric{--loader-color:#ecc58d}
+:root .loader-forge{--loader-color:#c4b0ff}
+:root .loader-neoforge{--loader-color:#ffb38c}
+:root .loader-quilt{--loader-color:#f2a9da}
+:root .loader-iris{--loader-color:#94dcab}
+:root .loader-optifine{--loader-color:#9ccdf4}
+:root[data-mode="light"] .loader-fabric{--loader-color:#78501c}
+:root[data-mode="light"] .loader-forge{--loader-color:#6741a4}
+:root[data-mode="light"] .loader-neoforge{--loader-color:#934516}
+:root[data-mode="light"] .loader-quilt{--loader-color:#96326f}
+:root[data-mode="light"] .loader-iris{--loader-color:#28633d}
+:root[data-mode="light"] .loader-optifine{--loader-color:#28658e}
+:root .tag-expand{cursor:pointer;color:var(--accent);font-weight:700;min-height:26px}
+:root .catalog-controls-area{margin:0 0 16px}
+:root .catalog-controls{display:flex;justify-content:flex-end;flex-wrap:wrap;gap:5px}
+:root .catalog-controls button[aria-pressed="true"]{color:var(--accent);background:color-mix(in srgb,var(--accent) 12%,transparent)}
+:root .catalog-settings{padding:14px 0;min-width:0}
+:root .catalog-settings h4{margin:0 0 12px;font-size:.9rem}
+:root .catalog-settings-selects{display:grid;grid-template-columns:repeat(auto-fit,minmax(min(100%,180px),1fr));gap:12px}
+:root .catalog-settings label{display:flex;flex-direction:column;gap:7px;font-size:.8rem;color:var(--muted);min-width:0}
+:root .catalog-settings-toggles{display:flex;flex-wrap:wrap;gap:18px;margin-top:14px}
+:root .catalog-settings-toggles label{flex-direction:row;align-items:center;cursor:pointer}
+:root :is(.catalog-settings,.catalog-filter-popover) input[type="checkbox"]{width:16px;height:16px;min-height:0;padding:0;flex:none;accent-color:var(--accent)}
+:root .catalog-filter-popover{width:min(420px,calc(100vw - 32px));max-height:calc(100dvh - 110px);overflow:auto}
+:root .catalog-category-field{border:0;margin:0;padding:0;min-width:0}
+:root .catalog-category-field legend{font-size:.78rem;color:var(--muted);margin-bottom:8px}
+:root .category-search{min-height:36px;margin-bottom:7px}
+:root .category-search input{min-width:0;font-size:.78rem}
+:root .category-checklist{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:3px;max-height:230px;overflow:auto;overscroll-behavior:contain;padding:3px}
+:root .category-checklist label{display:flex;flex-direction:row;align-items:center;gap:8px;padding:7px 5px;margin:0;font-size:.77rem;cursor:pointer;color:var(--text);overflow-wrap:anywhere}
+:root .category-checklist label:has(input:checked){background:color-mix(in srgb,var(--accent) 10%,transparent);border-radius:7px}
+:root .category-match{margin-top:12px}
+:root .selected-filter-tags{margin-top:9px}
+:root .filter-load-status{display:flex;align-items:center;gap:10px;font-size:.76rem}
+:root .instance-status-line{display:flex;flex-wrap:wrap;gap:10px;margin:8px 0;color:var(--muted);font-size:.75rem}
+:root .instance-status-line .running-status{color:var(--accent)}
+:root .instance-heading .loader-label{padding:1px 5px;font-size:inherit}
+:root .local-account-form{grid-template-columns:minmax(0,1fr);gap:12px;align-items:stretch}
+:root .local-account-form label{min-width:0;width:100%;gap:8px}
+:root .local-account-form input{width:100%;min-width:0;min-height:44px;box-sizing:border-box;font-size:.95rem}
+:root .local-account-form .compact-action{min-height:40px;width:100%;justify-content:center}
+@container(max-width:520px){
+  :root .catalog-project-grid[data-layout="list"] .catalog-project-card{grid-template-columns:64px minmax(0,1fr);gap:12px;padding:14px}
+  :root .catalog-project-grid[data-layout="list"] .project-icon-button{width:64px;height:64px;grid-row:1}
+  :root .catalog-project-grid[data-layout="list"] .card-body{grid-column:1 / -1;padding-top:0}
+}
+@media(forced-colors:active){
+  :root :is(.project-tag,.loader-label){color:CanvasText;background:Canvas}
+  :root .catalog-controls button[aria-pressed="true"]{color:Highlight;border:1px solid Highlight}
+  :root .tag-expand{border:1px solid ButtonText}
+}

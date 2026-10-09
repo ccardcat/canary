@@ -1,3 +1,4 @@
+import type {DiscoveryFilters} from "./discovery";
 export type ContentType =
   "modpack" | "mod" | "resourcepack" | "datapack" | "shader" | "server";
 export interface Project {
@@ -13,6 +14,10 @@ export interface Project {
   author?: string;
   project_type?: ContentType;
   categories?: string[];
+  display_categories?: string[];
+  environment?: string | string[];
+  client_side?: string;
+  server_side?: string;
   versions?: string[];
   gallery?: string[];
   featured_gallery?: string;
@@ -67,27 +72,29 @@ export async function api<T>(path: string, signal?: AbortSignal): Promise<T> {
   if (!r.ok) throw Error(`Modrinth HTTP ${r.status}`);
   return r.json();
 }
+export function searchFacets(type: ContentType, filters: DiscoveryFilters): string[][] {
+  const facets: string[][] = [[type === "datapack" ? "categories:datapack" : "project_type:" + type]];
+  if (type === "datapack") facets.push(["project_type:mod"]);
+  if (filters.loader) facets.push(["categories:" + filters.loader]);
+  if (filters.game) facets.push(["versions:" + filters.game]);
+  const categories = [...new Set([filters.category, ...(filters.categories || [])].filter(Boolean))].map(category => "categories:" + category);
+  if (categories.length) facets.push(...(filters.categoryMatch === "any" ? [categories] : categories.map(category => [category])));
+  if (filters.environment) {
+    const client = ["client_and_server", "client_only", "client_only_server_optional", "singleplayer_only", "client_or_server", "client_or_server_prefers_both"];
+    const server = ["client_and_server", "server_only", "server_only_client_optional", "dedicated_server_only", "client_or_server", "client_or_server_prefers_both"];
+    facets.push((filters.environment === "client" ? client : server).map(value => "environment:" + value));
+  }
+  return facets;
+}
 export function searchProjects(
   type: ContentType,
   q: string,
   sort: string,
   offset: number,
-  filters: {
-    loader: string;
-    game: string;
-    category: string;
-    environment: string;
-  },
+  filters: DiscoveryFilters,
   signal: AbortSignal,
 ) {
-  const facets: string[][] = [
-    [type === "datapack" ? "categories:datapack" : "project_type:" + type],
-  ];
-  if (type === "datapack") facets.push(["project_type:mod"]);
-  if (filters.loader) facets.push(["categories:" + filters.loader]);
-  if (filters.game) facets.push(["versions:" + filters.game]);
-  if (filters.category) facets.push(["categories:" + filters.category]);
-  if (filters.environment) facets.push([filters.environment + ":required"]);
+  const facets = searchFacets(type, filters);
   return api<{ hits: Project[]; total_hits: number }>(
     "search?" +
       new URLSearchParams({

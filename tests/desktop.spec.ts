@@ -261,7 +261,8 @@ test("structured install errors hide raw details, retry succeeds and persists th
   await expect(toast.locator("pre")).toContainText("Access denied");
   await toast.getByRole("button", { name: "Retry", exact: true }).click();
   await expect(page.locator("h1")).toHaveText("Library");
-  await expect(page.locator(".library-grid .chips")).toContainText("Ready");
+  await expect(page.locator(".library-grid .chips")).toHaveCount(0);
+  await expect(page.locator(".library-grid")).not.toContainText("Ready");
   await expect(page.locator(".library-grid").getByRole("button", {name:"Play",exact:true})).toBeVisible();
   expect(
     await page.evaluate(

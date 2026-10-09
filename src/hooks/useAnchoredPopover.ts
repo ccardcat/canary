@@ -1,7 +1,7 @@
 import { useLayoutEffect, useRef } from "react";
 
 /** Keep nonmodal menus in the top layer while retaining their DOM ancestry. */
-export function useAnchoredPopover() {
+export function useAnchoredPopover(preferredWidth = 320) {
   const ref = useRef<HTMLDivElement>(null);
   useLayoutEffect(() => {
     const element = ref.current;
@@ -10,7 +10,7 @@ export function useAnchoredPopover() {
     element.showPopover();
     const place = () => {
       const rect = anchor.getBoundingClientRect();
-      const width = Math.min(320, innerWidth - 24);
+      const width = Math.min(preferredWidth, innerWidth - 24);
       const below = innerHeight - rect.bottom - 20;
       const above = rect.top - 20;
       const upwards = below < 200 && above > below;
@@ -32,6 +32,6 @@ export function useAnchoredPopover() {
       window.removeEventListener("scroll", place, true);
       element.hidePopover();
     };
-  }, []);
+  }, [preferredWidth]);
   return ref;
 }

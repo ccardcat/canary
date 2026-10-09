@@ -15,8 +15,11 @@ import {
 import { AnimatePresence, MotionConfig, motion } from "motion/react";
 import {isTerminal,projectInstallTask} from "./services/activity";
 import ProjectCard from "./components/ProjectCard";
+import {CatalogControls} from "./components/CatalogControls";
+import {CatalogFilters} from "./components/CatalogFilters";
+import {activeFilterCount, type DiscoveryFilters} from "./services/discovery";
 import {DiscoverModInstall} from "./components/DiscoverModInstall";
-import {providerInvoke,providerAvailable,providerDetail,providerVersions,providerName,providerSite,type Provider} from "./services/providers";
+import {providerAvailable,providerDetail,providerVersions,providerName,providerSite,type Provider} from "./services/providers";
 import { useDiscovery } from "./hooks/useDiscovery";
 import {useStartupReady} from "./services/startup";
 import { diagnostics, type Progress } from "./services/installation";
@@ -946,18 +949,8 @@ function DiscoverPage({
   retry: () => void;
   query: string;
   setQuery: (x: string) => void;
-  filters: {
-    loader: string;
-    game: string;
-    category: string;
-    environment: string;
-  };
-  setFilters: (x: {
-    loader: string;
-    game: string;
-    category: string;
-    environment: string;
-  }) => void;
+  filters: DiscoveryFilters;
+  setFilters: (x: DiscoveryFilters) => void;
   filterOpen: boolean;
   setFilterOpen: (x: boolean) => void;
   filterRef: React.RefObject<HTMLDivElement | null>;
@@ -970,6 +963,7 @@ function DiscoverPage({
   onInstall: (p: Project) => void;
   installed: (id: string) => boolean;
 }) {
+  const {value: appearance, update: updateAppearance} = useVisualAppearance();
   const pages = Math.max(1, Math.ceil(total / 12));
   return (
     <section className="discover-page">
@@ -1023,12 +1017,12 @@ function DiscoverPage({
             <ListFilter size={17} />
             {t("filters")}
             <span className="filter-count">
-              {Object.values(filters).filter(Boolean).length || ""}
+              {activeFilterCount(filters) || ""}
             </span>
           </button>
           <AnimatePresence>
             {filterOpen && (
-              <FilterPopover
+              <CatalogFilters
                 provider={provider}
                 t={t}
                 filters={filters}
@@ -1064,9 +1058,10 @@ function DiscoverPage({
               {loading ? t("loading") : total.toLocaleString()}
             </small>
           </div>
+          <CatalogControls russian={t("home")==="Главная"} value={appearance} update={updateAppearance}/>
           <div aria-busy={loading}>
             {loading ? (
-              <SkeletonGrid />
+              <SkeletonGrid catalog layout={appearance.catalogLayout} density={appearance.catalogDensity}/>
             ) : error ? (
               <div className="notice-empty" role="alert">
                 <h3>{t("networkError")}</h3>
@@ -1079,9 +1074,10 @@ function DiscoverPage({
                 </details>
               </div>
             ) : projects.length ? (
-              <div className="project-grid">
+              <div className="project-grid catalog-project-grid" data-layout={appearance.catalogLayout} data-density={appearance.catalogDensity}>
                 {projects.map((p) => (
                   <ProjectCard
+                    catalog={appearance}
                     key={p.native_instance_id || `${p.provider || "modrinth"}:${p.project_id}`}
                     p={p}
                     t={t}
@@ -1120,121 +1116,9 @@ function DiscoverPage({
     </section>
   );
 }
-function FilterPopover({
-  provider="modrinth",
-  t,
-  filters,
-  setFilters,
-  type,
-}: {
-  provider?:Provider;
-  t: T;
-  filters: {
-    loader: string;
-    game: string;
-    category: string;
-    environment: string;
-  };
-  setFilters: (x: {
-    loader: string;
-    game: string;
-    category: string;
-    environment: string;
-  }) => void;
-  type: ContentType;
-}) {
-  const [remoteFilters,setRemoteFilters]=useState<{categories:{id:string;name:string}[];versions:string[]}|null>(null);
-  const [filterError,setFilterError]=useState(false);
-  useEffect(()=>{
-   setRemoteFilters(null);setFilterError(false);if(provider!=="curseforge"||type==="server")return;
-   const controller=new AbortController();
-   void providerInvoke<{categories:{id:string;name:string}[];versions:string[]}>("catalog_filters",{kind:type,provider},controller.signal).then(data=>{if(!controller.signal.aborted)setRemoteFilters(data);}).catch(()=>{if(!controller.signal.aborted)setFilterError(true);});
-   return()=>controller.abort();
-  },[provider,type]);
-  const ref = useAnchoredPopover();
-  const update = (key: keyof typeof filters, value: string) =>
-    setFilters({ ...filters, [key]: value });
+function SkeletonGrid({catalog=false, layout="grid", density="comfortable"}: {catalog?:boolean; layout?:string; density?:string} = {}) {
   return (
-    <motion.div
-      ref={ref} popover="manual" className="popover filter-popover anchored-popover"
-      initial={{ opacity: 0 }}
-      animate={{ opacity: 1 }}
-      exit={{ opacity: 0 }}
-    >
-      <div className="filter-head">
-        <b>{t("filters")}</b>
-        <button
-          onClick={() =>
-            setFilters({ loader: "", game: "", category: "", environment: "" })
-          }
-        >
-          {t("reset")}
-        </button>
-      </div>
-      <label>
-        {t("gameVersion")}
-        <GlassSelect
-          value={filters.game}
-          onChange={(e) => update("game", e.target.value)}
-        >
-          <option value="">{t("any")}</option>
-          {(provider==="curseforge"?(remoteFilters?.versions||[]):["1.21.1", "1.21", "1.20.1", "1.20", "1.19.2", "1.16.5"]).map((x) => (
-            <option key={x}>{x}</option>
-          ))}
-        </GlassSelect>
-      </label>
-      {type !== "resourcepack" && type !== "shader" && (
-        <label>
-          {t("loader")}
-          <GlassSelect
-            value={filters.loader}
-            onChange={(e) => update("loader", e.target.value)}
-          >
-            <option value="">{t("any")}</option>
-            {["fabric", "forge", "neoforge", "quilt"].map((x) => (
-              <option key={x} value={x}>
-                {x[0].toUpperCase() + x.slice(1)}
-              </option>
-            ))}
-          </GlassSelect>
-        </label>
-      )}
-      {<label>
-        {t("category")}
-        <GlassSelect
-          value={filters.category}
-          onChange={(e) => update("category", e.target.value)}
-        >
-          <option value="">{t("any")}</option>
-          {provider==="curseforge"?(remoteFilters?.categories||[]).map(c=><option value={c.id} key={c.id}>{c.name}</option>):Object.entries(categories)
-            .slice(0, 10)
-            .map(([value, key]) => (
-              <option value={value} key={value}>
-                {t(key)}
-              </option>
-            ))}
-        </GlassSelect>
-      </label>}
-      {provider==="curseforge"&&filterError&&<small role="status">{t("home")==="Главная"?"Не удалось загрузить фильтры. Попробуйте открыть их снова.":"Could not load filters. Try opening them again."}</small>}
-      {type === "mod" && provider==="modrinth" && (
-        <label>
-          {t("environment")}
-          <GlassSelect
-            value={filters.environment}
-            onChange={(e) => update("environment", e.target.value)}
-          >
-            <option value="">{t("any")}</option>
-            <option value="client">{t("client")}</option>
-            <option value="server">{t("serverSide")}</option>
-          </GlassSelect>
-        </label>
-      )}
-    </motion.div>
-  );
-}
-function SkeletonGrid() {
-  return (
-    <div className="project-grid">
+    <div className={catalog ? "project-grid catalog-project-grid" : "project-grid"} data-layout={layout} data-density={density}>
       {Array.from({ length: 6 }).map((_, i) => (
         <div className="skeleton-card" key={i}>
           <div />
@@ -1301,7 +1185,7 @@ function LibraryPage({
       {shown.length ? (
         <div className="project-grid library-grid">
           {shown.map((p) => (
-            <ProjectCard
+            <ProjectCard library
               key={p.native_instance_id || `${p.provider || "modrinth"}:${p.project_id}`}
               p={p}
               t={t}

@@ -8,6 +8,7 @@ import "./components/Materials.css";
 import "./ThemeTokens.css";
 import "./ControlSystem.css";
 import "./components/UnifiedSurfaces.css";
+import "./components/Catalog.css";
 
 ReactDOM.createRoot(document.getElementById("root") as HTMLElement).render(
   <React.StrictMode>

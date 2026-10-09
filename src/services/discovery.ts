@@ -1,15 +1,18 @@
 import type { ContentType } from "./modrinth";
+export type DiscoveryFilters = {
+  loader: string; game: string; category: string; environment: string;
+  categories?: string[]; categoryMatch?: "all" | "any";
+};
+export function activeFilterCount(filters: DiscoveryFilters): number {
+  return [filters.loader, filters.game, filters.environment].filter(Boolean).length
+    + new Set([filters.category, ...(filters.categories || [])].filter(Boolean)).size;
+}
 export interface DiscoveryState {
   provider:"modrinth"|"curseforge";
   type: ContentType;
   query: string;
   sort: string;
-  filters: {
-    loader: string;
-    game: string;
-    category: string;
-    environment: string;
-  };
+  filters: DiscoveryFilters;
   page: number;
 }
 export const initialDiscovery: DiscoveryState = {
