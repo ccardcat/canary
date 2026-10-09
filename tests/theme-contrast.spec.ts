@@ -1,9 +1,10 @@
+import {reloadWithSeed} from './helpers/preferences';
 import {test, expect, type Page} from '@playwright/test';
 import {mkdirSync, writeFileSync} from 'node:fs';
 import {nativeFixture} from './helpers/nativeFixture';
 
 const nav=(page:Page,name:string)=>page.locator('.sidebar nav').getByRole('button',{name,exact:true});
-async function choose(page:Page,label:string,name:string){await page.getByRole('combobox',{name:label,exact:true}).click();await page.getByRole('option',{name,exact:true}).click();}
+async function choose(page:Page,label:string,name:string){await page.getByRole('combobox',{name:label,exact:true}).evaluate(el=>{for(let details=el.closest('details');details;details=details.parentElement?.closest('details')??null)details.open=true;});await page.getByRole('combobox',{name:label,exact:true}).click();await page.getByRole('option',{name,exact:true}).click();}
 const palettes=[['light','white'],['light','softLight'],['light','frost'],['light','warm'],['dark','graphite'],['dark','black'],['dark','softDark'],['dark','midnight'],['amoled','graphite']];
 const accents=['monochrome','white','gray','mint','emerald','aqua','blue','purple','rose','orange'];
 const materials=['Solid','Soft','Vibrancy','Glass','Clear Glass','Liquid Glass','Transparent'];
@@ -24,14 +25,23 @@ test('rendered foreground contrast across every palette, accent and material on 
         const lum=(rgb:number[])=>rgb.slice(0,3).map(v=>{v/=255;return v<=.04045?v/12.92:((v+.055)/1.055)**2.4;}).reduce((v,c,i)=>v+c*[.2126,.7152,.0722][i],0);
         const ratio=(a:number[],b:number[])=>{const x=lum(a),y=lum(b);return (Math.max(x,y)+.05)/(Math.min(x,y)+.05);};
         const token=(name:string)=>{const e=document.createElement('span');e.style.color=`var(${name})`;root.append(e);const result=rgba(getComputedStyle(e).color);e.remove();return result;};
-        const worst=(fg:number[],fill:number[])=>Math.min(...[[0,0,0],[255,255,255]].map(base=>ratio(fg,blend(fill,base))));
+        const extremeUnderlays=[[0,0,0],[255,255,255]];
         const output=[];
         for(const accent of accents){
           root.dataset.accent=accent;await new Promise(resolve=>setTimeout(resolve,20));
           const modal=document.querySelector('.settings-modal')!,input=document.querySelector('.settings-search input')!,button=document.querySelector('.mode-grid button:not(.selected)')!;
           const modalFill=rgba(getComputedStyle(modal).backgroundColor),inputFill=rgba(getComputedStyle(input).backgroundColor),buttonFill=rgba(getComputedStyle(button).backgroundColor);
           const placeholder=rgba(getComputedStyle(input,'::placeholder').color);
-          output.push({mode,preset,accent,primary:worst(token('--text'),modalFill),secondary:worst(token('--muted'),modalFill),tertiary:worst(token('--faint'),modalFill),placeholder:worst(placeholder,inputFill),control:worst(rgba(getComputedStyle(button).color),buttonFill),accentInk:worst(token('--accent'),inputFill),modalAlpha:modalFill[3],inputAlpha:inputFill[3]});
+          // Contrast uses the displayed stack: wallpaper tint, modal backdrop,
+          // dialog fill, then the control fill. A translucent input is not
+          // painted directly onto the wallpaper.
+          const palette=token('--bg');
+          const overlay=parseFloat(root.style.getPropertyValue('--wallpaper-overlay'))/100;
+          const backdrop=rgba(getComputedStyle(document.querySelector('.modal-backdrop')!).backgroundColor);
+          const modalBackgrounds=extremeUnderlays.map(base=>blend(modalFill,blend(backdrop,blend([...palette.slice(0,3),overlay],base))));
+          const worst=(fg:number[],fill?:number[])=>Math.min(...modalBackgrounds.map(base=>ratio(fg,fill?blend(fill,base):base)));
+
+          output.push({mode,preset,accent,primary:worst(token('--text')),secondary:worst(token('--muted')),tertiary:worst(token('--faint')),placeholder:worst(placeholder,inputFill),control:worst(rgba(getComputedStyle(button).color),buttonFill),accentInk:worst(token('--accent'),inputFill),modalAlpha:modalFill[3],inputAlpha:inputFill[3]});
         }
         return output;
       },{mode,preset,accents});
@@ -44,8 +54,7 @@ test('rendered foreground contrast across every palette, accent and material on 
     expect(r.primary,context+' primary').toBeGreaterThanOrEqual(7);
     for(const key of ['secondary','tertiary','placeholder','control'])expect(r[key],context+' '+key).toBeGreaterThanOrEqual(4.5);
     expect(r.accentInk,context+' accent').toBeGreaterThanOrEqual(4.5);
-    expect(r.modalAlpha,context+' dialog tint').toBeGreaterThanOrEqual(.94);
-    expect(r.inputAlpha,context+' input tint').toBeGreaterThanOrEqual(.94);
+    if(r.material==='Solid'){expect(r.modalAlpha).toBe(1);expect(r.inputAlpha).toBe(1);}else{expect(r.modalAlpha).toBeLessThan(1);expect(r.inputAlpha).toBeLessThan(1);}
   }
 });
 
@@ -108,9 +117,10 @@ test('System follows OS light/dark and materials retain legible tint over bright
 
 test('bare page text remains readable over extreme images at maximum intensity and minimum overlay',async({page})=>{
   test.setTimeout(60000);const metrics:any[]=[];
+  await page.goto('/');
   for(const mode of ['light','dark','amoled']){
-    await page.addInitScript(mode=>{localStorage.setItem('canary-mode',mode);localStorage.setItem('canary-preset',mode==='light'?'softLight':'graphite');localStorage.setItem('canary-visual',JSON.stringify({app:'sakura1',intensity:100,blur:0,globalTreatment:{overlay:35,vignette:0},materialLinked:true,materialStyle:'glass'}));},mode);
-    await page.goto('/');await expect(page.locator('.page-transition')).toHaveCSS('opacity','1');
+    await reloadWithSeed(page,`localStorage.setItem('canary-mode',${JSON.stringify(mode)});localStorage.setItem('canary-preset',${JSON.stringify(mode==='light'?'softLight':'graphite')});localStorage.setItem('canary-visual',JSON.stringify({backgroundSource:'canary',app:'sakura1',intensity:100,blur:0,globalTreatment:{overlay:35,vignette:0},materialLinked:true,materialStyle:'glass'}));`);
+    await expect(page.locator('html')).toHaveAttribute('data-mode',mode);await expect(page.locator('.page-transition')).toHaveCSS('opacity','1');
     for(const [name,image] of [['bright','linear-gradient(#fff,#fff)'],['dark','linear-gradient(#000,#000)'],['colorful','linear-gradient(45deg,#ff0077,#00ffbb,#0033ff)']]){
       await page.locator('.global-wallpaper .artwork-current').evaluate((e:HTMLElement,image)=>e.style.backgroundImage=image,image);
       const point=await page.locator('.topbar-sub').evaluate(e=>{const r=e.getBoundingClientRect();return {x:Math.floor(r.right-2),y:Math.floor(r.top+1)};});
@@ -119,11 +129,12 @@ test('bare page text remains readable over extreme images at maximum intensity a
         const image=new Image();image.src='data:image/png;base64,'+png;await image.decode();const canvas=document.createElement('canvas');canvas.width=image.width;canvas.height=image.height;const ctx=canvas.getContext('2d')!;ctx.drawImage(image,0,0);const bg=[...ctx.getImageData(point.x,point.y,1,1).data].slice(0,3);
         const lum=(rgb:number[])=>rgb.map(v=>{v/=255;return v<=.04045?v/12.92:((v+.055)/1.055)**2.4;}).reduce((v,c,i)=>v+c*[.2126,.7152,.0722][i],0);
         const contrast=(selector:string)=>{ctx.clearRect(0,0,1,1);ctx.fillStyle=getComputedStyle(document.querySelector(selector)!).color;ctx.fillRect(0,0,1,1);const fg=[...ctx.getImageData(0,0,1,1).data].slice(0,3);return (Math.max(lum(fg),lum(bg))+.05)/(Math.min(lum(fg),lum(bg))+.05);};
-        return {bg,primary:contrast('.home-greeting'),secondary:contrast('.topbar-sub'),tertiary:contrast('.breadcrumb')};
+        return {bg,primary:contrast('.home-greeting'),secondary:contrast('.topbar-sub')};
       },{png:png.toString('base64'),point});
       metrics.push({mode,name,...result});
     }
   }
   writeFileSync('.qa/theme-contrast/page-pixel-contrast.json',JSON.stringify(metrics,null,2));
-  for(const m of metrics){const context=m.mode+'/'+m.name;expect(m.primary,context+' primary').toBeGreaterThanOrEqual(7);expect(m.secondary,context+' secondary').toBeGreaterThanOrEqual(4.5);expect(m.tertiary,context+' tertiary').toBeGreaterThanOrEqual(3.5);}
+  for(const m of metrics){const context=m.mode+'/'+m.name;expect(m.primary,context+' primary').toBeGreaterThanOrEqual(7);expect(m.secondary,context+' secondary').toBeGreaterThanOrEqual(4.5);}
 });
+

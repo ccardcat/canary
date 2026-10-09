@@ -13,6 +13,8 @@ Audit base: `2ac633d89cfb4555d55b9315aed70a2f4c553199`, 9 October 2026.
 - Settings search results show localized section names rather than internal search keywords.
 - Committed appearance changes now persist in the render commit rather than after a 400ms timer. Slider previews still avoid persistence until the interaction commits.
 - Darkened secondary text in the default light palette after rendered Discover contrast fell below 4.5:1 over colorful artwork in Transparent mode.
+- Improved tertiary light-palette text contrast and added a borderless local tint behind page headings on wallpaper backgrounds; wallpaper elsewhere remains adjustable.
+- Project installation cards subscribe to the throttled live task stream, so progress percentages update even when the task's lifecycle status is unchanged.
 - Windows QA explicitly selects Desktop and a non-Solid surface preset before changing their sliders, and reports missing/disabled controls clearly.
 - Native restart QA waits for the actual saved preset before capturing its expected state. Desktop screenshots that would extend outside the monitor working area use a complete WebView capture instead of clipped screen pixels.
 - Fixed ANSI-bearing Actions log collection. The latest upstream Windows run failed at the missing-slider invocation; its follow-up reporting job also failed because `gh api` refused terminal escape sequences.
@@ -31,6 +33,9 @@ Audit base: `2ac633d89cfb4555d55b9315aed70a2f4c553199`, 9 October 2026.
 | Linux CI on `3aa3e585` | Rust check passed; 95 tests passed, 9 ignored; `.deb` built successfully |
 | Windows CI on `3aa3e585` | Rust check passed; 92 tests passed, 9 ignored; `.exe`/`.msi` built; CSP QA passed; window QA failed on a stale pre-save expectation |
 | Browser CI on `3aa3e585` | 121 passed, 20 failed before the 20-minute job deadline; not a successful full run |
+| Native CI on `7d2a6a78` | Windows and Linux passed, including installer builds, Windows CSP and packaged window/material/fullscreen/Discover QA |
+| Browser CI on `7d2a6a78` | All five new regressions passed; overall 145 passed, 24 failed, one interrupted at the old deadline |
+| Live progress store inspection | Live percentage changed 42 → 67 while lifecycle snapshot remained 42; cards now read the live stream |
 | Release tag validation | `v0.1.8` passed; wrong tag `v0.1.7` correctly rejected |
 | Workflow YAML and embedded Python parsing | Passed |
 | Windows smoke script syntax / `git diff --check` | Passed |
@@ -42,6 +47,10 @@ The local checkout was materialized through the GitHub connector at the exact ba
 The revised browser suite and Windows/Linux native build/QA must pass on the final PR commit before declaring the release ready. The first full browser attempt exposed outdated Settings navigation, fresh-profile/community assumptions, fixture progress payloads and repeated preference seeding; these were corrected without removing the scenarios. Matrix scenarios now have enough time to finish, and the browser jobs allow 40 minutes. The measured contrast and persistence issues above were fixed in the application.
 
 Local Chromium could not run in this restricted environment, and the cloud preview timed out. Fresh native CI captures from `3aa3e585` were downloaded and reviewed in Dark, Light and AMOLED, including all seven surface presets at 960px/1200px. Some native captures were clipped by the runner's smaller monitor; the screenshot guard above corrects this evidence issue. Those captures precede the final pressed/selected border, contrast and persistence fixes; final screenshots and CI results remain required. Rust tooling and a real local desktop session were unavailable here.
+
+The later browser traces exposed remaining obsolete selectors for hidden advanced material controls, the removed breadcrumb and the old Activity layout. Contrast now accounts for the actual wallpaper/backdrop/dialog/control paint stack, retains the 7:1 primary and 4.5:1 secondary/control thresholds, and verifies that non-Solid controls remain translucent instead of imposing the obsolete 94% opacity requirement.
+
+Final verification is blocked by CI infrastructure: run [37904719730](https://github.com/ccardcat/canary/actions/runs/37904719730) and its retry failed before any job step ran, with no runner assigned and no job logs. The available API does not expose the reason; no billing/permission cause is assumed. Application fixes and corrected QA after `7d2a6a78` still require execution on an available runner. Do not treat earlier successful native checks as verification of the final source.
 
 The upstream run [37835939965](https://github.com/ccardcat/canary/actions/runs/37835939965) passed gateway, Linux checks and both installer builds, but failed Windows QA and its reporting job. Those results apply to the base commit, not this change.
 

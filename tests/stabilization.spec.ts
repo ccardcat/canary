@@ -197,8 +197,11 @@ test("Screenshots and Activity empty screens retain readable controls and one ac
     await page.setViewportSize({width,height});
     await nav(page,"Screenshots").click();await expect(page.locator(".page-transition .empty-state")).toBeVisible();await layout(page,page.locator(".page-transition"));
     await page.waitForTimeout(300);await page.screenshot({path:`${directory}/screenshots-${width}.png`});
-    await nav(page,"Activity").click();await expect(page.locator(".page-transition").getByRole("heading",{name:"Activity",exact:true})).toHaveCount(1);await layout(page,page.locator(".page-transition"));
-    await expect(page.getByRole("textbox",{name:"Game logs",exact:true})).toHaveCSS("min-height","40px");
+    await nav(page,"Activity").click();await expect(page.getByRole("heading",{name:"Activity",exact:true})).toHaveCount(1);await layout(page,page.locator(".page-transition"));
+    await page.locator(".page-transition").getByRole("button",{name:"Game Logs",exact:true}).click();
+    await expect(page.getByRole("textbox",{name:"Search logs",exact:true})).toBeVisible();
+    expect((await page.getByRole("textbox",{name:"Search logs",exact:true}).boundingBox())!.height).toBeGreaterThanOrEqual(40);
     await page.waitForTimeout(300);await page.screenshot({path:`${directory}/activity-${width}.png`});
   }
 });
+

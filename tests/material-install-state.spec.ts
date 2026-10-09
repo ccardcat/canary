@@ -154,7 +154,7 @@ test('actual Discover card text retains contrast in all presets and themes over 
 
 test('changing layout and corner radius keeps the selected material preset',async({page})=>{
  await page.goto('/');await nav(page,'Settings').click();await preset(page,4);await choose(page,'Sidebar layout','Floating');
- await page.locator('.material-advanced summary').click();await page.getByRole('slider',{name:'Corner radius',exact:true}).fill('24');
+ await page.locator('.material-advanced summary').click();await page.getByRole('slider',{name:'Corner radius',exact:true}).fill('24');await page.getByRole('slider',{name:'Corner radius',exact:true}).press('Tab');
  await expect(page.getByRole('combobox',{name:'Material preset',exact:true})).toContainText('Clear Glass');
  const saved=await page.evaluate(()=>JSON.parse(localStorage.getItem('canary-visual')!));expect(saved).toMatchObject({materialPreset:'clear',materialStyle:'clear',materialRadius:24,sidebarMode:'floating'});
 });

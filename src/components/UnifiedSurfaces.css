@@ -58,6 +58,10 @@
 :root :is(.polish-disclosure,.material-disclosure){border-color:transparent;box-shadow:none;background:transparent}
 :root .chips>span{border-color:transparent}
 :root .project-card:hover,:root .mini-card:hover{border-color:var(--mat-cards-edge);box-shadow:var(--mat-cards-shadow)}
+/* Protect bare page copy without dimming the user's entire wallpaper. */
+:root[data-background-source="canary"] .topbar-heading{position:relative;isolation:isolate}
+:root[data-background-source="canary"] .topbar-heading::before{content:"";position:absolute;inset:-6px -8px;border-radius:10px;background:color-mix(in srgb,var(--bg) var(--scene-overlay-floor),transparent);backdrop-filter:blur(12px);pointer-events:none;z-index:-1}
+:root:is([data-quality="low"],[data-focus="true"],[data-reduce-transparency="true"]) .topbar-heading::before{background:var(--bg);backdrop-filter:none}
 @media(forced-colors:active){
   :root button:is(.quiet-button,.compact-action,.primary-button,.control-button,.material-icon,.surface-tab,.font-options button,.mode-grid button,.preset-grid button,.accent-grid button,.background-source-options button,.background-options button,.material-preset-control):not(.toggle),
   :root button:is(.quiet-button,.compact-action,.primary-button,.control-button,.material-icon,.surface-tab,.font-options button,.mode-grid button,.preset-grid button,.accent-grid button,.background-source-options button,.background-options button,.material-preset-control):not(.toggle):is(:hover,:active,.selected,[aria-pressed="true"],[aria-selected="true"]){border-color:ButtonText}
