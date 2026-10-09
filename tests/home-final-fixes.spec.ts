@@ -30,13 +30,14 @@ test("Continue shows the latest server with its own instance and Minecraft versi
  });
  const card=page.locator(".last-server-card");
  await expect(card).toContainText("Last server · play.example.org:25566");
- await expect(card).toContainText("Server pack 2.4.7 · Minecraft 1.8.9 · forge");
+ await expect(card).toContainText("Server pack 2.4.7 · Minecraft 1.8.9 · Forge");
  await card.getByRole("button",{name:"Play",exact:true}).click();
  await expect(card.getByRole("button",{name:"Stop",exact:true})).toBeVisible();
  const call=await page.evaluate(()=>(globalThis as any).__materialQA.calls.findLast((c:any)=>c.command==="launch_instance"));
  expect(call.args.id).toBe("instance-4");
- await card.locator(".material-icon").click();
- await expect(page.locator(".instance-surface input").first()).toHaveValue("Server pack");
+ await card.locator(".continue-open").click();
+ await expect(page.locator(".library-overview")).toBeVisible();
+ await expect(page.locator(".instance-surface")).toHaveCount(0);
 });
 
 test("Surface opacity remains adjustable when cards are Solid but buttons use glass",async({page})=>{

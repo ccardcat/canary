@@ -15,6 +15,7 @@ import {
 import { AnimatePresence, MotionConfig, motion } from "motion/react";
 import {isTerminal,projectInstallTask} from "./services/activity";
 import ProjectCard from "./components/ProjectCard";
+import ContinueCard from "./components/ContinueCard";
 import {CatalogControls} from "./components/CatalogControls";
 import {CatalogFilters} from "./components/CatalogFilters";
 import {activeFilterCount, type DiscoveryFilters} from "./services/discovery";
@@ -58,8 +59,6 @@ import {
   Palette,
   Info,
   Heart,
-  Play,
-  Square,
 } from "lucide-react";
 import "./App.css";
 import "./Scrollbars.css";
@@ -555,6 +554,7 @@ function App() {
                   projects={community}
                   communityError={communityError}
                   onDiscover={() => navigation("Discover")}
+                  onLibrary={()=>{setLibrarySelectionId(null);navigation("Library");}}
                   onOpen={p=>{if(p.native_instance_id){setLibrarySelectionId(p.native_instance_id);navigation("Library");}else void openProject(p);}}
                   onInstall={install}
                   installed={id=>isInstalled(id,"modrinth")}
@@ -693,6 +693,7 @@ function HomePage({
   projects,
   communityError,
   onDiscover,
+  onLibrary,
   onOpen,
   onInstall,
   installed,
@@ -703,6 +704,7 @@ function HomePage({
   projects: Project[];
   communityError: boolean;
   onDiscover: () => void;
+  onLibrary: () => void;
   onOpen: (p: Project) => void;
   onInstall: (p: Project) => void;
   installed: (id: string) => boolean;
@@ -737,7 +739,7 @@ function HomePage({
         </div>
         {lib.length ? (
           <div className="home-row">
-            {lastServerProject&&<ContinueCard p={lastServerProject} t={t} russian={russian} onOpen={onOpen} serverMode/>}
+            {lastServerProject&&<ContinueCard p={lastServerProject} t={t} russian={russian} onLibrary={onLibrary} serverMode/>}
             {lib.slice(0, 3).map((p) => (
               <ContinueCard
                 key={
@@ -747,7 +749,7 @@ function HomePage({
                 p={p}
                 t={t}
                 russian={russian}
-                onOpen={onOpen}
+                onLibrary={onLibrary}
               />
             ))}
           </div>
@@ -816,104 +818,6 @@ function HomePage({
     </section>
   );
 }
-function ContinueCard({
-  p,
-  t,
-  russian,
-  onOpen,
-  serverMode=false,
-}: {
-  p: Project;
-  t: T;
-  russian: boolean;
-  onOpen: (p: Project) => void;
-  serverMode?:boolean;
-}) {
-  const { snapshot, run, progress } = useBackend();
-  const instance = snapshot?.instances.find(
-    (i) => i.id === p.native_instance_id,
-  );
-  const running = instance?.status === "running",
-    stopping = instance?.status === "stopping",
-    unavailable = instance?.status === "unavailable";
-  const pending =
-    instance && progress?.id === instance.id && progress.status === "running";
-  const status = running
-    ? russian
-      ? "Игра запущена"
-      : "Running"
-    : stopping
-      ? russian
-        ? "Завершение…"
-        : "Stopping…"
-      : unavailable
-        ? russian
-          ? "Диск недоступен"
-          : "Drive unavailable"
-        : instance?.error
-          ? russian
-            ? "Требуется восстановление"
-            : "Repair needed"
-          : russian
-            ? "Готов"
-            : "Ready";
-  return (
-    <article className={`mini-card continuation-card${serverMode?" last-server-card":""}`}>
-      <RemoteImage src={p.icon_url} className="mini-art" />
-      <button
-        className="continue-open surface-action"
-        onClick={() => onOpen(p)}
-      >
-        <b>{serverMode?`${russian?"Последний сервер":"Last server"} · ${instance?.last_server?.address}`:p.title}</b>
-        <small>
-          {instance
-            ? `${serverMode?`${instance.name}${instance.version_name&&instance.version_name!==instance.minecraft?` ${instance.version_name}`:""} · `:""}Minecraft ${instance.minecraft} · ${instance.loader}`
-            : p.description || p.version_name}
-        </small>
-        {!serverMode&&instance?.last_server&&<span className="continue-server">{russian?"Сервер":"Server"}: {instance.last_server.address}</span>}
-      </button>
-      {instance && (
-        <>
-          <span
-            className={`continue-status ${running ? "running-status" : ""}`}
-          >
-            {status}
-          </span>
-          <button
-            className="primary-button continue-play"
-            disabled={!!pending || stopping || unavailable}
-            onClick={() =>
-              void run(
-                running ? "stop_instance" : "launch_instance",
-                running
-                  ? { id: instance.id, force: false }
-                  : { id: instance.id },
-              ).catch(() => {})
-            }
-          >
-            {running ? <Square size={15} /> : <Play size={15} />}{" "}
-            {running
-              ? russian
-                ? "Остановить"
-                : "Stop"
-              : russian
-                ? "Играть"
-                : "Play"}
-          </button>
-        </>
-      )}
-      <button
-        className="material-icon surface-action"
-        aria-label={`${t("details")} — ${p.title}`}
-        data-tooltip={t("details")}
-        onClick={() => onOpen(p)}
-      >
-        <ChevronRight size={17} />
-      </button>
-    </article>
-  );
-}
-
 function DiscoverPage({
   provider,setProvider,
   t,

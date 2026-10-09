@@ -160,7 +160,7 @@ test("local-time greeting changes live, switches account and handles no account 
   await expect(heading).toContainText("Good morning");
 });
 
-test("Home hero copy stays stable through slides and Continue has compact real Play/Stop and details", async ({
+test("Home hero copy stays stable through slides and Continue has compact real Play/Stop and library navigation", async ({
   page,
 }) => {
   mkdirSync(".qa/home-polish", { recursive: true });
@@ -181,7 +181,7 @@ test("Home hero copy stays stable through slides and Continue has compact real P
   const card = page.locator(".continuation-card").first();
   expect((await card.boundingBox())!.height).toBeLessThan(110);
   await expect(card.locator(".continue-open")).toContainText(
-    "Minecraft 1.21.1 · fabric",
+    "Minecraft 1.21.1 · Fabric",
   );
   await card.getByRole("button", { name: "Play", exact: true }).click();
   await expect(
@@ -194,10 +194,10 @@ test("Home hero copy stays stable through slides and Continue has compact real P
   await page.locator(".content-shell").evaluate((el) => (el.scrollTop = 0));
   await page.screenshot({ path: ".qa/home-polish/home.png" });
   expect(errors).toEqual([]);
-  await card.locator(".material-icon").click();
-  await expect(page.locator(".instance-surface")).toContainText(
-    "Fabulously Optimized",
-  );
+  await card.locator(".continue-open").click();
+  await expect(page.locator("h1")).toHaveText("Library");
+  await expect(page.locator(".library-overview")).toBeVisible();
+  await expect(page.locator(".instance-surface")).toHaveCount(0);
 });
 
 test("community visibility is searchable, applies live, persists and preserves appearance", async ({

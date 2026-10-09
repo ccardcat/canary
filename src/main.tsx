@@ -9,6 +9,7 @@ import "./ThemeTokens.css";
 import "./ControlSystem.css";
 import "./components/UnifiedSurfaces.css";
 import "./components/Catalog.css";
+import "./components/HomeContinue.css";
 
 ReactDOM.createRoot(document.getElementById("root") as HTMLElement).render(
   <React.StrictMode>

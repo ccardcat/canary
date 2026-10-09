@@ -1,0 +1,32 @@
+/* Compact resume cards share Canary's existing card and button materials. */
+:root .home-row{display:grid;grid-template-columns:repeat(auto-fill,minmax(min(100%,360px),1fr));gap:10px;align-items:start;container-type:inline-size}
+:root .continuation-card{display:grid;grid-template-columns:minmax(0,1fr) auto;align-items:center;gap:0;min-width:0;min-height:70px;height:auto;padding:0;cursor:default;overflow:hidden}
+:root .continuation-card .continue-open{display:grid;grid-template-columns:48px minmax(0,1fr) 15px;align-items:center;gap:10px;width:100%;height:100%;min-width:0;min-height:68px;padding:10px;text-align:left;color:var(--text);background:transparent;border:0;box-shadow:none;backdrop-filter:none;border-radius:inherit;cursor:pointer}
+:root .continuation-card .continue-open:hover{background:transparent;box-shadow:none}
+:root .continuation-card .continue-open:focus-visible{outline-offset:-3px}
+:root .continue-art{display:block;width:48px;height:48px;min-width:0;overflow:hidden;border-radius:12px;background:transparent;border:0;box-shadow:none}
+:root .continue-art .remote-image{width:100%;height:100%;border-radius:inherit;background:transparent}
+:root .continue-art img{object-fit:contain}
+:root .continue-copy{display:flex;flex-direction:column;gap:4px;min-width:0}
+:root .continuation-card .continue-copy b{display:-webkit-box;-webkit-box-orient:vertical;-webkit-line-clamp:2;overflow:hidden;white-space:normal;overflow-wrap:anywhere;font-size:calc(13px * var(--ui-font-scale,1));line-height:1.4}
+:root .continuation-card .continue-copy small{display:block;white-space:normal;overflow-wrap:anywhere;height:auto;margin:0;font-size:calc(11px * var(--ui-font-scale,1));line-height:1.5;color:var(--muted)}
+:root .continue-copy .loader-label{padding:0;background:transparent;border-radius:0;font-size:inherit;line-height:inherit}
+:root .continue-chevron{color:var(--muted);opacity:.65;transition:opacity .15s}
+:root .continue-open:is(:hover,:focus-visible) .continue-chevron{opacity:1}
+:root .continuation-card .continue-play{display:inline-flex;align-items:center;justify-content:center;gap:6px;min-height:36px;max-width:100%;padding:8px 11px;margin:10px 12px 10px 2px;font-size:calc(12px * var(--ui-font-scale,1));line-height:1.25;white-space:nowrap;border-radius:10px}
+:root .continue-copy .continue-status{display:block;font-size:calc(10px * var(--ui-font-scale,1));line-height:1.4;color:var(--muted)}
+:root .continue-copy .running-status{color:var(--accent)}
+:root .continuation-card .continue-server{font-size:calc(10px * var(--ui-font-scale,1));line-height:1.4;overflow-wrap:anywhere}
+:root .last-server-card{margin-bottom:0}
+:root .continue-spinner{animation:continue-spin 1s linear infinite}
+@keyframes continue-spin{to{transform:rotate(360deg)}}
+@container(max-width:420px){
+  :root .continuation-card .continue-open{grid-template-columns:44px minmax(0,1fr);gap:10px}
+  :root .continue-art{width:44px;height:44px;border-radius:10px}
+  :root .continue-chevron{display:none}
+  :root .continuation-card .continue-play{width:36px;padding:8px;flex-shrink:0}
+  :root .continue-play>span{display:none}
+}
+:root[data-motion="reduced"] .continue-spinner{animation:none}
+@media(prefers-reduced-motion:reduce){:root .continue-spinner{animation:none}}
+@media(forced-colors:active){:root .continue-open:focus-visible{outline:2px solid Highlight;outline-offset:-3px}}

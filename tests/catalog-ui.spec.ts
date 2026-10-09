@@ -73,19 +73,26 @@ for (const mode of ["light", "dark", "amoled"]) test(`catalog rows and grid fit 
     await page.screenshot({path: `.qa/catalog/${mode}-${layout}.png`});
   }
 });
-test("library restores missing project icons, removes normal badges and nickname input fits the panel", async ({page}) => {
+test("Home and library share restored project icons, navigation opens the overview and nickname input fits", async ({page}) => {
   await nativeFixture(page);
-  await page.route("https://api.modrinth.com/v2/project/fo", route => route.fulfill({json: {icon_url: "https://cdn.modrinth.com/qa/logo.png"}}));
+  let iconRequests = 0;
+  await page.route("https://api.modrinth.com/v2/project/fo", route => {iconRequests++; return route.fulfill({json: {icon_url: "https://cdn.modrinth.com/qa/logo.png"}});});
   await page.route("https://cdn.modrinth.com/qa/**", route => route.fulfill({contentType: "image/png", body: png}));
   await page.goto("/");
   await page.evaluate(async () => {
     Object.assign((globalThis as any).__materialQA.state.instances[0], {project_id: "fo", icon: undefined});
     const {emit} = await import("/node_modules/@tauri-apps/api/event.js"); await emit("instances-changed");
   });
-  await page.getByRole("button", {name: "Library", exact: true}).first().click();
+  const homeCard = page.locator('.continuation-card[data-instance-id="instance-0"]');
+  await expect(homeCard.locator(".continue-art img")).toHaveAttribute("src", "https://cdn.modrinth.com/qa/logo.png");
+  await expect(homeCard.locator(".continue-status")).toHaveCount(0);
+  await homeCard.locator(".continue-art").click();
+  await expect(page.locator(".library-overview")).toBeVisible();
+  await expect(page.locator(".instance-surface")).toHaveCount(0);
   const instance = page.locator('[data-instance-id="instance-0"]');
   await expect(instance.locator(".instance-small-icon img")).toHaveAttribute("src", "https://cdn.modrinth.com/qa/logo.png");
   await expect.poll(() => instance.locator(".instance-small-icon img").evaluate(img => (img as HTMLImageElement).naturalWidth)).toBeGreaterThan(0);
+  expect(iconRequests).toBe(1);
   await expect(instance.locator(".chips")).toHaveCount(0);
   await expect(instance).not.toContainText("Ready");
   await expect(instance).not.toContainText("modrinth");
