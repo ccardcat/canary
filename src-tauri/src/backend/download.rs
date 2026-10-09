@@ -6,6 +6,18 @@ use tokio::io::AsyncWriteExt;
 #[derive(Clone)]
 pub struct Artifact {pub url:String,pub path:PathBuf,pub hash:Option<String>,pub algorithm:&'static str,pub size:Option<u64>}
 impl std::fmt::Debug for Artifact {fn fmt(&self,f:&mut std::fmt::Formatter<'_>)->std::fmt::Result{f.debug_struct("Artifact").field("url",&"<download URL>").field("path",&super::privacy::diagnostic(&self.path.to_string_lossy())).field("algorithm",&self.algorithm).field("size",&self.size).finish()}}
+// RustCrypto 0.11 returns hybrid arrays without LowerHex. Preserve the
+// lowercase, zero-padded checksums and fingerprints used by existing storage.
+pub(crate) fn hex(bytes: impl AsRef<[u8]>) -> String {
+    const DIGITS: &[u8; 16] = b"0123456789abcdef";
+    let bytes = bytes.as_ref();
+    let mut result = String::with_capacity(bytes.len() * 2);
+    for &byte in bytes {
+        result.push(DIGITS[(byte >> 4) as usize] as char);
+        result.push(DIGITS[(byte & 15) as usize] as char);
+    }
+    result
+}
 pub const MAX_FILE_BYTES:u64=16*1024*1024*1024;
 pub fn validate_hash(hash:&str,algorithm:&str)->Result<()> {
     let length=match algorithm{"sha1"=>40,"sha256"=>64,"sha512"=>128,_=>0};
@@ -36,7 +48,7 @@ pub fn hash_reader(file:&mut impl std::io::Read,algorithm:&str,cancel:Option<&At
     enum Hasher {One(sha1::Sha1),Two(Sha256),Five(Sha512)}
     let mut h=match algorithm{"sha1"=>Hasher::One(sha1::Sha1::new()),"sha256"=>Hasher::Two(Sha256::new()),"sha512"=>Hasher::Five(Sha512::new()),_=>return Err(BackendError::new("hash","Unsupported hash algorithm"))};
     loop {if cancel.is_some_and(|c|c.load(Ordering::Acquire)){return Err(BackendError::new("cancelled","Operation cancelled"));}let n=file.read(&mut buf)?;if n==0{break;}match &mut h{Hasher::One(h)=>h.update(&buf[..n]),Hasher::Two(h)=>h.update(&buf[..n]),Hasher::Five(h)=>h.update(&buf[..n])}}
-    Ok(match h{Hasher::One(h)=>format!("{:x}",h.finalize()),Hasher::Two(h)=>format!("{:x}",h.finalize()),Hasher::Five(h)=>format!("{:x}",h.finalize())})
+    Ok(match h{Hasher::One(h)=>crate::backend::download::hex(h.finalize()),Hasher::Two(h)=>crate::backend::download::hex(h.finalize()),Hasher::Five(h)=>crate::backend::download::hex(h.finalize())})
 }
 pub async fn valid(file:&Artifact)->Result<bool>{valid_cancellable(file,None).await}
 pub async fn valid_job(file:&Artifact,job:&Job)->Result<bool>{valid_cancellable(file,Some(job.cancel.clone())).await}
@@ -102,7 +114,20 @@ pub async fn cancellable<T>(job:&Job,future:impl std::future::Future<Output=Resu
     tokio::pin!(future);job.check()?;
     loop{tokio::select!{result=&mut future=>return result,_=tokio::time::sleep(std::time::Duration::from_millis(150))=>{job.check()?;}}}
 }
-#[cfg(test)]mod tests {use super::*;#[test]fn streaming_hash(){let path=std::env::temp_dir().join(format!("canary-hash-{}",uuid::Uuid::new_v4()));crate::backend::protected_fs::write(&path,b"abc").unwrap();assert_eq!(hash(&path,"sha256").unwrap(),"ba7816bf8f01cfea414140de5dae2223b00361a396177a9cb410ff61f20015ad");crate::backend::protected_fs::remove_file(path).unwrap();}}
+#[cfg(test)]mod tests {
+    use super::*;
+    #[test]fn streaming_hash(){let path=std::env::temp_dir().join(format!("canary-hash-{}",uuid::Uuid::new_v4()));crate::backend::protected_fs::write(&path,b"abc").unwrap();assert_eq!(hash(&path,"sha256").unwrap(),"ba7816bf8f01cfea414140de5dae2223b00361a396177a9cb410ff61f20015ad");crate::backend::protected_fs::remove_file(path).unwrap();}
+    #[test]fn rustcrypto_upgrade_preserves_publisher_checksums(){
+        for (algorithm, expected) in [
+            ("sha1", "a9993e364706816aba3e25717850c26c9cd0d89d"),
+            ("sha256", "ba7816bf8f01cfea414140de5dae2223b00361a396177a9cb410ff61f20015ad"),
+            ("sha512", "ddaf35a193617abacc417349ae20413112e6fa4e89a97ea20a9eeee64b55d39a2192992a274fc1a836ba3c23a3feebbd454d4423643ce80e2a9ac94fa54ca49f"),
+        ] {
+            let mut input = std::io::Cursor::new(b"abc");
+            assert_eq!(hash_reader(&mut input, algorithm, None).unwrap(), expected);
+        }
+    }
+}
 #[cfg(test)]mod cancellation_tests {
     use super::*;use tokio::{net::TcpListener,io::AsyncReadExt};
     #[tokio::test]async fn mid_file_cancel_drains_workers_and_never_starts_next_file(){

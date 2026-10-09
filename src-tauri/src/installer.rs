@@ -145,9 +145,9 @@ fn id_safe(id: &str) -> bool {
 #[cfg(test)]
 fn verify(data: &[u8], hashes: &HashMap<String, String>, stage: &str, path: &Path) -> Result<()> {
     let (expected, actual) = if let Some(h) = hashes.get("sha512") {
-        (h, format!("{:x}", Sha512::digest(data)))
+        (h, crate::backend::download::hex(Sha512::digest(data)))
     } else if let Some(h) = hashes.get("sha1") {
-        (h, format!("{:x}", sha1::Sha1::digest(data)))
+        (h, crate::backend::download::hex(sha1::Sha1::digest(data)))
     } else {
         return Err(InstallError::new(stage, "No supported checksum supplied").path(path));
     };

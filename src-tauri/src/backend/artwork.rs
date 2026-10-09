@@ -4,7 +4,7 @@ pub async fn cache(backend:&Backend,instance:&mut Instance)->Result<()> {
     let Some(url)=instance.icon.as_ref().filter(|s|s.starts_with("https://")) else{return Ok(())};
     super::network::public_url(&reqwest::Url::parse(url).map_err(|_|BackendError::new("unsafe_url","Invalid image URL"))?)?;
     let extension=reqwest::Url::parse(url).ok().and_then(|u|u.path().rsplit('.').next().map(str::to_ascii_lowercase)).filter(|e|matches!(e.as_str(),"png"|"jpg"|"jpeg"|"webp"|"svg")).unwrap_or("png".into());
-    let path=backend.root.join("cache/icons").join(format!("{:x}.{extension}",Sha256::digest(url.as_bytes())));
+    let path=backend.root.join("cache/icons").join(format!("{}.{extension}",crate::backend::download::hex(Sha256::digest(url.as_bytes()))));
     if !path.is_file(){
         let mut response=backend.client.get(url).timeout(std::time::Duration::from_secs(8)).send().await?.error_for_status()?;
         if response.url().scheme()!="https"||response.content_length().is_some_and(|s|s>4*1024*1024){return Err(BackendError::new("artwork","Invalid image source or size"));}

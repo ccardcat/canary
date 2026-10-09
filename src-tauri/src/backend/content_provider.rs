@@ -51,7 +51,7 @@ pub async fn preview(b:&Backend,i:&Instance,p:&str,version:Option<&str>,kind:&st
   if f["hashes"]["sha512"].as_str().is_none(){return Err(BackendError::new("checksum","Provider SHA-512 missing"));}
   items.push(Planned{provider:"modrinth".into(),project:pid,version:vid,name:detail["title"].as_str().unwrap_or("Project").into(),number:v["version_number"].as_str().unwrap_or("").into(),kind,icon:detail["icon_url"].as_str().map(str::to_owned),file:f,required,dependencies:deps});
  }
- let bytes=serde_json::to_vec(&json!({"items":items,"world":world,"minecraft":i.minecraft,"loader":i.loader}))?;use sha2::Digest;let fingerprint=format!("{:x}",sha2::Sha256::digest(bytes));Ok(Plan{items,optional,world,fingerprint})
+ let bytes=serde_json::to_vec(&json!({"items":items,"world":world,"minecraft":i.minecraft,"loader":i.loader}))?;use sha2::Digest;let fingerprint=crate::backend::download::hex(sha2::Sha256::digest(bytes));Ok(Plan{items,optional,world,fingerprint})
 }
 // A single transaction applies files only after every download and verification succeeded.
 pub fn apply(b:&Backend,id:&str,state:State,files:Vec<(Item,std::path::PathBuf)>)->Result<State>{apply_transaction(b,id,state,files,&[],None)}

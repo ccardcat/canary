@@ -64,7 +64,7 @@ fn plan_fingerprint(mut value:Value)->Result<String>{
    if url.path()==format!("/v1/download/{}/{}",item["project"].as_str().unwrap_or(""),item["version"].as_str().unwrap_or(""))&&url.query_pairs().all(|(k,_)|k=="ticket"){url.set_query(None);item["file"]["url"]=json!(url.as_str());}
   }}
  }}
- use sha2::Digest;Ok(format!("{:x}",sha2::Sha256::digest(serde_json::to_vec(&value)?)))
+ use sha2::Digest;Ok(crate::backend::download::hex(sha2::Sha256::digest(serde_json::to_vec(&value)?)))
 }
 #[cfg(test)]mod gateway_tests {
  use super::*;

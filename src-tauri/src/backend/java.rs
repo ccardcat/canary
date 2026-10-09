@@ -38,7 +38,7 @@ pub fn authorize_arguments(backend:&Backend,app:&tauri::AppHandle,jvm:&[String],
     if !app.dialog().message(format!("Эти JVM-аргументы могут загружать дополнительный код с вашими правами. Подтвердите только доверенные параметры.\n\nThese JVM arguments can load additional code with your OS permissions. Approve only arguments you trust.\n\n{detail}")).title("Canary — JVM arguments / Аргументы JVM").kind(MessageDialogKind::Warning).buttons(MessageDialogButtons::OkCancel).blocking_show(){return Err(BackendError::new("java_consent","JVM code-loading arguments were not approved"));}
     backend.store.lock().unwrap().trusted_jvm.push(fingerprint);backend.persist()
 }
-fn argument_fingerprint(jvm:&[String])->Result<String>{use sha2::Digest;Ok(format!("{:x}",sha2::Sha256::digest(serde_json::to_vec(jvm)?)))}
+fn argument_fingerprint(jvm:&[String])->Result<String>{use sha2::Digest;Ok(crate::backend::download::hex(sha2::Sha256::digest(serde_json::to_vec(jvm)?)))}
 pub fn trusted_arguments(backend:&Backend,jvm:&[String],game:&[String])->Result<()>{validate_arguments(jvm,game)?;if risky_arguments(jvm)&&!backend.store.lock().unwrap().trusted_jvm.contains(&argument_fingerprint(jvm)?){return Err(BackendError::new("java_consent","Review JVM code-loading arguments in Minecraft settings before launch"));}Ok(())}
 pub async fn test(path:&Path,managed:bool)->Result<JavaRuntime>{
     let canonical=executable_path(path)?;let path=canonical.as_path();

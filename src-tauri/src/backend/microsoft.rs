@@ -77,7 +77,7 @@ fn skin_url(profile:&serde_json::Value)->Option<reqwest::Url>{
 }
 async fn profile_skin(b:&Backend,profile:&serde_json::Value,uuid:&str)->Option<String>{
  let url=skin_url(profile)?;
- let key=format!("{:x}",Sha256::digest(url.as_str().as_bytes()));
+ let key=crate::backend::download::hex(Sha256::digest(url.as_str().as_bytes()));
  let path=b.root.join("cache/icons/skins").join(format!("{uuid}-{key}.png"));
  if path.is_file(){return Some(path.to_string_lossy().into_owned());}
  let mut response=b.client.get(url).timeout(Duration::from_secs(10)).send().await.ok()?;

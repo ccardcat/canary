@@ -30,7 +30,7 @@ pub async fn preview(b:&Backend,id:&str,beta:bool)->Result<Preview>{
     if Some(version)==i.version_id.as_deref(){return Err(BackendError::new("pack_no_update","The compatible pack version is already installed"));}
     if let Some(current)=versions.iter().find(|v|v["id"].as_str()==i.version_id.as_deref()) {if latest["date_published"].as_str()<=current["date_published"].as_str(){return Err(BackendError::new("pack_no_update","No newer compatible pack release"));}}
     let state=content::scan(b,id)?;use sha2::Digest;
-    let fingerprint=format!("{:x}",sha2::Sha256::digest(serde_json::to_vec(&json!({"version":version,"current":i.version_id,"minecraft":i.minecraft,"loader":i.loader,"items":state.items}))?));
+    let fingerprint=crate::backend::download::hex(sha2::Sha256::digest(serde_json::to_vec(&json!({"version":version,"current":i.version_id,"minecraft":i.minecraft,"loader":i.loader,"items":state.items}))?));
     Ok(Preview{version:version.into(),name:latest["version_number"].as_str().unwrap_or(version).into(),user_files:state.items.iter().filter(|x|x.source!="pack").count(),fingerprint})
 }
 fn walk(root:&Path,dir:&Path,files:&mut Vec<(String,PathBuf)>)->Result<()>{
