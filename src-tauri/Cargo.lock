@@ -3784,7 +3784,7 @@ dependencies = [
 name = "scaffold"
 version = "0.1.8"
 dependencies = [
- "base64 0.22.1",
+ "base64 0.23.1",
  "cap-fs-ext",
  "cap-std",
  "dirs 6.0.0",
