@@ -6,9 +6,55 @@
   "workers_dev": true,
   "keep_vars": true,
   "ratelimits": [
-    { "name": "API_RATE_LIMIT", "namespace_id": "1001", "simple": { "limit": 600, "period": 60 } },
-    { "name": "DOWNLOAD_RATE_LIMIT", "namespace_id": "1002", "simple": { "limit": 300, "period": 60 } },
-    { "name": "BUDGET_RATE_LIMIT", "namespace_id": "1003", "simple": { "limit": 5000, "period": 60 } }
+    {
+      "name": "API_RATE_LIMIT",
+      "namespace_id": "1001",
+      "simple": {
+        "limit": 600,
+        "period": 60
+      }
+    },
+    {
+      "name": "DOWNLOAD_RATE_LIMIT",
+      "namespace_id": "1002",
+      "simple": {
+        "limit": 300,
+        "period": 60
+      }
+    },
+    {
+      "name": "BUDGET_RATE_LIMIT",
+      "namespace_id": "1003",
+      "simple": {
+        "limit": 5000,
+        "period": 60
+      }
+    }
   ],
-  "observability": { "enabled": false }
+  "observability": {
+    "enabled": false
+  },
+  "durable_objects": {
+    "bindings": [
+      {
+        "name": "GATEWAY_BUDGET",
+        "class_name": "GatewayBudget"
+      }
+    ]
+  },
+  "migrations": [
+    {
+      "tag": "v1-publisher-budget",
+      "new_sqlite_classes": [
+        "GatewayBudget"
+      ]
+    }
+  ],
+  "vars": {
+    "GATEWAY_API_PER_MINUTE": "5000",
+    "GATEWAY_API_PER_DAY": "100000",
+    "GATEWAY_DOWNLOADS_PER_MINUTE": "1000",
+    "GATEWAY_BYTES_PER_DAY": "1099511627776",
+    "GATEWAY_CONCURRENT_DOWNLOADS": "128"
+  }
 }

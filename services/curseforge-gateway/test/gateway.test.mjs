@@ -1,3 +1,4 @@
+import {budgetBinding,limits} from './budget-fixture.mjs';
 import {test} from 'node:test';
 import assert from 'node:assert/strict';
 import {createGateway} from '../src/worker.mjs';
@@ -6,7 +7,8 @@ const project = {id: 100, gameId: 432, classId: 6, allowModDistribution: true, n
 const file = {id: 200, modId: 100, downloadUrl: 'https://edge.forgecdn.net/files/1/2/mod.jar', fileLength: 3, fileName: 'mod.jar', hashes: [{algo: 1, value: 'publisher-hash'}]};
 function fixture() {
   const calls = [];
-  const env = {CURSEFORGE_GATEWAY_APPROVED:'true', CURSEFORGE_API_KEY: 'test-publisher-secret', API_RATE_LIMIT: {limit: async () => ({success: true})}, DOWNLOAD_RATE_LIMIT: {limit: async () => ({success: true})}, BUDGET_RATE_LIMIT: {limit: async () => ({success: true})}};
+  const env = {...limits,CURSEFORGE_GATEWAY_APPROVED:'true', CURSEFORGE_API_KEY: 'test-publisher-secret', API_RATE_LIMIT: {limit: async () => ({success: true})}, DOWNLOAD_RATE_LIMIT: {limit: async () => ({success: true})}, BUDGET_RATE_LIMIT: {limit: async () => ({success: true})}};
+  env.GATEWAY_BUDGET=budgetBinding(env);
   let clock = 1791450000000;
   const state = {project: structuredClone(project), file: structuredClone(file), upstreamStatus: 200, redirect: null};
   const upstream = async (url, options) => {
@@ -117,4 +119,29 @@ test('specific category and Minecraft version routes are allowed, without arbitr
  assert.equal((await f.request('/v1/categories?gameId=1&classId=6')).status,400);
  assert.equal((await f.request('/v1/minecraft/version?sortDescending=evil')).status,400);
  assert.equal((await f.request('/v1/categories?gameId=432&classId=6&url=https://evil.example')).status,400);
+});
+
+
+test('each actual publisher API call is charged, including the project/file pair',async()=>{
+ const f=fixture();f.env.GATEWAY_API_PER_MINUTE='2';assert.equal((await f.request('/v1/mods/100/files/200')).status,200);
+ assert.equal(f.calls.length,2);assert.equal(f.env.GATEWAY_BUDGET.values.get('budget').apiMinute,2);
+ assert.equal((await f.request('/v1/mods/100')).status,429);assert.equal(f.calls.length,2);
+});
+test('global budget outages stop upstream calls and make health unavailable',async()=>{
+ const f=fixture();f.env.GATEWAY_BUDGET.get=()=>({fetch:async()=>{throw Error('storage unavailable');}});
+ assert.equal((await f.request('/v1/mods/100')).status,503);assert.equal(f.calls.length,0);
+ delete f.env.GATEWAY_BUDGET;assert.equal((await (await f.request('/health')).json()).ready,false);
+});
+test('invalid size, unavailable files and byte budget exhaustion never contact CDN',async()=>{
+ const f=fixture();const metadata=await (await f.request('/v1/mods/100/files/200')).json();
+ f.state.file.isAvailable=false;assert.equal((await f.request(metadata.data.downloadUrl)).status,403);
+ f.state.file.isAvailable=true;f.state.file.fileLength=Number.MAX_SAFE_INTEGER;assert.equal((await f.request(metadata.data.downloadUrl)).status,502);
+ f.state.file.fileLength=3;f.env.GATEWAY_BYTES_PER_DAY='2';assert.equal((await f.request(metadata.data.downloadUrl)).status,429);
+ assert.ok(!f.calls.some(c=>new URL(c.url).hostname.endsWith('forgecdn.net')));
+});
+test('unsafe ranges and control characters are rejected in controlled requests',async()=>{
+ const f=fixture();const metadata=await (await f.request('/v1/mods/100/files/200')).json();
+ for(const range of ['bytes=2-1','bytes=0-999','bytes=999999999999999999999-','bytes=0-1,2-3'])assert.equal((await f.request(metadata.data.downloadUrl,{headers:{range}})).status,400);
+ for(const path of ['/v1/mods/search?searchFilter=%00','/v1/mods/search?gameVersion=../../evil'])assert.equal((await f.request(path)).status,400);
+ assert.ok(!f.calls.some(c=>new URL(c.url).hostname.endsWith('forgecdn.net')));
 });

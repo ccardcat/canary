@@ -1,6 +1,9 @@
+import {configuredBudget,reserve,release} from './budget.mjs';
+export {GatewayBudget} from './budget.mjs';
 const API = 'https://api.curseforge.com/v1/';
 const CLASSES = new Set(['6', '4471', '12', '6552', '6945']);
 const encoder = new TextEncoder();
+const MAX_DOWNLOAD = 16*1024*1024*1024;
 const signingKeys = new WeakMap();
 class Failure extends Error {
   constructor(status, code, message) { super(message); this.status = status; this.code = code; }
@@ -39,8 +42,9 @@ function route(url) {
 function validateQuery(url, allowed) {
   const seen = new Set();
   for (const [key, value] of url.searchParams) {
-    if (!allowed.has(key) || seen.has(key) || value.length > 200) fail(400, 'invalid_request', 'Unsupported parameter');
+    if (!allowed.has(key) || seen.has(key) || value.length > 200 || /[\x00-\x1f\x7f]/.test(value)) fail(400, 'invalid_request', 'Unsupported parameter');
     seen.add(key);
+    if (key==='gameVersion'&&!/^[A-Za-z0-9._-]{1,96}$/.test(value)) fail(400,'invalid_request','Invalid Minecraft version');
     if (['pageSize', 'index', 'modLoaderType', 'sortField','categoryId'].includes(key) && !/^\d+$/.test(value)) fail(400, 'invalid_request', 'Invalid numeric parameter');
     if (key === 'pageSize' && (+value < 1 || +value > 50) || key === 'index' && +value > 10000) fail(400, 'invalid_request', 'Pagination is outside the supported range');
     if (key === 'sortOrder' && !['asc', 'desc'].includes(value)) fail(400, 'invalid_request', 'Invalid sort order');
@@ -84,6 +88,7 @@ async function rewriteFiles(value, env, origin, now, permitted = true) {
 
 export function createGateway({fetchUpstream = fetch, now = Date.now} = {}) {
   async function api(path, query, env, origin, signal) {
+    const budget=await reserve(env,{api:1});if(!budget.ok)fail(budget.status===429?429:503,budget.status===429?'provider_rate_limit':'provider_unavailable','Publisher request budget is unavailable or exhausted');
     const url = new URL(path, API); url.search = query.toString(); url.searchParams.sort();
     const response = await fetchUpstream(url, {cache:'no-store', redirect: 'manual', signal: AbortSignal.any([signal, AbortSignal.timeout(30000)]), headers: {'x-api-key': env.CURSEFORGE_API_KEY, 'accept': 'application/json', 'user-agent':'Canary/0.1.8 (+https://github.com/ccardcat/canary; identified server gateway)'}});
     if (!response.ok) {
@@ -110,7 +115,7 @@ export function createGateway({fetchUpstream = fetch, now = Date.now} = {}) {
       if (request.url.length > 2048 || [...request.headers].reduce((n,[k,v])=>n+k.length+v.length,0) > 8192 || request.body || Number(request.headers.get('content-length') || 0) > 0) fail(413, 'request_too_large', 'Request is too large or contains a body');
       const url = new URL(request.url); const r = route(url);
       const configured = !!env.CURSEFORGE_API_KEY?.trim();
-      const rateLimited = !!(env.API_RATE_LIMIT && env.DOWNLOAD_RATE_LIMIT && env.BUDGET_RATE_LIMIT);
+      const rateLimited = !!(env.API_RATE_LIMIT && env.DOWNLOAD_RATE_LIMIT && env.BUDGET_RATE_LIMIT && env.GATEWAY_BUDGET && configuredBudget(env));
       const approved = env.CURSEFORGE_GATEWAY_APPROVED === 'true';
       const ready = configured && rateLimited && approved;
       if (r.health && !ready) return json({service:'canary-curseforge',protocol:2,configured,rateLimiting:rateLimited,gatewayApproved:approved,ready:false,api:'not_checked',reason:!configured?'missing_key':!rateLimited?'missing_rate_bindings':'terms_approval_required'});
@@ -134,20 +139,42 @@ export function createGateway({fetchUpstream = fetch, now = Date.now} = {}) {
         if (p.data.allowModDistribution === false || p.data.isAvailable === false) fail(403, 'manual_download_required', 'The author disabled third-party downloads');
         const metadata = await api(`mods/${r.project}/files/${r.file}`, new URLSearchParams(), env, origin, request.signal);
         if (String(metadata.data?.id) !== r.file || String(metadata.data?.modId) !== r.project) fail(502, 'metadata', 'Project/file mismatch');
-        if (!metadata.data.downloadUrl) fail(403, 'manual_download_required', 'This file requires manual download');
+        if (metadata.data.isAvailable===false || !metadata.data.downloadUrl) fail(403, 'manual_download_required', 'This file requires manual download');
         let source = new URL(metadata.data.downloadUrl);
         const headers = {'x-api-key': env.CURSEFORGE_API_KEY, 'accept-encoding': 'identity'};
-        const range = request.headers.get('range'); if (range) { if (!/^bytes=\d+-\d*$/.test(range)) fail(400, 'invalid_request', 'Unsupported byte range'); headers.range = range; }
+        const size=metadata.data.fileLength;if(!Number.isSafeInteger(size)||size<0||size>MAX_DOWNLOAD)fail(502,'metadata','Invalid download size');
+        let expected=size;
+        const range = request.headers.get('range');
+        if(range){const match=/^bytes=(\d+)-(\d*)$/.exec(range);if(!match)fail(400,'invalid_request','Unsupported byte range');
+          const start=Number(match[1]),end=match[2]?Number(match[2]):size-1;
+          if(!Number.isSafeInteger(start)||!Number.isSafeInteger(end)||start<0||end<start||end>=size)fail(400,'invalid_request','Invalid byte range');
+          expected=end-start+1;headers.range=`bytes=${start}-${end}`;
+        }
+        const budget=await reserve(env,{downloads:1,bytes:request.method==='HEAD'?0:expected,lease:request.method!=='HEAD'});
+        if(!budget.ok)fail(budget.status===429?429:503,budget.status===429?'provider_rate_limit':'provider_unavailable','Download budget is unavailable or exhausted');
+        const lease=budget.lease;let handedOff=false;
+        try {
         for (let redirects = 0; redirects <= 3; redirects++) {
           if (!cdn(source)) fail(502, 'download_source', 'Unsupported publisher download host');
-          const response = await fetchUpstream(source, {cache:'no-store', method: request.method, headers, redirect: 'manual', signal: request.signal});
+          const response = await fetchUpstream(source, {cache:'no-store', method: request.method, headers, redirect: 'manual', signal: AbortSignal.any([request.signal,AbortSignal.timeout(300000)])});
           if ([301, 302, 303, 307, 308].includes(response.status)) { const location = response.headers.get('location'); await response.body?.cancel(); if (!location) break; source = new URL(location, source); continue; }
           if (!response.ok) { await response.body?.cancel(); fail(503, 'provider_unavailable', 'Publisher download is temporarily unavailable'); }
           const output = new Headers({'cache-control': 'no-store', 'x-content-type-options': 'nosniff', 'content-type': 'application/octet-stream'});
           for (const name of ['content-length', 'content-range', 'accept-ranges']) if (response.headers.has(name)) output.set(name, response.headers.get(name));
-          return new Response(request.method === 'HEAD' ? null : response.body, {status: response.status, headers: output});
+          const declared=response.headers.get('content-length');
+          if(declared!==null&&(!/^\d+$/.test(declared)||Number(declared)!==expected)||range&&response.status!==206){await response.body?.cancel();fail(502,'download_size','Publisher response does not match the requested size');}
+          if(request.method==='HEAD'){await response.body?.cancel();return new Response(null,{status:response.status,headers:output});}
+          if(!response.body)fail(502,'download_size','Publisher response has no body');
+          const reader=response.body.getReader();let received=0,finished=false;
+          const finish=async()=>{if(!finished){finished=true;await release(env,lease);}};
+          const stream=new ReadableStream({async pull(controller){try{const {done,value}=await reader.read();
+            if(done){if(received!==expected)throw Error('Download length mismatch');controller.close();await finish();return;}
+            received+=value.byteLength;if(received>expected)throw Error('Download exceeds declared size');controller.enqueue(value);
+          }catch(error){await reader.cancel().catch(()=>{});controller.error(error);await finish();}},async cancel(reason){await reader.cancel(reason);await finish();}});
+          handedOff=true;return new Response(stream,{status:response.status,headers:output});
         }
         fail(502, 'download_source', 'Too many publisher redirects');
+        } finally {if(!handedOff)await release(env,lease);}
       }
       if (request.method !== 'GET') return json({error: {code: 'method_not_allowed', message: 'Use GET for metadata'}}, 405);
       let p; if (r.project) p = await project(r.project, env, origin, request.signal);
