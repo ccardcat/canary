@@ -94,9 +94,11 @@ test('metadata is never read from or written to a cache',async()=>{
  assert.equal((await gateway(req,f.env)).status,200);assert.equal((await gateway(req,f.env)).status,200);assert.equal(called,2);
 });
 test('unapproved gateway exposes only safe health and never calls CurseForge',async()=>{
- const f=fixture();delete f.env.CURSEFORGE_GATEWAY_APPROVED;
- const health=await (await f.request('/health')).json();assert.equal(health.ready,false);assert.equal(health.reason,'terms_approval_required');
- assert.equal((await f.request('/v1/mods/100')).status,403);assert.equal(f.calls.length,0);
+ for(const approval of [undefined,'false',false,'TRUE','true ']){
+  const f=fixture();f.env.CURSEFORGE_GATEWAY_APPROVED=approval;
+  for(const path of ['/health','/health?check=api']){const health=await (await f.request(path)).json();assert.equal(health.ready,false);assert.equal(health.reason,'terms_approval_required');}
+  assert.equal((await f.request('/v1/mods/100')).status,403);assert.equal(f.calls.length,0);
+ }
 });
 test('API health distinguishes an authorized publisher from upstream failures',async()=>{
  const f=fixture();assert.equal((await (await f.request('/health?check=api')).json()).api,'reachable');
