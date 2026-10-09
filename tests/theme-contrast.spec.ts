@@ -115,26 +115,43 @@ test('System follows OS light/dark and materials retain legible tint over bright
   await expect(page.locator('.settings-search input')).toHaveCSS('color','rgb(237, 242, 239)');await page.screenshot({path:'.qa/theme-contrast/system-dark.png'});
 });
 
-test('bare page text remains readable over extreme images at maximum intensity and minimum overlay',async({page})=>{
-  test.setTimeout(60000);const metrics:any[]=[];
+test('page headings keep the wallpaper visible across pages, themes and quality modes',async({page})=>{
+  test.setTimeout(90000);const metrics:any[]=[];
   await page.goto('/');
   for(const mode of ['light','dark','amoled']){
     await reloadWithSeed(page,`localStorage.setItem('canary-mode',${JSON.stringify(mode)});localStorage.setItem('canary-preset',${JSON.stringify(mode==='light'?'softLight':'graphite')});localStorage.setItem('canary-visual',JSON.stringify({backgroundSource:'canary',app:'sakura1',intensity:100,blur:0,globalTreatment:{overlay:35,vignette:0},materialLinked:true,materialStyle:'glass'}));`);
-    await expect(page.locator('html')).toHaveAttribute('data-mode',mode);await expect(page.locator('.page-transition')).toHaveCSS('opacity','1');
-    for(const [name,image] of [['bright','linear-gradient(#fff,#fff)'],['dark','linear-gradient(#000,#000)'],['colorful','linear-gradient(45deg,#ff0077,#00ffbb,#0033ff)']]){
-      await page.locator('.global-wallpaper .artwork-current').evaluate((e:HTMLElement,image)=>e.style.backgroundImage=image,image);
-      const point=await page.locator('.topbar-sub').evaluate(e=>{const r=e.getBoundingClientRect();return {x:Math.floor(r.right-2),y:Math.floor(r.top+1)};});
-      const png=await page.screenshot({path:`.qa/theme-contrast/page-${mode}-${name}.png`});
-      const result=await page.evaluate(async({png,point})=>{
-        const image=new Image();image.src='data:image/png;base64,'+png;await image.decode();const canvas=document.createElement('canvas');canvas.width=image.width;canvas.height=image.height;const ctx=canvas.getContext('2d')!;ctx.drawImage(image,0,0);const bg=[...ctx.getImageData(point.x,point.y,1,1).data].slice(0,3);
-        const lum=(rgb:number[])=>rgb.map(v=>{v/=255;return v<=.04045?v/12.92:((v+.055)/1.055)**2.4;}).reduce((v,c,i)=>v+c*[.2126,.7152,.0722][i],0);
-        const contrast=(selector:string)=>{ctx.clearRect(0,0,1,1);ctx.fillStyle=getComputedStyle(document.querySelector(selector)!).color;ctx.fillRect(0,0,1,1);const fg=[...ctx.getImageData(0,0,1,1).data].slice(0,3);return (Math.max(lum(fg),lum(bg))+.05)/(Math.min(lum(fg),lum(bg))+.05);};
-        return {bg,primary:contrast('.home-greeting'),secondary:contrast('.topbar-sub')};
-      },{png:png.toString('base64'),point});
-      metrics.push({mode,name,...result});
+    await expect(page.locator('html')).toHaveAttribute('data-mode',mode);
+    // A uniform mauve scene makes any separate heading plate visible in pixels.
+    await page.locator('.visual-backdrop').evaluate((element:HTMLElement)=>{
+      element.style.background='rgb(137, 119, 151)';element.querySelectorAll<HTMLElement>('*').forEach(child=>child.style.display='none');
+    });
+    for(const name of ['Home','Discover','Library','Downloads','Screenshots','Activity']){
+      await nav(page,name).click();await expect(page.locator('.topbar h1')).toBeVisible();
+      for(const variant of ['normal','low','focus','opaque']){
+        await page.evaluate(variant=>{
+          const root=document.documentElement;root.dataset.quality=variant==='low'?'low':'balanced';root.dataset.focus=String(variant==='focus');root.dataset.reduceTransparency=String(variant==='opaque');
+        },variant);
+        const style=await page.locator('.topbar-heading').evaluate(element=>{
+          const style=getComputedStyle(element),before=getComputedStyle(element,'::before');
+          return {background:style.backgroundColor,image:style.backgroundImage,shadow:style.boxShadow,before:before.content};
+        });
+        expect(style.background,`${mode}/${name}/${variant}`).toBe('rgba(0, 0, 0, 0)');
+        expect(style.image).toBe('none');expect(style.shadow).toBe('none');expect(['none','normal']).toContain(style.before);
+        await expect(page.locator('.topbar h1')).toHaveCSS('background-color','rgba(0, 0, 0, 0)');
+      }
+      const points=await page.locator('.topbar-heading').evaluate(element=>{
+        const rect=element.getBoundingClientRect(),x=Math.floor(rect.left+rect.width/2);
+        return [{x,y:Math.floor(rect.top+1)},{x,y:Math.floor(rect.top-10)}];
+      });
+      const png=await page.screenshot({path:`.qa/theme-contrast/unboxed-${mode}-${name.toLowerCase()}.png`});
+      const pixels=await page.evaluate(async({png,points})=>{
+        const image=new Image();image.src='data:image/png;base64,'+png;await image.decode();
+        const canvas=document.createElement('canvas');canvas.width=image.width;canvas.height=image.height;const ctx=canvas.getContext('2d')!;ctx.drawImage(image,0,0);
+        return points.map(({x,y})=>[...ctx.getImageData(x,y,1,1).data].slice(0,3));
+      },{png:png.toString('base64'),points});
+      metrics.push({mode,name,pixels});
+      expect(pixels[0],`${mode}/${name} heading matches the surrounding wallpaper`).toEqual(pixels[1]);
     }
   }
-  writeFileSync('.qa/theme-contrast/page-pixel-contrast.json',JSON.stringify(metrics,null,2));
-  for(const m of metrics){const context=m.mode+'/'+m.name;expect(m.primary,context+' primary').toBeGreaterThanOrEqual(7);expect(m.secondary,context+' secondary').toBeGreaterThanOrEqual(4.5);}
+  writeFileSync('.qa/theme-contrast/unboxed-headings.json',JSON.stringify(metrics,null,2));
 });
-

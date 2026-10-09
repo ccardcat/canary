@@ -62,9 +62,8 @@
   --glass: color-mix(in srgb, var(--surface-glass) 90%, transparent);
   --shadow-strong: var(--shadow);
 
-  /* Bare-page text and overlays keep protected tints. Open card/sidebar
+  /* Controls and overlays keep protected tints. Open card/sidebar
      translucency and their local text backings are derived by MaterialSystem. */
-  --scene-overlay-floor: 88%;
   --surface-floor-buttons: 92%;
   --surface-floor-popovers: 96%;
   --surface-floor-dialogs: 94%;
