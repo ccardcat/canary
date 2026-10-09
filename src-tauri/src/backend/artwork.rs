@@ -2,6 +2,7 @@ use super::{Backend,model::*,storage};
 use sha2::{Digest,Sha256};
 pub async fn cache(backend:&Backend,instance:&mut Instance)->Result<()> {
     let Some(url)=instance.icon.as_ref().filter(|s|s.starts_with("https://")) else{return Ok(())};
+    super::network::public_url(&reqwest::Url::parse(url).map_err(|_|BackendError::new("unsafe_url","Invalid image URL"))?)?;
     let extension=reqwest::Url::parse(url).ok().and_then(|u|u.path().rsplit('.').next().map(str::to_ascii_lowercase)).filter(|e|matches!(e.as_str(),"png"|"jpg"|"jpeg"|"webp"|"svg")).unwrap_or("png".into());
     let path=backend.root.join("cache/icons").join(format!("{:x}.{extension}",Sha256::digest(url.as_bytes())));
     if !path.is_file(){
@@ -9,8 +10,8 @@ pub async fn cache(backend:&Backend,instance:&mut Instance)->Result<()> {
         if response.url().scheme()!="https"||response.content_length().is_some_and(|s|s>4*1024*1024){return Err(BackendError::new("artwork","Invalid image source or size"));}
         let mut bytes=vec![];while let Some(chunk)=response.chunk().await?{if bytes.len()+chunk.len()>4*1024*1024{return Err(BackendError::new("artwork","Image too large"));}bytes.extend_from_slice(&chunk);}
         if bytes.is_empty(){return Err(BackendError::new("artwork","Image is empty"));}
-        std::fs::create_dir_all(path.parent().unwrap())?;let temporary=path.with_extension(format!("{}.tmp",uuid::Uuid::new_v4()));std::fs::write(&temporary,bytes)?;
-        if let Err(error)=std::fs::rename(&temporary,&path){let _=std::fs::remove_file(temporary);return Err(error.into());}
+        crate::backend::protected_fs::create_dir_all(path.parent().unwrap())?;let temporary=path.with_extension(format!("{}.tmp",uuid::Uuid::new_v4()));crate::backend::protected_fs::write(&temporary,bytes)?;
+        if let Err(error)=crate::backend::protected_fs::rename(&temporary,&path){let _=crate::backend::protected_fs::remove_file(temporary);return Err(error.into());}
     }
     instance.icon=Some(path.to_string_lossy().into());Ok(())
 }

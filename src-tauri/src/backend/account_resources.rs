@@ -45,13 +45,13 @@ pub fn removal<'a>(backend: &'a Backend, id: &str) -> Result<Guard<'a>> {
     fn backend()->(Arc<Backend>,super::super::storage::Staging){let root=std::env::temp_dir().join(format!("canary-account-resources-{}",uuid::Uuid::new_v4()));(Arc::new(Backend::with_root(root.clone()).unwrap()),super::super::storage::Staging(root))}
     #[test]fn unrelated_install_and_download_allow_delete_and_clear_references(){
         let (b,_cleanup)=backend();let a=accounts::local(&b,"FirstPlayer").unwrap();let other=accounts::local(&b,"OtherPlayer").unwrap();
-        let id="pack";let dir=b.instance_path(id).unwrap();std::fs::create_dir_all(dir.join("saves")).unwrap();std::fs::write(dir.join("saves/world.dat"),"world").unwrap();
+        let id="pack";let dir=b.instance_path(id).unwrap();crate::backend::protected_fs::create_dir_all(dir.join("saves")).unwrap();crate::backend::protected_fs::write(dir.join("saves/world.dat"),"world").unwrap();
         let i=Instance{id:id.into(),overrides:Overrides{account:Some(other.id.clone()),..Overrides::default()},..Instance::default()};b.save_instance(&i).unwrap();
         let _install=b.lease("unrelated-install").unwrap();let _download=b.lease("unrelated-download").unwrap();
         accounts::remove(&b,&other.id).unwrap();
         assert_eq!(b.settings().active_account.as_deref(),Some(a.id.as_str()));assert!(b.instance(id).unwrap().overrides.account.is_none());
         b.save_instance(&i).unwrap();assert!(b.instance(id).unwrap().overrides.account.is_none());
-        assert_eq!(std::fs::read_to_string(dir.join("saves/world.dat")).unwrap(),"world");
+        assert_eq!(crate::backend::protected_fs::read_to_string(dir.join("saves/world.dat")).unwrap(),"world");
         assert_eq!(accounts::selected(&b,&i).unwrap().id,a.id);
     }
     #[test]fn same_account_launch_blocks_other_account_does_not(){

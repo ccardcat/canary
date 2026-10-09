@@ -1,8 +1,9 @@
 import { useEffect, useRef, useState } from "react";
 import { Package } from "lucide-react";
+import {safeImageUrl} from "../services/links";
 type Props = { src?: string; alt?: string; className?: string };
 export default function RemoteImage(props: Props) {
-  return <ImageLoader key={props.src} {...props} />;
+  return <ImageLoader key={props.src} {...props} src={safeImageUrl(props.src)} />;
 }
 function ImageLoader({ src, alt = "", className = "" }: Props) {
   const image = useRef<HTMLImageElement>(null);
@@ -24,6 +25,7 @@ function ImageLoader({ src, alt = "", className = "" }: Props) {
           src={src}
           alt={alt}
           loading="lazy"
+          referrerPolicy="no-referrer"
           draggable={false}
           onLoad={() => setLoaded(true)}
           onError={() => setFailed(true)}

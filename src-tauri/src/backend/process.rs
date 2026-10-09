@@ -1,7 +1,7 @@
 use super::{Backend,accounts,download::Job,java,minecraft,model::*,storage};
 use std::{collections::HashMap,sync::Arc,process::Stdio};
 use tauri::{AppHandle,Emitter};
-use tokio::{io::{AsyncBufReadExt,BufReader},process::Child,sync::Mutex};
+use tokio::{process::Child,sync::Mutex};
 pub struct Running {pub session:Option<super::discord::Session>,pub pid:u32,pub account:String,pub child:Arc<Mutex<Child>>,pub stopping:Arc<std::sync::atomic::AtomicBool>}
 pub async fn launch(backend:Arc<Backend>,mut instance:Instance,job:Arc<Job>,app:Option<AppHandle>)->Result<u32>{
     let (account,_account_dependency)=super::account_resources::launch(&backend,&instance)?;
@@ -28,6 +28,7 @@ pub async fn launch(backend:Arc<Backend>,mut instance:Instance,job:Arc<Job>,app:
     if jvm.is_empty(){jvm=vec!["-Djava.library.path=${natives_directory}".into(),"-cp".into(),"${classpath}".into()];}
     let mut args=vec![];
     let custom=instance.overrides.jvm_args.as_ref().unwrap_or(&settings.jvm_args);
+    java::trusted_arguments(&backend,custom,instance.overrides.game_args.as_ref().unwrap_or(&settings.game_args))?;
     for arg in custom {if arg.starts_with("-javaagent")||arg.starts_with("-Dauthlibinjector")||arg.starts_with("-Djava.system.class.loader")||arg=="-cp"||arg=="-classpath"||arg.contains("auth_access_token"){return Err(BackendError::new("arguments","Authentication/classpath JVM overrides are not supported"));}}
     args.extend(custom.clone());args.extend(minecraft::substitute(jvm,&values)?);args=super::memory::managed_args(args,min,max);if let Some(logging)=prepared.logging{args.push(logging);}
     if account.provider=="elyby" {
@@ -44,9 +45,12 @@ pub async fn launch(backend:Arc<Backend>,mut instance:Instance,job:Arc<Job>,app:
     args.extend(custom_game.clone());
     if instance.overrides.fullscreen.unwrap_or(settings.fullscreen){args.push("--fullscreen".into());}
     job.critical()?;job.emit("launching","running",&instance.name);
+    let _executable_guard=super::protected_fs::execution_guard(std::path::Path::new(&java.path))?;
+    if instance.overrides.java.is_some()||settings.java_path.is_some(){java::trusted_custom(&backend,std::path::Path::new(&java.path))?;}
     let mut command=tokio::process::Command::new(&java.path);command.env_remove("JAVA_TOOL_OPTIONS").env_remove("_JAVA_OPTIONS").env_remove("JDK_JAVA_OPTIONS").env_remove("CLASSPATH").env_remove("CANARY_CURSEFORGE_API_KEY").env_remove("CANARY_CURSEFORGE_PROXY_URL").env_remove("CANARY_CURSEFORGE_DIRECT_API").args(&args).current_dir(&dir).stdout(Stdio::piped()).stderr(Stdio::piped());
+    super::privacy::child_environment(command.as_std_mut());
     #[cfg(windows)]command.creation_flags(0x08000000);
-    let log_dir=storage::safe_join(&dir,"logs")?;std::fs::create_dir_all(&log_dir)?;let log_path=log_dir.join(format!("canary-{}-{}.log",now(),uuid::Uuid::new_v4()));
+    let log_dir=storage::safe_join(&dir,"logs")?;crate::backend::protected_fs::create_dir_all(&log_dir)?;let log_path=log_dir.join(format!("canary-{}-{}.log",now(),uuid::Uuid::new_v4()));
     let mut child=command.spawn().map_err(|e|BackendError::new("launch",e.to_string()))?;let pid=child.id().ok_or_else(||BackendError::new("launch","No process ID"))?;
     let stdout_pipe=child.stdout.take();let errors=child.stderr.take();let child=Arc::new(Mutex::new(child));
     let stopping=Arc::new(std::sync::atomic::AtomicBool::new(false));
@@ -61,19 +65,13 @@ pub async fn launch(backend:Arc<Backend>,mut instance:Instance,job:Arc<Job>,app:
         return Err(error);
     }
     let (sender,mut receiver)=tokio::sync::mpsc::channel::<String>(512);
-    async fn output<R:tokio::io::AsyncRead+Unpin+Send+'static>(reader:R,sender:tokio::sync::mpsc::Sender<String>,secret:String){
-        let mut lines=BufReader::new(reader).lines();while let Ok(Some(line))=lines.next_line().await{
-            let safe=if line.contains("accessToken")||line.contains("access_token")||line.contains("Authorization:"){"<redacted authentication output>".into()}else{let redacted=if secret.len()>8{line.replace(&secret,"<redacted>")}else{line};redacted.chars().take(8192).collect::<String>()};
-            if sender.send(safe).await.is_err(){break;}
-        }
-    }
-    if let Some(stdout)=stdout_pipe{tokio::spawn(output(stdout,sender.clone(),secret.clone()));}
-    if let Some(stderr)=errors{tokio::spawn(output(stderr,sender.clone(),secret));}
+    if let Some(stdout)=stdout_pipe{tokio::spawn(super::privacy::lines(stdout,sender.clone(),vec![secret.clone()]));}
+    if let Some(stderr)=errors{tokio::spawn(super::privacy::lines(stderr,sender.clone(),vec![secret]));}
     drop(sender);
     let output_app=app.clone();let output_id=instance.id.clone();let history_backend=backend.clone();
     tokio::spawn(async move{
         use tokio::io::AsyncWriteExt;
-        let Ok(file)=tokio::fs::OpenOptions::new().create(true).append(true).open(&log_path).await else{return};
+        let Ok(file)=super::protected_fs::append(&log_path).map(tokio::fs::File::from_std) else{return};
         let mut writer=tokio::io::BufWriter::new(file);let mut written=0usize;let mut batch=vec![];
         let mut server_tracker=super::server_history::Tracker::default();
         let mut tick=tokio::time::interval(std::time::Duration::from_millis(50));
@@ -87,7 +85,7 @@ pub async fn launch(backend:Arc<Backend>,mut instance:Instance,job:Arc<Job>,app:
                 if let Some(app)=&output_app{let _=app.emit("process-output-batch",serde_json::json!({"id":output_id,"session":log_path.file_name().unwrap().to_string_lossy(),"lines":batch}));}
                 batch.clear();
             }
-            if written>5*1024*1024{let _=writer.flush().await;drop(writer);let _=storage::replace(&log_path,&log_path.with_extension("previous.log"));let Ok(file)=tokio::fs::OpenOptions::new().create(true).append(true).open(&log_path).await else{break};writer=tokio::io::BufWriter::new(file);written=0;}
+            if written>5*1024*1024{let _=writer.flush().await;drop(writer);let _=storage::replace(&log_path,&log_path.with_extension("previous.log"));let Ok(file)=super::protected_fs::append(&log_path).map(tokio::fs::File::from_std) else{break};writer=tokio::io::BufWriter::new(file);written=0;}
             if closed{break;}
         }
     });

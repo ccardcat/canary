@@ -10,8 +10,8 @@ use std::{
     path::Path,
     sync::Arc,
 };
-const MAX_ARCHIVE: u64 = 512 * 1024 * 1024;
-const MAX_EXPANDED: u64 = 2 * 1024 * 1024 * 1024;
+const MAX_ARCHIVE: u64 = 16 * 1024 * 1024 * 1024;
+const MAX_EXPANDED: u64 = 32 * 1024 * 1024 * 1024;
 #[derive(Deserialize)]
 struct Index {
     #[serde(rename = "formatVersion")]
@@ -50,44 +50,11 @@ fn archive_error(message: impl Into<String>) -> BackendError {
     BackendError::new("mrpack_archive", message)
 }
 fn target(base: &Path, relative: &str) -> Result<std::path::PathBuf> {
-    let first = relative.split('/').next().unwrap_or("").to_lowercase();
-    if matches!(
-        first.as_str(),
-        "saves"
-            | "screenshots"
-            | "logs"
-            | "instance.json"
-            | "canary-instance.json"
-            | "modrinth.index.json"
-            | "mrpack-source.json"
-            | "runtime.json"
-            | "loader.json"
-            | "process.json"
-            | "content.json"
-            | "pack-content-files.json"
-            | "provider-files.json"
-            | ".canary-content"
-            | "input.mrpack"
-    ) {
-        return Err(archive_error(
-            "The archive cannot manage worlds or Canary metadata",
-        ));
-    }
-    storage::safe_join(base, relative)
-        .map_err(|_| archive_error("The archive contains an unsafe file path"))
+    storage::pack_path(base,relative).map_err(|e|archive_error(e.message))
 }
 fn source_url(url: &str) -> Result<()> {
     let url = reqwest::Url::parse(url).map_err(|_| archive_error("Invalid file download URL"))?;
-    if url.scheme() != "https"
-        || url.host_str().is_none()
-        || !url.username().is_empty()
-        || url.password().is_some()
-    {
-        return Err(archive_error(
-            "Pack file downloads must use HTTPS without embedded credentials",
-        ));
-    }
-    Ok(())
+    super::network::public_url(&url).map_err(|e|archive_error(e.message))
 }
 fn validate(index: &Index) -> Result<(String, String, Option<String>, u64)> {
     if index.format != 1
@@ -188,9 +155,9 @@ fn read(path: &Path) -> Result<(Index, Preview, u64)> {
             .extension()
             .is_some_and(|e| e.to_string_lossy().eq_ignore_ascii_case("mrpack"))
     {
-        return Err(archive_error("Choose a .mrpack archive up to 512 MiB"));
+        return Err(archive_error("Choose a .mrpack archive up to 16 GiB"));
     }
-    let mut zip = zip::ZipArchive::new(std::fs::File::open(path)?)
+    let mut zip = zip::ZipArchive::new(crate::backend::protected_fs::open(path)?)
         .map_err(|_| archive_error("Invalid or damaged MRPACK archive"))?;
     if zip.len() > 50_000 {
         return Err(archive_error("Too many archive entries"));
@@ -224,7 +191,7 @@ fn read(path: &Path) -> Result<(Index, Preview, u64)> {
         expanded = expanded
             .checked_add(entry.size())
             .filter(|v| *v <= MAX_EXPANDED)
-            .ok_or_else(|| archive_error("Expanded archive exceeds 2 GiB"))?;
+            .ok_or_else(|| archive_error("Expanded archive exceeds 32 GiB"))?;
     }
     let entry = zip
         .by_name("modrinth.index.json")
@@ -270,7 +237,7 @@ pub fn inspect(path: &Path) -> Result<Preview> {
     Ok(read(path)?.1)
 }
 fn overrides(archive: &Path, stage: &Path, job: &Job) -> Result<()> {
-    let mut zip = zip::ZipArchive::new(std::fs::File::open(archive)?)
+    let mut zip = zip::ZipArchive::new(crate::backend::protected_fs::open(archive)?)
         .map_err(|_| archive_error("Cannot reopen archive"))?;
     for prefix in ["overrides/", "client-overrides/"] {
         for n in 0..zip.len() {
@@ -290,11 +257,11 @@ fn overrides(archive: &Path, stage: &Path, job: &Job) -> Result<()> {
             }
             let path = target(stage, &rel)?;
             if entry.is_dir() {
-                std::fs::create_dir_all(path)?;
+                crate::backend::protected_fs::create_dir_all(path)?;
                 continue;
             }
-            std::fs::create_dir_all(path.parent().unwrap())?;
-            let mut file = std::fs::File::create(path)?;
+            crate::backend::protected_fs::create_dir_all(path.parent().unwrap())?;
+            let mut file = crate::backend::protected_fs::create(path)?;
             let expected = entry.size();
             let copied = std::io::copy(&mut (&mut entry).take(expected + 1), &mut file)?;
             if copied != expected {
@@ -327,7 +294,7 @@ pub async fn import(
         ));
     }
     let stage = destination.parent().unwrap().join(format!(".mrpack-{}", uuid::Uuid::new_v4()));
-    std::fs::create_dir(&stage)?;
+    crate::backend::protected_fs::create_dir(&stage)?;
     let _cleanup = storage::Staging(stage.clone());
     job.emit("mrpack_prepare", "running", "Validating archive");
     let archive = stage.join("input.mrpack");
@@ -337,7 +304,7 @@ pub async fn import(
         if std::fs::metadata(&source)?.len() > MAX_ARCHIVE {
             return Err(archive_error("Archive exceeds 512 MiB"));
         }
-        std::fs::copy(source, copy)?;
+        crate::backend::protected_fs::copy(source, copy)?;
         Ok(())
     })
     .await
@@ -400,10 +367,10 @@ pub async fn import(
         "screenshots",
         "logs",
     ] {
-        std::fs::create_dir_all(stage.join(folder))?;
+        crate::backend::protected_fs::create_dir_all(stage.join(folder))?;
     }
     let raw: serde_json::Value = {
-        let mut zip = zip::ZipArchive::new(std::fs::File::open(&archive)?)
+        let mut zip = zip::ZipArchive::new(crate::backend::protected_fs::open(&archive)?)
             .map_err(|_| archive_error("Cannot read manifest"))?;
         let mut data = String::new();
         zip.by_name("modrinth.index.json")
@@ -458,12 +425,12 @@ pub async fn import(
         ..Instance::default()
     };
     storage::write_json(&stage.join("instance.json"), &instance)?;
-    std::fs::remove_file(archive)?;
+    crate::backend::protected_fs::remove_file(archive)?;
     job.check()?;
     job.emit("mrpack_finalize", "running", &instance.name);
-    std::fs::rename(&stage, &destination)?;
+    crate::backend::protected_fs::rename(&stage, &destination)?;
     if let Err(error) = backend.save_instance(&instance) {
-        let _ = std::fs::rename(&destination, &stage);
+        let _ = crate::backend::protected_fs::rename(&destination, &stage);
         backend
             .store
             .lock()
@@ -484,7 +451,7 @@ mod tests {
         override_path: &str,
     ) -> std::path::PathBuf {
         let path = root.join("fixture.mrpack");
-        let mut zip = zip::ZipWriter::new(std::fs::File::create(&path).unwrap());
+        let mut zip = zip::ZipWriter::new(crate::backend::protected_fs::create(&path).unwrap());
         let options = zip::write::SimpleFileOptions::default();
         use std::io::Write;
         if let Some(index) = index {
@@ -502,7 +469,7 @@ mod tests {
     #[test]
     fn rejects_missing_index_unsafe_overrides_and_incompatible_loaders() {
         let root = std::env::temp_dir().join(format!("mrpack-test-{}", uuid::Uuid::new_v4()));
-        std::fs::create_dir(&root).unwrap();
+        crate::backend::protected_fs::create_dir(&root).unwrap();
         let _cleanup = storage::Staging(root.clone());
         assert!(inspect(&archive(&root, None, "overrides/config/a.txt")).is_err());
         for rel in [
@@ -530,8 +497,8 @@ mod tests {
         let root = std::env::temp_dir().join(format!("mrpack-import-{}", uuid::Uuid::new_v4()));
         let backend = Arc::new(Backend::with_root(root.clone()).unwrap());
         let _cleanup = storage::Staging(root.clone());
-        std::fs::create_dir_all(root.join("instances/existing/saves/World")).unwrap();
-        std::fs::write(
+        crate::backend::protected_fs::create_dir_all(root.join("instances/existing/saves/World")).unwrap();
+        crate::backend::protected_fs::write(
             root.join("instances/existing/saves/World/level.dat"),
             b"original world marker",
         )
@@ -546,12 +513,12 @@ mod tests {
             .unwrap();
         assert_eq!(instance.provider, "mrpack");
         assert_eq!(
-            std::fs::read(Path::new(&instance.directory).join("config/test.txt")).unwrap(),
+            crate::backend::protected_fs::read(Path::new(&instance.directory).join("config/test.txt")).unwrap(),
             b"user-safe fixture override"
         );
         assert_eq!(backend.instance(&id).unwrap().minecraft, "1.21.1");
         assert_eq!(
-            std::fs::read(root.join("instances/existing/saves/World/level.dat")).unwrap(),
+            crate::backend::protected_fs::read(root.join("instances/existing/saves/World/level.dat")).unwrap(),
             b"original world marker"
         );
     }

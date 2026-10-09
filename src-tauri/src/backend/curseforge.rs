@@ -4,7 +4,7 @@ use std::{sync::Arc,path::Path};
 // A public gateway URL is compiled into releases; the publisher key stays on the server.
 fn parse_gateway(value:&str)->Option<reqwest::Url>{
  let url=reqwest::Url::parse(value.trim()).ok()?;
- let secure=url.scheme()=="https"||cfg!(test)&&url.scheme()=="http"&&url.host_str()==Some("127.0.0.1");
+ let secure=super::network::request_url(&url).is_ok();
  (secure&&url.host_str().is_some()&&url.username().is_empty()&&url.password().is_none()&&url.query().is_none()&&url.fragment().is_none()&&url.path()=="/").then_some(url)
 }
 fn gateway()->Option<reqwest::Url>{
@@ -24,12 +24,13 @@ pub async fn request(backend:&Backend,path:&str,query:&[(&str,String)])->Result<
  }
  let response=request.send().await.map_err(|_|BackendError::new("network","Could not reach the CurseForge service"))?;
  if !response.status().is_success(){let status=response.status().as_u16();let mut error=if proxy.is_some()&&matches!(status,401|403){BackendError::new("provider_unavailable","CurseForge service is temporarily unavailable")}else{status_error(status)};error.retryable=matches!(status,429|500..=599);return Err(error);}
- Ok(response.json().await?)
+ Ok(super::network::json(response).await?)
 }
 fn publisher_cdn(url:&reqwest::Url)->bool{url.scheme()=="https"&&url.username().is_empty()&&url.password().is_none()&&url.port_or_known_default()==Some(443)&&matches!(url.host_str(),Some("edge.forgecdn.net"|"mediafilez.forgecdn.net"|"media.forgecdn.net"))}
 pub async fn download_response(backend:&Backend,url:&reqwest::Url)->Result<reqwest::Response>{
  // Gateway downloads need no launcher credential. Direct developer downloads
  // authenticate only exact publisher hosts, checking redirects before each send.
+ super::network::request_url(url)?;
  if !publisher_cdn(url){return Ok(backend.client.get(url.clone()).send().await?);}
  let key=zeroize::Zeroizing::new(std::env::var("CANARY_CURSEFORGE_API_KEY").ok().filter(|s|!s.trim().is_empty()).ok_or_else(||BackendError::new("provider_not_configured","CurseForge download service is not configured"))?);
  let mut header=reqwest::header::HeaderValue::from_str(key.trim()).map_err(|_|BackendError::new("provider_credentials","Invalid CurseForge credential"))?;header.set_sensitive(true);
@@ -51,7 +52,7 @@ pub async fn search(backend:&Backend,query:String,index:u32)->Result<Value>{requ
 pub async fn project(backend:&Backend,id:u32)->Result<Value>{request(backend,&format!("mods/{id}"),&[]).await}
 pub async fn files(backend:&Backend,id:u32)->Result<Value>{request(backend,&format!("mods/{id}/files"),&[]).await}
 fn copy_overrides(source:&Path,destination:&Path,job:&Job)->Result<()> {
-    fn walk(base:&Path,dir:&Path,dest:&Path,job:&Job)->Result<()>{for e in std::fs::read_dir(dir)?{job.check()?;let e=e?;if e.file_type()?.is_symlink(){return Err(BackendError::new("unsafe_path","Overrides contain a link"));}if e.file_type()?.is_dir(){walk(base,&e.path(),dest,job)?;}else{let path=e.path();let rel=path.strip_prefix(base).unwrap().to_string_lossy().replace('\\',"/");let target=storage::safe_join(dest,&rel)?;if matches!(rel.split('/').next().unwrap_or(""),"instance.json"|"canary-instance.json"|"runtime.json"|"loader.json"|"content.json"|"provider-files.json"|"curseforge-files.json"|"curseforge-manifest.json"|"pack-content-files.json"|".canary-content"|"process.json"|".package"){return Err(BackendError::new("unsafe_path","Reserved Canary metadata"));}std::fs::create_dir_all(target.parent().unwrap())?;{use std::io::{Read,Write};let mut from=std::fs::File::open(path)?;let mut to=std::fs::File::create(target)?;let mut buf=[0u8;128*1024];loop{job.check()?;let n=from.read(&mut buf)?;if n==0{break;}to.write_all(&buf[..n])?;}}}}Ok(())}
+    fn walk(base:&Path,dir:&Path,dest:&Path,job:&Job)->Result<()>{for e in std::fs::read_dir(dir)?{job.check()?;let e=e?;if e.file_type()?.is_symlink(){return Err(BackendError::new("unsafe_path","Overrides contain a link"));}if e.file_type()?.is_dir(){walk(base,&e.path(),dest,job)?;}else{let path=e.path();let rel=path.strip_prefix(base).unwrap().to_string_lossy().replace('\\',"/");let target=storage::pack_path(dest,&rel)?;if matches!(rel.split('/').next().unwrap_or(""),"instance.json"|"canary-instance.json"|"runtime.json"|"loader.json"|"content.json"|"provider-files.json"|"curseforge-files.json"|"curseforge-manifest.json"|"pack-content-files.json"|".canary-content"|"process.json"|".package"){return Err(BackendError::new("unsafe_path","Reserved Canary metadata"));}crate::backend::protected_fs::create_dir_all(target.parent().unwrap())?;{use std::io::{Read,Write};let mut from=crate::backend::protected_fs::open(path)?;let mut to=crate::backend::protected_fs::create(target)?;let mut buf=[0u8;128*1024];loop{job.check()?;let n=from.read(&mut buf)?;if n==0{break;}to.write_all(&buf[..n])?;}}}}Ok(())}
     if source.is_dir(){walk(source,source,destination,job)?;}Ok(())
 }
 pub async fn install(backend:Arc<Backend>,project_id:u32,file_id:u32,job:Arc<Job>)->Result<Instance>{
@@ -62,7 +63,7 @@ pub async fn install(backend:Arc<Backend>,project_id:u32,file_id:u32,job:Arc<Job
     let archive=backend.root.join("cache").join(format!("curseforge-{project_id}-{file_id}.zip"));download::batch(backend.clone(),vec![artifact(data,archive.clone())?],job.clone(),"modpack").await?;
     let id=format!("curseforge-{project_id}-{file_id}");let target=backend.instance_path(&id)?;if target.exists(){return backend.instance(&id);}
     let stage=target.parent().unwrap().join(format!(".cf-{}",uuid::Uuid::new_v4()));let _cleanup=storage::Staging(stage.clone());let extracted=stage.join(".package");let dst=extracted.clone();let token=job.clone();tokio::task::spawn_blocking(move||storage::extract_job(&archive,&dst,Some(&token))).await.map_err(|e|BackendError::new("archive",e.to_string()))??;
-    let manifest:Value=serde_json::from_slice(&std::fs::read(extracted.join("manifest.json"))?)?;
+    let manifest:Value=serde_json::from_slice(&crate::backend::protected_fs::read(extracted.join("manifest.json"))?)?;
     if manifest["manifestType"]!="minecraftModpack"||manifest["manifestVersion"]!=1{return Err(BackendError::new("modpack","Unsupported CurseForge manifest"));}
     let minecraft=manifest["minecraft"]["version"].as_str().ok_or_else(||BackendError::new("modpack","Minecraft version missing"))?.to_owned();
     let loaders=manifest["minecraft"]["modLoaders"].as_array();let selected=loaders.and_then(|list|list.iter().find(|v|v["primary"]==true).or_else(||list.first()));
@@ -78,18 +79,18 @@ pub async fn install(backend:Arc<Backend>,project_id:u32,file_id:u32,job:Arc<Job
     }
     download::batch(backend.clone(),plan,job.clone(),"mods").await?;
     let overrides=manifest["overrides"].as_str().unwrap_or("overrides");let from=storage::safe_join(&extracted,overrides)?;let to=stage.clone();let token=job.clone();tokio::task::spawn_blocking(move||copy_overrides(&from,&to,&token)).await.map_err(|e|BackendError::new("modpack",e.to_string()))??;
-    for folder in ["mods","config","resourcepacks","shaderpacks","saves","screenshots","logs"]{std::fs::create_dir_all(stage.join(folder))?;}
+    for folder in ["mods","config","resourcepacks","shaderpacks","saves","screenshots","logs"]{crate::backend::protected_fs::create_dir_all(stage.join(folder))?;}
     for receipt in &mut receipts{job.check()?;let path=storage::safe_join(&stage,receipt["path"].as_str().unwrap())?;receipt["hash"]=json!(download::hash_cancellable(&path,"sha512",Some(&job.cancel))?);}
     storage::write_json(&stage.join("curseforge-files.json"),&receipts)?;storage::write_json(&stage.join("pack-content-files.json"),&receipts)?;
     storage::write_json(&stage.join("curseforge-manifest.json"),&manifest)?;
     // This fresh archive staging directory is wholly owned by the installer.
-    std::fs::remove_dir_all(&extracted)?;
+    crate::backend::protected_fs::remove_dir_all(&extracted)?;
     let instance=Instance{id,name:project["name"].as_str().unwrap_or("Minecraft").into(),provider:"curseforge".into(),project_id:Some(project_id.to_string()),version_id:Some(file_id.to_string()),version_name:data["displayName"].as_str().unwrap_or("").into(),minecraft,loader,loader_version,directory:target.to_string_lossy().into(),icon:project["logo"]["url"].as_str().map(str::to_owned),..Instance::default()};
-    storage::write_json(&stage.join("instance.json"),&instance)?;job.check()?;std::fs::rename(&stage,&target)?;backend.save_instance(&instance)?;super::content::scan(&backend,&instance.id)?;Ok(instance)
+    storage::write_json(&stage.join("instance.json"),&instance)?;job.check()?;crate::backend::protected_fs::rename(&stage,&target)?;backend.save_instance(&instance)?;super::content::scan(&backend,&instance.id)?;Ok(instance)
 }
 #[cfg(test)]mod tests {use super::*;use serde_json::json;#[test]fn refuses_restricted_downloads(){assert_eq!(artifact(&json!({"downloadUrl":null}),"file".into()).unwrap_err().code,"manual_download_required");assert_eq!(artifact(&json!({"downloadUrl":"https://example.com/file","hashes":[]}),"file".into()).unwrap_err().code,"checksum");}#[test]fn credential_authorization_and_rate_limit_are_distinct(){assert_eq!(status_error(401).code,"provider_credentials");assert_eq!(status_error(403).code,"provider_unauthorized");assert_eq!(status_error(429).code,"provider_rate_limit");assert_eq!(status_error(503).code,"provider_unavailable");}}
 
-pub async fn verify(b:Arc<Backend>,instance:&Instance,job:Arc<Job>)->Result<()>{let root=b.instance_path(&instance.id)?;let path=root.join("curseforge-files.json");if !path.is_file(){return Err(BackendError::new("modpack","CurseForge file receipt missing; reinstall this pack after backing up worlds"));}let receipts:Vec<Value>=serde_json::from_slice(&std::fs::read(path)?)?;let state=super::content::load(&root)?;let mut files=vec![];for file in receipts {job.check()?;let rel=file["path"].as_str().ok_or_else(||BackendError::new("metadata","Pack file path missing"))?;if state.suppressed_pack_paths.iter().any(|p|p==rel){continue;}let path=storage::safe_join(&root,rel)?;let project=file["project"].as_str().ok_or_else(||BackendError::new("metadata","Pack project missing"))?;let id=file["file"].as_str().ok_or_else(||BackendError::new("metadata","Pack file missing"))?;let hash=file["sha1"].as_str().ok_or_else(||BackendError::new("checksum","Pack checksum missing"))?;let saved=Artifact{url:String::new(),path:path.clone(),hash:Some(hash.into()),algorithm:"sha1",size:file["size"].as_u64()};if download::valid_job(&saved,&job).await?{continue;}let detail=download::cancellable(&job,request(&b,&format!("mods/{project}/files/{id}"),&[])).await?;files.push(artifact(&detail["data"],path)?);}download::batch(b,files,job,"mods").await}
+pub async fn verify(b:Arc<Backend>,instance:&Instance,job:Arc<Job>)->Result<()>{let root=b.instance_path(&instance.id)?;let path=root.join("curseforge-files.json");if !path.is_file(){return Err(BackendError::new("modpack","CurseForge file receipt missing; reinstall this pack after backing up worlds"));}let receipts:Vec<Value>=serde_json::from_slice(&crate::backend::protected_fs::read(path)?)?;let state=super::content::load(&root)?;let mut files=vec![];for file in receipts {job.check()?;let rel=file["path"].as_str().ok_or_else(||BackendError::new("metadata","Pack file path missing"))?;if state.suppressed_pack_paths.iter().any(|p|p==rel){continue;}let path=storage::safe_join(&root,rel)?;let project=file["project"].as_str().ok_or_else(||BackendError::new("metadata","Pack project missing"))?;let id=file["file"].as_str().ok_or_else(||BackendError::new("metadata","Pack file missing"))?;let hash=file["sha1"].as_str().ok_or_else(||BackendError::new("checksum","Pack checksum missing"))?;let saved=Artifact{url:String::new(),path:path.clone(),hash:Some(hash.into()),algorithm:"sha1",size:file["size"].as_u64()};if download::valid_job(&saved,&job).await?{continue;}let detail=download::cancellable(&job,request(&b,&format!("mods/{project}/files/{id}"),&[])).await?;files.push(artifact(&detail["data"],path)?);}download::batch(b,files,job,"mods").await}
 
 #[cfg(test)]mod gateway_tests{
  use super::*;
@@ -108,7 +109,7 @@ pub async fn available(backend:&Backend)->bool{
  let ready=async{
   let response=backend.private_api_client.get(base.join("health?check=api").ok()?).timeout(std::time::Duration::from_secs(5)).send().await.ok()?;
   if !response.status().is_success()||!response.headers().get("content-type")?.to_str().ok()?.starts_with("application/json"){return None;}
-  let value:Value=response.json().await.ok()?;
+  let value:Value=super::network::json(response).await.ok()?;
   Some(value["service"]=="canary-curseforge"&&value["protocol"]==2&&value["ready"]==true&&value["api"]=="reachable")
  }.await.unwrap_or(false);
  *health=Some((std::time::Instant::now(),ready));ready

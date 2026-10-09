@@ -32,7 +32,7 @@ pub fn record(backend: &Backend, id: &str, server: LastServer) -> Result<()> {
     // Change only history under the same lock as save_instance: output can
     // arrive after the process exit monitor has saved its final status.
     let mut store=backend.store.lock().unwrap();
-    let mut instance:Instance=serde_json::from_slice(&std::fs::read(&path)?)?;
+    let mut instance:Instance=serde_json::from_slice(&crate::backend::protected_fs::read(&path)?)?;
     if instance.last_server.as_ref().is_some_and(|last|last.joined_at>server.joined_at){return Ok(());}
     instance.last_server=Some(server.clone());storage::write_json(&path,&instance)?;
     if let Some(cached)=store.instance_catalog.iter_mut().find(|i|i.id==id){cached.last_server=Some(server);}
@@ -48,7 +48,7 @@ pub fn restore(backend: &Backend, instance: &mut Instance) {
     }).filter_map(|entry| Some((entry.metadata().ok()?.modified().ok()?, entry.path()))).collect::<Vec<_>>();
     files.sort_by_key(|(time, _)| std::cmp::Reverse(*time));
     for (modified, path) in files.into_iter().take(8) {
-        let Ok(file) = std::fs::File::open(path) else { continue; };
+        let Ok(file) = crate::backend::protected_fs::open(path) else { continue; };
         let timestamp = modified.duration_since(std::time::UNIX_EPOCH).unwrap_or_default().as_secs().min(now());
         let mut bytes = Vec::new();if file.take(5 * 1024 * 1024).read_to_end(&mut bytes).is_err() { continue; }
         let mut tracker = Tracker::default();let mut latest = None;
@@ -75,10 +75,10 @@ pub fn restore(backend: &Backend, instance: &mut Instance) {
     #[test] fn history_survives_restart_and_a_stale_exit_snapshot() {
         let root = std::env::temp_dir().join(format!("canary-server-{}", uuid::Uuid::new_v4()));
         let _cleanup = super::super::storage::Staging(root.clone());let backend = Backend::with_root(root.clone()).unwrap();
-        let dir = backend.instance_path("world").unwrap();std::fs::create_dir_all(dir.join("logs")).unwrap();
+        let dir = backend.instance_path("world").unwrap();crate::backend::protected_fs::create_dir_all(dir.join("logs")).unwrap();
         let mut instance = Instance { id:"world".into(),name:"My pack".into(),minecraft:"1.8.9".into(),directory:dir.to_string_lossy().into(),..Instance::default() };
         backend.save_instance(&instance).unwrap();
-        std::fs::write(dir.join("logs/canary-1.log"), "Connecting to play.example.org, 25565\n[CHAT] Welcome\nConnecting to broken.example.org, 25565\nFailed to connect to the server\n").unwrap();
+        crate::backend::protected_fs::write(dir.join("logs/canary-1.log"), "Connecting to play.example.org, 25565\n[CHAT] Welcome\nConnecting to broken.example.org, 25565\nFailed to connect to the server\n").unwrap();
         restore(&backend, &mut instance);assert_eq!(instance.last_server.as_ref().unwrap().address, "play.example.org");
         let stale = instance.clone();
         record(&backend, "world", LastServer { address:"same-second.example.org".into(),joined_at:stale.last_server.as_ref().unwrap().joined_at }).unwrap();

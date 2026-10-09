@@ -50,7 +50,7 @@ async fn metadata(backend: &Backend, url: &str, loader: &str) -> Result<String> 
         error.retryable = true;
         return Err(error);
     }
-    Ok(response.text().await?)
+    String::from_utf8(super::network::bytes(response,16*1024*1024).await?).map_err(|_|BackendError::new("loader_catalog","Invalid loader metadata text"))
 }
 
 pub async fn versions(backend: &Backend, mc: &str, loader: &str) -> Result<Value> {

@@ -26,10 +26,10 @@ fn path(b:&Backend,id:&str,session:&str)->Result<PathBuf>{
     sessions.sort_by_key(|s|std::cmp::Reverse(s["startedAt"].as_u64().unwrap_or(0)));sessions.truncate(100);Ok(serde_json::json!(sessions))
 }
 #[tauri::command]pub fn read_game_log(backend:State<'_,Arc<Backend>>,id:String,session:String)->Result<String>{
-    let mut file=std::fs::File::open(path(&backend,&id,&session)?)?;let size=file.metadata()?.len();let start=size.saturating_sub(2*1024*1024);file.seek(SeekFrom::Start(start))?;
+    let mut file=crate::backend::protected_fs::open(path(&backend,&id,&session)?)?;let size=file.metadata()?.len();let start=size.saturating_sub(2*1024*1024);file.seek(SeekFrom::Start(start))?;
     let mut bytes=vec![];file.take(2*1024*1024).read_to_end(&mut bytes)?;
     if start>0{if let Some(newline)=bytes.iter().position(|b|*b==b'\n'){bytes.drain(..=newline);}}
-    Ok(String::from_utf8_lossy(&bytes).into())
+    Ok(super::privacy::diagnostic(&String::from_utf8_lossy(&bytes)))
 }
 #[tauri::command]pub fn open_game_log(backend:State<'_,Arc<Backend>>,app:AppHandle,id:String,session:String,crash:Option<bool>)->Result<()>{
     use tauri_plugin_opener::OpenerExt;

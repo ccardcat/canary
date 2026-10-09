@@ -41,6 +41,18 @@ pub fn run() {
         .setup(|app| {
             backend::startup_phase("Tauri setup entered");
             use tauri::Manager;
+            #[cfg(all(windows,feature="native-qa"))]
+            if std::env::var("CANARY_IPC_SECURITY_QA").as_deref()==Ok("true") {
+                tauri::WebviewWindowBuilder::new(app,"security-local",tauri::WebviewUrl::App("index.html".into()))
+                    .title("Canary local ACL probe").visible(false)
+                    .initialization_script("window.__canarySecurityProbe='local';").build()?;
+                let remote=std::env::var("CANARY_IPC_QA_REMOTE_URL")?;
+                let url=tauri::Url::parse(&remote)?;
+                if url.scheme()!="http"||url.host_str()!=Some("127.0.0.1") {return Err("Native QA requires an isolated loopback page".into());}
+                tauri::WebviewWindowBuilder::new(app,"security-remote",tauri::WebviewUrl::External(url))
+                    .title("Canary remote ACL probe").visible(false)
+                    .initialization_script("window.__canarySecurityProbe='remote';").build()?;
+            }
             if let Some(window) = app.get_webview_window("main") {
                 if let Err(error) = window_icon::apply(&window) {
                     eprintln!("Cannot apply Canary taskbar icon: {error}");

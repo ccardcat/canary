@@ -29,13 +29,18 @@ pub fn save_credentials(id:&str,secret:&str)->Result<()> {
 }
 #[allow(dead_code)]
 pub fn credentials(id:&str)->Result<String>{keyring::Entry::new("Canary",id).and_then(|entry|entry.get_password()).map_err(|_|BackendError::new("secure_storage","Cannot read account credential"))}
+pub fn credential_reference<'a>(account:&'a Account,provider:&str)->Result<&'a str>{
+    if account.provider!=provider||!matches!(provider,"elyby"|"microsoft")||uuid::Uuid::parse_str(&account.id).is_err(){return Err(BackendError::new("credential_scope","Account credential does not belong to this provider"));}
+    let reference=account.credential_ref.as_deref().ok_or_else(||BackendError::new("relogin","Sign in with this account again"))?;
+    if reference!=format!("{provider}-{}",account.id){return Err(BackendError::new("credential_scope","Account credential reference does not belong to this account"));}Ok(reference)
+}
 pub fn remove(backend:&Backend,id:&str)->Result<()> {
     let _guard=super::account_resources::removal(backend,id)?;
     remove_reserved(backend,id)
 }
 pub fn remove_reserved(backend:&Backend,id:&str)->Result<()> {
     let account={let store=backend.store.lock().unwrap();store.accounts.iter().find(|a|a.id==id).cloned().ok_or_else(||BackendError::new("account","Account not found"))?};
-    if let Some(reference)=account.credential_ref{match keyring::Entry::new("Canary",&reference).and_then(|entry|entry.delete_credential()){Ok(())|Err(keyring::Error::NoEntry)=>{},Err(_)=>return Err(BackendError::new("secure_storage","Cannot remove account credential"))};}
+    if account.credential_ref.is_some(){let reference=credential_reference(&account,&account.provider)?;match keyring::Entry::new("Canary",reference).and_then(|entry|entry.delete_credential()){Ok(())|Err(keyring::Error::NoEntry)=>{},Err(_)=>return Err(BackendError::new("secure_storage","Cannot remove account credential"))};}
     {let mut store=backend.store.lock().unwrap();store.accounts.retain(|a|a.id!=id);store.removed_accounts.push(id.into());for instance in &mut store.instance_catalog{if instance.overrides.account.as_deref()==Some(id){instance.overrides.account=None;}}if store.settings.active_account.as_deref()==Some(id){store.settings.active_account=store.accounts.first().map(|a|a.id.clone());}}
     backend.persist()?;
     // Clear available metadata; tombstones also cover unavailable drives and

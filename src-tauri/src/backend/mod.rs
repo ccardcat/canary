@@ -16,6 +16,9 @@ pub mod commands;
 pub mod curseforge;
 pub mod curseforge_content;
 pub mod download;
+pub mod network;
+pub mod protected_fs;
+pub mod privacy;
 pub mod java;
 pub mod loaders;
 pub mod loader_catalog;
@@ -36,7 +39,7 @@ use model::{BackendError, Result};
 pub fn startup_phase(stage:&str) {
     if let Some(path)=std::env::var_os("CANARY_STARTUP_LOG") {
         use std::io::Write;
-        if let Ok(mut file)=std::fs::OpenOptions::new().create(true).append(true).open(path) {
+        if let Ok(mut file)=protected_fs::append(path) {
             let _=writeln!(file,"{} {stage}",model::now());
         }
     }
@@ -73,7 +76,7 @@ impl Backend {
     }
     pub fn with_root(root:std::path::PathBuf)->Result<Self>{
         startup_phase("storage initialization");
-        for folder in ["instances", "cache", "logs", "java", "temp"] { std::fs::create_dir_all(root.join(folder))?; }
+        for folder in ["instances", "cache", "logs", "java", "temp"] { crate::backend::protected_fs::create_dir_all(root.join(folder))?; }
         let store = storage::load(&root)?;
         startup_phase("storage loaded");
         transaction::recover(&root.join("instances"))?;
@@ -81,9 +84,9 @@ impl Backend {
         for path in &store.instance_roots {transaction::recover(std::path::Path::new(path))?;}
         startup_phase("HTTP client initialization");
         Ok(Self { root,server_history_checked:Mutex::new(std::collections::HashSet::new()),curseforge_health:tokio::sync::Mutex::new(None),discord:Arc::new(discord::Manager::default()),tasks:Mutex::new(HashMap::new()),staged:Mutex::new(HashMap::new()),wallpaper_lock:Mutex::new(()),maintenance:AtomicBool::new(false),auth:tokio::sync::Mutex::new(()),account_resources:Mutex::new(HashMap::new()), store: Mutex::new(store), jobs: Mutex::new(HashMap::new()), provider_requests:Mutex::new(HashMap::new()), processes: Mutex::new(HashMap::new()),
-            private_api_client:reqwest::Client::builder().user_agent(concat!("Canary/",env!("CARGO_PKG_VERSION"))).redirect(reqwest::redirect::Policy::none()).timeout(std::time::Duration::from_secs(30)).build()?,
-            private_download_client:reqwest::Client::builder().user_agent(concat!("Canary/",env!("CARGO_PKG_VERSION"))).redirect(reqwest::redirect::Policy::none()).connect_timeout(std::time::Duration::from_secs(20)).timeout(std::time::Duration::from_secs(300)).build()?,
-            client: reqwest::Client::builder().user_agent(concat!("Canary/",env!("CARGO_PKG_VERSION")," (https://github.com/ccardcat/canary)"))
+            private_api_client:network::client_builder().user_agent(concat!("Canary/",env!("CARGO_PKG_VERSION"))).redirect(reqwest::redirect::Policy::none()).timeout(std::time::Duration::from_secs(30)).build()?,
+            private_download_client:network::client_builder().user_agent(concat!("Canary/",env!("CARGO_PKG_VERSION"))).redirect(reqwest::redirect::Policy::none()).connect_timeout(std::time::Duration::from_secs(20)).timeout(std::time::Duration::from_secs(300)).build()?,
+            client: network::client_builder().user_agent(concat!("Canary/",env!("CARGO_PKG_VERSION")," (https://github.com/ccardcat/canary)"))
                 .connect_timeout(std::time::Duration::from_secs(20)).timeout(std::time::Duration::from_secs(300)).build()? })
     }
     pub fn record_activity(&self,kind:&str,message:&str,instance:Option<&str>)->Result<()>{
@@ -95,6 +98,7 @@ impl Backend {
     pub fn instances_root(&self)->std::path::PathBuf {self.settings().instances_path.filter(|p|!p.is_empty()).map(std::path::PathBuf::from).unwrap_or_else(||self.root.join("instances"))}
     pub fn instance_roots(&self)->Vec<std::path::PathBuf> {let store=self.store.lock().unwrap();let default=self.root.join("instances");let active=store.settings.instances_path.as_ref().map(std::path::PathBuf::from).unwrap_or(default.clone());let mut roots=vec![active];for path in &store.instance_roots{let p=std::path::PathBuf::from(path);if !roots.contains(&p){roots.push(p);}}if store.instance_roots.is_empty()&&!roots.contains(&default){roots.push(default);}roots}
     pub fn instance_path(&self,id:&str)->Result<std::path::PathBuf> {
+        storage::validate_instance_id(id)?;
         if let Some(path)=self.staged.lock().unwrap().get(id){return Ok(path.clone());}
         // Metadata paths are never accepted as authority: only registered roots + a safe ID.
         for root in self.instance_roots(){let path=storage::safe_join(&root,id)?;if path.join("instance.json").is_file()||path.join("canary-instance.json").is_file(){return Ok(path);}}
@@ -132,3 +136,7 @@ impl Backend {
 }
 
 #[cfg(test)] mod content_tests;
+
+pub mod integrity;
+
+#[cfg(test)] mod security_tests;

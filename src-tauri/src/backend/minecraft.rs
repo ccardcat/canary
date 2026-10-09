@@ -4,7 +4,7 @@ use std::{collections::{HashMap,HashSet},path::PathBuf,sync::Arc};
 pub fn os_name()->&'static str{if cfg!(windows){"windows"}else if cfg!(target_os="macos"){"osx"}else{"linux"}}
 pub const MANIFEST:&str="https://piston-meta.mojang.com/mc/game/version_manifest_v2.json";
 #[derive(Clone,serde::Serialize,serde::Deserialize)]
-pub struct Prepared {#[serde(default)]pub platform:String,pub metadata:Value,pub classpath:Vec<String>,pub natives:String,pub assets:String,pub asset_index:String,pub java_major:u32,pub logging:Option<String>,#[serde(default)]pub files:Vec<(String,u64)>}
+pub struct Prepared {#[serde(default)]pub platform:String,pub metadata:Value,pub classpath:Vec<String>,pub natives:String,pub assets:String,pub asset_index:String,pub java_major:u32,pub logging:Option<String>,#[serde(default)]pub files:Vec<(String,u64)>,#[serde(default)]pub integrity:Vec<super::integrity::Receipt>}
 pub fn allowed(value:&Value)->bool {
     let Some(rules)=value["rules"].as_array()else{return true};if rules.is_empty(){return true;}
     let mut allow=false;
@@ -32,7 +32,7 @@ pub fn merge(parent:&Value,child:&Value)->Value {
     }}result
 }
 pub async fn manifest(backend:&Backend)->Result<Value> {
-    let cache=backend.root.join("cache/manifest.json");match download::json(backend,MANIFEST).await {Ok(value)=>{storage::write_json(&cache,&value)?;Ok(value)},Err(error)=>if cache.is_file(){Ok(serde_json::from_slice(&std::fs::read(cache)?)?)}else{Err(error)}}
+    let cache=backend.root.join("cache/manifest.json");match download::json(backend,MANIFEST).await {Ok(value)=>{storage::write_json(&cache,&value)?;Ok(value)},Err(error)=>if cache.is_file(){Ok(serde_json::from_slice(&crate::backend::protected_fs::read(cache)?)?)}else{Err(error)}}
 }
 pub fn publisher_url(source:&str)->Result<String>{
  let mut url=reqwest::Url::parse(source).map_err(|_|BackendError::new("metadata","Invalid publisher URL"))?;
@@ -54,20 +54,23 @@ pub fn maven_path(coordinate:&str,classifier:Option<&str>)->Result<String>{
 }
 fn artifact(download:&Value,path:PathBuf)->Result<Artifact>{
     let published=download["sha1"].as_str().filter(|h|h.len()==40).map(str::to_owned);
-    let algorithm=if published.is_some(){"sha1"}else{"sha256"};let hash=published.or_else(||std::fs::read_to_string(path.with_extension("sha256")).ok());
+    let algorithm=if published.is_some(){"sha1"}else{"sha256"};let hash=published.or_else(||crate::backend::protected_fs::read_to_string(path.with_extension("sha256")).ok());
     Ok(Artifact{url:publisher_url(download["url"].as_str().unwrap_or_default())?,path,hash,algorithm,size:download["size"].as_u64()})
 }
 pub async fn prepare(backend:Arc<Backend>,instance:&Instance,job:Arc<Job>,deep:bool)->Result<Prepared>{
     job.check()?;job.emit("minecraft","running",&instance.minecraft);
     super::modpacks::verify(backend.clone(),instance,job.clone(),deep).await?;
     let dir=backend.instance_path(&instance.id)?;let prepared_path=dir.join("runtime.json");
-    if !deep&&prepared_path.is_file(){let cached:Prepared=serde_json::from_slice(&std::fs::read(&prepared_path)?)?;
-        if cached.platform==os_name()&&!cached.files.is_empty()&&cached.files.iter().all(|(p,size)|std::fs::metadata(p).is_ok_and(|m|m.len()==*size))&&cached.classpath.iter().all(|p|std::path::Path::new(p).is_file())&&std::path::Path::new(&cached.natives).is_dir(){return Ok(cached);}}
+    if !deep&&prepared_path.is_file(){let cached:Prepared=serde_json::from_slice(&crate::backend::protected_fs::read(&prepared_path)?)?;
+        let checks=cached.integrity.clone();let roots=vec![backend.root.join("cache"),dir.clone()];let cancel=job.cancel.clone();
+        let valid=tokio::task::spawn_blocking(move||super::integrity::verify(&checks,&roots,Some(&cancel))).await.map_err(|e|BackendError::new("verification",e.to_string()))??;
+        let checked:HashSet<_>=cached.integrity.iter().map(|f|f.path.as_str()).collect();
+        if cached.platform==os_name()&&valid&&cached.classpath.iter().all(|p|checked.contains(p.as_str()))&&std::path::Path::new(&cached.natives).starts_with(&dir)&&super::protected_fs::directory(std::path::Path::new(&cached.natives),false).is_ok(){return Ok(cached);}}
     let versions=download::cancellable(&job,manifest(&backend)).await?;let version=versions["versions"].as_array().and_then(|list|list.iter().find(|v|v["id"]==instance.minecraft)).ok_or_else(||BackendError::new("minecraft_version","Minecraft version not found"))?;
     let metadata_path=storage::safe_join(&backend.root.join("cache/versions"),&format!("{}.json",instance.minecraft))?;
     let metadata_artifact=artifact(version,metadata_path.clone())?;
     download::batch(backend.clone(),vec![metadata_artifact],job.clone(),"minecraft").await?;
-    let mut metadata:Value=serde_json::from_slice(&std::fs::read(metadata_path)?)?;
+    let mut metadata:Value=serde_json::from_slice(&crate::backend::protected_fs::read(metadata_path)?)?;
     let base_id=metadata["id"].as_str().ok_or_else(||BackendError::new("metadata","Minecraft metadata has no ID"))?.to_owned();
     let client_path=storage::safe_join(&backend.root.join("cache/versions"),&format!("{base_id}.jar"))?;
     let client=artifact(&metadata["downloads"]["client"],client_path.clone())?;
@@ -94,7 +97,7 @@ pub async fn prepare(backend:Arc<Backend>,instance:&Instance,job:Arc<Job>,deep:b
             let url=format!("{}/{rel}",base.trim_end_matches('/'));let path=storage::safe_join(&cache.join("libraries"),&rel)?;
             // Fabric metadata does not publish hashes. Versioned Maven artifacts are
             // cached with a local integrity receipt after the first HTTPS download.
-            let receipt=path.with_extension("sha256");let expected=std::fs::read_to_string(&receipt).ok();
+            let receipt=path.with_extension("sha256");let expected=crate::backend::protected_fs::read_to_string(&receipt).ok();
             if seen.insert(path.clone()){classpath.push(path.to_string_lossy().into());files.push(Artifact{url,path,hash:expected,algorithm:"sha256",size:None});}
         }
         if let Some(classifier)=lib["natives"][os_name()].as_str(){let classifier=classifier.replace("${arch}",if cfg!(target_pointer_width="64"){"64"}else{"32"});
@@ -104,7 +107,7 @@ pub async fn prepare(backend:Arc<Backend>,instance:&Instance,job:Arc<Job>,deep:b
             }else if lib.get("downloads").is_none(){
                 let rel=maven_path(lib["name"].as_str().ok_or_else(||BackendError::new("metadata","Native library name missing"))?,Some(&classifier))?;
                 let base=publisher_url(lib["url"].as_str().unwrap_or("https://libraries.minecraft.net/"))?;let path=storage::safe_join(&cache.join("libraries"),&rel)?;
-                if seen.insert(path.clone()){files.push(Artifact{url:format!("{}/{rel}",base.trim_end_matches('/')),hash:std::fs::read_to_string(path.with_extension("sha256")).ok(),path:path.clone(),algorithm:"sha256",size:None});}natives.push(path);
+                if seen.insert(path.clone()){files.push(Artifact{url:format!("{}/{rel}",base.trim_end_matches('/')),hash:crate::backend::protected_fs::read_to_string(path.with_extension("sha256")).ok(),path:path.clone(),algorithm:"sha256",size:None});}natives.push(path);
             }else{return Err(BackendError::new("metadata","Native classifier download missing"));}
 
         }
@@ -114,8 +117,8 @@ pub async fn prepare(backend:Arc<Backend>,instance:&Instance,job:Arc<Job>,deep:b
     let mut required:Vec<_>=files.iter().map(|f|f.path.clone()).collect();
     let receipts:Vec<_>=files.iter().filter(|f|f.hash.is_none()).map(|f|f.path.clone()).collect();
     download::batch(backend.clone(),files,job.clone(),"libraries").await?;
-    for path in receipts {let copy=path.clone();let cancel=job.cancel.clone();let hash=tokio::task::spawn_blocking(move||download::hash_cancellable(&copy,"sha256",Some(&cancel))).await.map_err(|e|BackendError::new("hash",e.to_string()))??;std::fs::write(path.with_extension("sha256"),hash)?;}
-    let native_dir=dir.join("natives");std::fs::create_dir_all(&native_dir)?;
+    for path in receipts {let copy=path.clone();let cancel=job.cancel.clone();let hash=tokio::task::spawn_blocking(move||download::hash_cancellable(&copy,"sha256",Some(&cancel))).await.map_err(|e|BackendError::new("hash",e.to_string()))??;crate::backend::protected_fs::write(path.with_extension("sha256"),hash)?;}
+    let native_dir=dir.join("natives");crate::backend::protected_fs::create_dir_all(&native_dir)?;
     for path in natives {job.check()?;let target=native_dir.clone();let token=job.clone();tokio::task::spawn_blocking(move||storage::extract_job(&path,&target,Some(&token))).await.map_err(|e|BackendError::new("natives",e.to_string()))??;}
     let index=&metadata["assetIndex"];let index_id=index["id"].as_str().or(metadata["assets"].as_str()).ok_or_else(||BackendError::new("metadata","Asset index missing"))?.to_owned();
     let index_path=storage::safe_join(&cache.join("assets/indexes"),&format!("{index_id}.json"))?;
@@ -123,15 +126,17 @@ pub async fn prepare(backend:Arc<Backend>,instance:&Instance,job:Arc<Job>,deep:b
     required.push(index_path.clone());
     fn native_files(dir:&std::path::Path,out:&mut Vec<PathBuf>)->Result<()> {for entry in std::fs::read_dir(dir)? {let entry=entry?;if entry.file_type()?.is_dir(){native_files(&entry.path(),out)?;}else{out.push(entry.path());}}Ok(())}
     native_files(&native_dir,&mut required)?;
-    let asset_index:Value=serde_json::from_slice(&std::fs::read(index_path)?)?;let objects=asset_index["objects"].as_object().ok_or_else(||BackendError::new("metadata","Asset objects missing"))?;
+    let asset_index:Value=serde_json::from_slice(&crate::backend::protected_fs::read(index_path)?)?;let objects=asset_index["objects"].as_object().ok_or_else(||BackendError::new("metadata","Asset objects missing"))?;
     let mut assets=vec![];let mut hashes=HashSet::new();for item in objects.values(){let hash=item["hash"].as_str().filter(|s|s.len()==40&&s.chars().all(|c|c.is_ascii_hexdigit())).ok_or_else(||BackendError::new("metadata","Invalid asset hash"))?;
         if hashes.insert(hash){assets.push(Artifact{url:format!("https://resources.download.minecraft.net/{}/{hash}",&hash[..2]),path:cache.join("assets/objects").join(&hash[..2]).join(hash),hash:Some(hash.into()),algorithm:"sha1",size:item["size"].as_u64()});}}
     required.extend(assets.iter().map(|f|f.path.clone()));
     download::batch(backend.clone(),assets,job.clone(),"assets").await?;
     // Legacy logical assets must be materialized as well as stored by hash.
-    if asset_index["virtual"]==true||asset_index["map_to_resources"]==true {let logical=if asset_index["map_to_resources"]==true{dir.join("resources")}else{cache.join("assets/virtual").join(&index_id)};for(name,item)in objects{job.check()?;let hash=item["hash"].as_str().unwrap();let source=cache.join("assets/objects").join(&hash[..2]).join(hash);let target=storage::safe_join(&logical,name)?;if !target.is_file(){std::fs::create_dir_all(target.parent().unwrap())?;std::fs::copy(source,target)?;}}}
+    if asset_index["virtual"]==true||asset_index["map_to_resources"]==true {let logical=if asset_index["map_to_resources"]==true{dir.join("resources")}else{cache.join("assets/virtual").join(&index_id)};for(name,item)in objects{job.check()?;let hash=item["hash"].as_str().unwrap();let source=cache.join("assets/objects").join(&hash[..2]).join(hash);let target=storage::safe_join(&logical,name)?;if !target.is_file(){crate::backend::protected_fs::create_dir_all(target.parent().unwrap())?;crate::backend::protected_fs::copy(source,target)?;}}}
     let logging=if let Some(arg)=metadata["logging"]["client"]["argument"].as_str(){let id=metadata["logging"]["client"]["file"]["id"].as_str().unwrap();Some(arg.replace("${path}",&storage::safe_join(&cache.join("logging"),id)?.to_string_lossy()))}else{None};
-    let prepared=Prepared {platform:os_name().into(),java_major:metadata["javaVersion"]["majorVersion"].as_u64().unwrap_or(8) as u32,metadata,natives:native_dir.to_string_lossy().into(),classpath,assets:cache.join("assets").to_string_lossy().into(),asset_index:index_id.into(),logging,files:required.into_iter().map(|p|{let size=std::fs::metadata(&p).map(|m|m.len())?;Ok((p.to_string_lossy().into_owned(),size))}).collect::<Result<Vec<_>>>()?};
+    let inputs=required.clone();let cancel=job.cancel.clone();
+    let integrity=tokio::task::spawn_blocking(move||inputs.iter().map(|p|super::integrity::capture(p,Some(&cancel))).collect::<Result<Vec<_>>>()).await.map_err(|e|BackendError::new("verification",e.to_string()))??;
+    let prepared=Prepared {platform:os_name().into(),java_major:metadata["javaVersion"]["majorVersion"].as_u64().unwrap_or(8) as u32,metadata,natives:native_dir.to_string_lossy().into(),classpath,assets:cache.join("assets").to_string_lossy().into(),asset_index:index_id.into(),logging,integrity,files:required.into_iter().map(|p|{let size=std::fs::metadata(&p).map(|m|m.len())?;Ok((p.to_string_lossy().into_owned(),size))}).collect::<Result<Vec<_>>>()?};
     storage::write_json(&prepared_path,&prepared)?;job.check()?;Ok(prepared)
 }
 #[cfg(test)]mod tests{use super::*;#[test]fn rules_and_placeholders(){assert!(allowed(&json!({})));assert!(allowed(&json!({"rules":[{"action":"allow","os":{"name":os_name()}}]})));assert!(!allowed(&json!({"rules":[{"action":"allow"},{"action":"disallow","os":{"name":os_name()}}]})));let args=arguments(&json!({"arguments":{"game":["--username","${auth_player_name}",{"rules":[{"action":"allow","features":{"is_demo_user":true}}],"value":"--demo"}]}}),"game");assert_eq!(args.len(),2);let values=HashMap::from([("auth_player_name".into(),"Player".into())]);assert_eq!(substitute(args,&values).unwrap(),["--username","Player"]);assert!(substitute(vec!["${missing}".into()],&values).is_err());}#[test]fn loader_merges(){let a=json!({"libraries":[{"name":"a"}],"arguments":{"game":["a"]},"mainClass":"old"});let b=json!({"libraries":[{"name":"b"}],"arguments":{"game":["b"]},"mainClass":"new"});let c=merge(&a,&b);assert_eq!(c["libraries"].as_array().unwrap().len(),2);assert_eq!(c["arguments"]["game"],json!(["a","b"]));assert_eq!(c["mainClass"],"new");}}
@@ -159,7 +164,7 @@ mod legacy_tests {
   let root=std::env::temp_dir().join(format!("canary-legacy-{}",uuid::Uuid::new_v4()));
   let _cleanup=storage::Staging(root.clone());let backend=Arc::new(Backend::with_root(root).unwrap());
   for version in ["1.12.2","1.8.9","1.7.10","1.6.4","1.0","b1.7.3"]{
-   let dir=backend.root.join("instances").join(version);std::fs::create_dir_all(&dir).unwrap();
+   let dir=backend.root.join("instances").join(version);crate::backend::protected_fs::create_dir_all(&dir).unwrap();
    let instance=Instance{id:version.into(),name:version.into(),minecraft:version.into(),provider:"vanilla".into(),loader:"vanilla".into(),directory:dir.to_string_lossy().into(),..Instance::default()};
    backend.save_instance(&instance).unwrap();
    let job=Arc::new(Job::new(version,None,Arc::new(std::sync::atomic::AtomicBool::new(false))));

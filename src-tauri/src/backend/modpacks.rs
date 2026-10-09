@@ -5,8 +5,11 @@ pub async fn verify(backend:Arc<Backend>,instance:&Instance,job:Arc<Job>,deep:bo
     if instance.provider=="curseforge"{return super::curseforge::verify(backend,instance,job).await;}
     if !matches!(instance.provider.as_str(),"modrinth"|"mrpack"){return Ok(());}
     let dir=backend.instance_path(&instance.id)?;let receipt=dir.join("provider-files.json");
-    if !deep&&receipt.is_file(){let files:Vec<(String,u64)>=serde_json::from_slice(&std::fs::read(&receipt)?)?;
-        if files.iter().all(|(p,size)|storage::safe_join(&dir,p).is_ok_and(|p|std::fs::metadata(p).is_ok_and(|m|m.len()==*size))){return Ok(());}}
+    if !deep&&receipt.is_file(){
+        if let Ok(files)=serde_json::from_slice::<Vec<super::integrity::Receipt>>(&crate::backend::protected_fs::read(&receipt)?){
+            let roots=vec![dir.clone()];let cancel=job.cancel.clone();
+            if tokio::task::spawn_blocking(move||super::integrity::verify(&files,&roots,Some(&cancel))).await.map_err(|e|BackendError::new("verification",e.to_string()))??{return Ok(());}
+        }}
     job.emit("mods","running",&instance.name);let index=dir.join("modrinth.index.json");
     if !index.is_file(){
         if instance.provider=="mrpack"{return Err(BackendError::new("mrpack_archive","Local pack manifest is missing. Back up your worlds and import the original MRPACK again."));}
@@ -17,29 +20,29 @@ pub async fn verify(backend:Arc<Backend>,instance:&Instance,job:Arc<Job>,deep:bo
         let files=metadata["files"].as_array().ok_or_else(||BackendError::new("modpack","Modrinth version files missing"))?;
         let mrpack=files.iter().find(|f|f["filename"].as_str().is_some_and(|name|name.ends_with(".mrpack"))).ok_or_else(||BackendError::new("modpack","Version has no .mrpack"))?;
         let hash=mrpack["hashes"]["sha512"].as_str().ok_or_else(||BackendError::new("checksum","Pack SHA-512 is missing"))?;
-        let archive=backend.root.join("cache").join(format!("pack-{hash}.mrpack"));
+        download::validate_hash(hash,"sha512")?;let archive=backend.root.join("cache").join(format!("pack-{hash}.mrpack"));
         download::batch(backend.clone(),vec![Artifact{url:mrpack["url"].as_str().ok_or_else(||BackendError::new("modpack","Pack URL missing"))?.into(),path:archive.clone(),hash:Some(hash.into()),algorithm:"sha512",size:mrpack["size"].as_u64()}],job.clone(),"mods").await?;
-        let path=index.clone();tokio::task::spawn_blocking(move||->Result<()>{let mut archive=zip::ZipArchive::new(std::fs::File::open(archive)?).map_err(|e|BackendError::new("archive",e.to_string()))?;let entry=archive.by_name("modrinth.index.json").map_err(|e|BackendError::new("modpack",e.to_string()))?;if entry.size()>16*1024*1024{return Err(BackendError::new("modpack","Pack index too large"));}let mut bytes=vec![];entry.take(16*1024*1024+1).read_to_end(&mut bytes)?;let value:Value=serde_json::from_slice(&bytes)?;storage::write_json(&path,&value)}).await.map_err(|e|BackendError::new("modpack",e.to_string()))??;
+        let path=index.clone();tokio::task::spawn_blocking(move||->Result<()>{let mut archive=zip::ZipArchive::new(crate::backend::protected_fs::open(archive)?).map_err(|e|BackendError::new("archive",e.to_string()))?;let entry=archive.by_name("modrinth.index.json").map_err(|e|BackendError::new("modpack",e.to_string()))?;if entry.size()>16*1024*1024{return Err(BackendError::new("modpack","Pack index too large"));}let mut bytes=vec![];entry.take(16*1024*1024+1).read_to_end(&mut bytes)?;let value:Value=serde_json::from_slice(&bytes)?;storage::write_json(&path,&value)}).await.map_err(|e|BackendError::new("modpack",e.to_string()))??;
     }
-    let data:Value=serde_json::from_slice(&std::fs::read(index)?)?;
+    let data:Value=serde_json::from_slice(&crate::backend::protected_fs::read(index)?)?;
     if data["formatVersion"]!=1||data["game"]!="minecraft"{return Err(BackendError::new("modpack","Invalid Modrinth manifest"));}
     let content=super::content::load(&dir)?;
     let mut files=vec![];let mut paths=vec![];
     for file in data["files"].as_array().ok_or_else(||BackendError::new("modpack","Missing manifest files"))? {job.check()?;
         if file["env"]["client"]=="unsupported"{continue;}
-        let rel=file["path"].as_str().ok_or_else(||BackendError::new("modpack","File path missing"))?;let path=storage::safe_join(&dir,rel)?;
+        let rel=file["path"].as_str().ok_or_else(||BackendError::new("modpack","File path missing"))?;let path=storage::pack_path(&dir,rel)?;
         if matches!(rel.split('/').next().unwrap_or(""),"pack-content-files.json"|"content.json"|".canary-content"|"instance.json"|"runtime.json"|"loader.json"|"provider-files.json"|"process.json"|"canary-instance.json"){return Err(BackendError::new("modpack","Manifest cannot manage Canary metadata"));}
         if content.suppressed_pack_paths.iter().any(|p|p==rel){continue;}
         if rel=="saves"||rel.starts_with("saves/")||rel.starts_with("screenshots/"){return Err(BackendError::new("modpack","Pack cannot manage worlds or screenshots"));}
         // Existing mutable configuration belongs to the user; repair does not reset it.
-        if path.is_file()&&!(rel.starts_with("mods/")||rel.starts_with("libraries/")){continue;}
+        if path.is_file()&&!(rel.to_ascii_lowercase().starts_with("mods/")||rel.to_ascii_lowercase().starts_with("libraries/")){continue;}
         let (algorithm,hash)=if let Some(h)=file["hashes"]["sha512"].as_str(){("sha512",h)}else if let Some(h)=file["hashes"]["sha1"].as_str(){("sha1",h)}else{return Err(BackendError::new("checksum","Manifest file has no supported checksum"));};
         let item=Artifact{url:file["downloads"][0].as_str().ok_or_else(||BackendError::new("modpack","File download URL missing"))?.into(),path:path.clone(),hash:Some(hash.into()),algorithm,size:file["fileSize"].as_u64()};
-        if path.is_file()&&!download::valid_job(&item,&job).await?{let backup=storage::safe_join(&dir.join("conflicts").join(now().to_string()),rel)?;std::fs::create_dir_all(backup.parent().unwrap())?;std::fs::copy(&path,backup)?;}
+        if path.is_file()&&!download::valid_job(&item,&job).await?{let backup=storage::safe_join(&dir.join("conflicts").join(now().to_string()),rel)?;crate::backend::protected_fs::create_dir_all(backup.parent().unwrap())?;crate::backend::protected_fs::copy(&path,backup)?;}
         paths.push(rel.to_owned());files.push(item);
     }
     download::batch(backend.clone(),files,job.clone(),"mods").await?;
-    let inventory=paths.into_iter().map(|rel|{let size=std::fs::metadata(storage::safe_join(&dir,&rel)?)?.len();Ok((rel,size))}).collect::<Result<Vec<_>>>()?;
+    let mut inventory=vec![];for relative in paths{job.check()?;let path=storage::pack_path(&dir,&relative)?;inventory.push(super::integrity::capture(&path,Some(&job.cancel))?);}
     storage::write_json(&receipt,&inventory)?;job.check()?;Ok(())
 }
 pub async fn updates(backend:Arc<Backend>)->Result<Value> {

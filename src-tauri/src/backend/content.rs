@@ -18,7 +18,7 @@ pub struct Snapshot {#[serde(default)]pub pack:Option<PackSnapshot>,pub id:Strin
 pub struct PackSnapshot {pub version_id:Option<String>,pub version_name:String,pub loader_version:Option<String>,pub metadata:std::collections::HashMap<String,Option<String>>,pub additions:Vec<(String,String)>}
 #[derive(Clone,Serialize)]
 pub struct Inspection {pub name:String,pub version:String,pub kind:String,pub loader:Option<String>,pub minecraft:Option<String>,pub compatibility:String,pub mod_ids:Vec<String>,pub file:String}
-pub fn load(root:&Path)->Result<State>{let p=root.join("content.json");if p.is_file(){Ok(serde_json::from_slice(&std::fs::read(p)?)?)}else{Ok(State::default())}}
+pub fn load(root:&Path)->Result<State>{let p=root.join("content.json");if p.is_file(){Ok(serde_json::from_slice(&crate::backend::protected_fs::read(p)?)?)}else{Ok(State::default())}}
 pub fn save(root:&Path,state:&State)->Result<()>{storage::write_json(&root.join("content.json"),state)}
 pub fn location(item:&Item)->String{if item.enabled{item.path.clone()}else{format!(".canary-content/disabled/{}/{}",item.id,Path::new(&item.path).file_name().unwrap_or_default().to_string_lossy())}}
 pub fn folder(kind:&str,world:Option<&str>)->Result<String>{Ok(match kind {"mod"=>"mods".into(),"shader"=>"shaderpacks".into(),"resourcepack"=>"resourcepacks".into(),"datapack"=>{let w=world.ok_or_else(||BackendError::new("world_required","Select an existing world"))?;if w.contains(['/', '\\']){return Err(BackendError::new("unsafe_path","Invalid world name"));}format!("saves/{w}/datapacks")},_=>return Err(BackendError::new("content_type","Unsupported content type"))})}
@@ -27,7 +27,7 @@ fn entry_json(zip:&mut zip::ZipArchive<std::fs::File>,name:&str)->Option<Value>{
 pub fn inspect(path:&Path,instance:&Instance)->Result<Inspection>{
     let meta=std::fs::symlink_metadata(path)?;if !meta.is_file()||meta.len()>512*1024*1024{return Err(BackendError::new("content_archive","Select a regular JAR or ZIP smaller than 512 MB"));}
     let extension=path.extension().unwrap_or_default().to_string_lossy().to_ascii_lowercase();if !matches!(extension.as_str(),"jar"|"zip"){return Err(BackendError::new("content_archive","Unsupported file type"));}
-    let mut zip=zip::ZipArchive::new(std::fs::File::open(path)?).map_err(|_|BackendError::new("content_archive","Invalid content archive"))?;
+    let mut zip=zip::ZipArchive::new(crate::backend::protected_fs::open(path)?).map_err(|_|BackendError::new("content_archive","Invalid content archive"))?;
     if zip.len()>100_000{return Err(BackendError::new("content_archive","Archive has too many entries"));}
     let names=zip.file_names().map(str::to_owned).collect::<Vec<_>>();
     for name in &names {let rel=name.trim_end_matches('/');if !rel.is_empty(){storage::safe_join(Path::new("validation"),rel)?;}}
@@ -48,8 +48,8 @@ pub fn inspect(path:&Path,instance:&Instance)->Result<Inspection>{
 }
 pub fn scan(backend:&Backend,id:&str)->Result<State>{
     let instance=backend.instance(id)?;let root=backend.instance_path(id)?;let mut state=load(&root)?;
-    let index:Value=std::fs::read(root.join("modrinth.index.json")).ok().and_then(|v|serde_json::from_slice(&v).ok()).unwrap_or(Value::Null);
-    let pack_receipt:Vec<Value>=std::fs::read(root.join("pack-content-files.json")).ok().and_then(|bytes|serde_json::from_slice(&bytes).ok()).unwrap_or_default();
+    let index:Value=crate::backend::protected_fs::read(root.join("modrinth.index.json")).ok().and_then(|v|serde_json::from_slice(&v).ok()).unwrap_or(Value::Null);
+    let pack_receipt:Vec<Value>=crate::backend::protected_fs::read(root.join("pack-content-files.json")).ok().and_then(|bytes|serde_json::from_slice(&bytes).ok()).unwrap_or_default();
     let managed=index["files"].as_array().map(|f|f.iter().filter_map(|x|x["path"].as_str().map(str::to_owned)).collect::<Vec<_>>()).unwrap_or_default();
     let mut dirs=vec![("mod","mods".into()),("shader","shaderpacks".into()),("resourcepack","resourcepacks".into())];
     for w in worlds(&root)?{dirs.push(("datapack",folder("datapack",w["name"].as_str())?));}
@@ -72,7 +72,7 @@ fn blob(root:&Path,item:&Item)->Result<PathBuf>{if item.hash.len()!=128||!item.h
 pub fn checkpoint(root:&Path,state:&mut State,action:&str)->Result<Snapshot>{
     let snapshot=Snapshot{pack:None,id:uuid::Uuid::new_v4().to_string(),timestamp:now(),action:action.into(),items:state.items.iter().filter(|i|!i.missing).cloned().collect(),suppressed_pack_paths:state.suppressed_pack_paths.clone()};
     // Content-addressed backups reuse identical files between snapshots.
-    for item in &snapshot.items{let source=storage::safe_join(root,&location(item))?;if !source.is_file(){continue;}let target=blob(root,item)?;if !target.is_file(){std::fs::create_dir_all(target.parent().unwrap())?;std::fs::copy(source,&target)?;if download::hash(&target,"sha512")?!=item.hash{return Err(BackendError::new("checksum","Content changed while saving snapshot"));}}}
+    for item in &snapshot.items{let source=storage::safe_join(root,&location(item))?;if !source.is_file(){continue;}let target=blob(root,item)?;if !target.is_file(){crate::backend::protected_fs::create_dir_all(target.parent().unwrap())?;crate::backend::protected_fs::copy(source,&target)?;if download::hash(&target,"sha512")?!=item.hash{return Err(BackendError::new("checksum","Content changed while saving snapshot"));}}}
     state.snapshots.push(snapshot.clone());save(root,state)?;Ok(snapshot)
 }
 pub fn record(backend:&Backend,id:&str,state:&mut State,action:&str,items:&[Item])->Result<()> {
@@ -90,34 +90,34 @@ pub fn mutate(backend:&Backend,id:&str,ids:&[String],action:&str)->Result<State>
     let result:Result<()>= (||{
     for item in &items{let source=storage::safe_join(&root,&location(item))?;if item.missing{if action=="remove"{state.items.retain(|i|i.id!=item.id);continue;}return Err(BackendError::new("content_missing","Content file is missing"));}
         if item.source=="pack"&&!state.suppressed_pack_paths.contains(&item.path){state.suppressed_pack_paths.push(item.path.clone());}
-        if action=="remove"{std::fs::remove_file(source)?;state.items.retain(|i|i.id!=item.id);}else{let enabled=action=="enable";if item.enabled!=enabled{let mut next=item.clone();next.enabled=enabled;let target=storage::safe_join(&root,&location(&next))?;if target.exists(){return Err(BackendError::new("content_conflict","Target file already exists"));}std::fs::create_dir_all(target.parent().unwrap())?;std::fs::rename(&source,&target)?;moved.push((source,target));if let Some(i)=state.items.iter_mut().find(|i|i.id==item.id){i.enabled=enabled;}}}
+        if action=="remove"{crate::backend::protected_fs::remove_file(source)?;state.items.retain(|i|i.id!=item.id);}else{let enabled=action=="enable";if item.enabled!=enabled{let mut next=item.clone();next.enabled=enabled;let target=storage::safe_join(&root,&location(&next))?;if target.exists(){return Err(BackendError::new("content_conflict","Target file already exists"));}crate::backend::protected_fs::create_dir_all(target.parent().unwrap())?;crate::backend::protected_fs::rename(&source,&target)?;moved.push((source,target));if let Some(i)=state.items.iter_mut().find(|i|i.id==item.id){i.enabled=enabled;}}}
     }
     Ok(())})();
-    if let Err(e)=result{for (from,to) in moved.into_iter().rev(){let _=std::fs::rename(to,from);}let _=rollback(backend,id);return Err(e);}
+    if let Err(e)=result{for (from,to) in moved.into_iter().rev(){let _=crate::backend::protected_fs::rename(to,from);}let _=rollback(backend,id);return Err(e);}
     record(backend,id,&mut state,action,&items)?;retain_backups(backend,&root,&mut state)?;save(&root,&state)?;Ok(state)
 }
 pub fn rollback(backend:&Backend,id:&str)->Result<State>{
  let root=backend.instance_path(id)?;let old=load(&root)?;let snapshot=old.snapshots.last().cloned().ok_or_else(||BackendError::new("content_snapshot","No content snapshot available"))?;
  let preserved=old.items.iter().filter(|i|!i.canary_managed&&!snapshot.items.iter().any(|s|s.id==i.id)).cloned().collect::<Vec<_>>();
- let staging=storage::Staging(root.join(".canary-content/rollback").join(uuid::Uuid::new_v4().to_string()));std::fs::create_dir_all(&staging.0)?;
+ let staging=storage::Staging(root.join(".canary-content/rollback").join(uuid::Uuid::new_v4().to_string()));crate::backend::protected_fs::create_dir_all(&staging.0)?;
  let mut prepared=vec![];
  // Complete and verify every restore copy before changing any installed file.
  for (n,item) in snapshot.items.iter().enumerate(){let target=storage::safe_join(&root,&location(item))?;if target.exists()&&!old.items.iter().any(|x|location(x)==location(item)){return Err(BackendError::new("content_conflict","Rollback destination contains an unknown file"));}
   let source=blob(&root,item)?;if !source.is_file()||download::hash(&source,"sha512")?!=item.hash{return Err(BackendError::new("content_snapshot","Snapshot file is unavailable; current files were not changed"));}
-  let temp=staging.0.join(format!("restore-{n}"));std::fs::copy(source,&temp)?;if download::hash(&temp,"sha512")?!=item.hash{return Err(BackendError::new("checksum","Snapshot copy verification failed"));}prepared.push((temp,target));
+  let temp=staging.0.join(format!("restore-{n}"));crate::backend::protected_fs::copy(source,&temp)?;if download::hash(&temp,"sha512")?!=item.hash{return Err(BackendError::new("checksum","Snapshot copy verification failed"));}prepared.push((temp,target));
  }
  for item in &old.items{let p=storage::safe_join(&root,&location(item))?;if p.is_file(){let actual=download::hash(&p,"sha512")?;if !old.items.iter().any(|known|location(known)==location(item)&&known.hash==actual){return Err(BackendError::new("content_conflict","A tracked file changed outside Canary; rescan first"));}}}
  let pack=snapshot.pack.clone();let recovery_pack=pack.as_ref().map(|_|super::pack_update::capture(backend,id,vec![])).transpose()?;
  let mut next=old.clone();next.items=snapshot.items;next.items.extend(preserved.clone());next.suppressed_pack_paths=snapshot.suppressed_pack_paths;next.snapshots.pop();
  let mut held=vec![];let mut restored=vec![];let mut seen=std::collections::HashSet::new();
  let result:Result<()>= (||{
-  for item in &old.items{if preserved.iter().any(|p|p.id==item.id){continue;}let loc=location(item);if !seen.insert(loc.clone()){continue;}let source=storage::safe_join(&root,&loc)?;if source.is_file(){let target=staging.0.join(format!("held-{}",held.len()));std::fs::rename(&source,&target)?;held.push((source,target));}}
-  if let Some(pack)=&pack{for (rel,expected) in &pack.additions{let source=storage::safe_join(&root,rel)?;if source.is_file()&&download::hash(&source,"sha512")?==*expected{let target=staging.0.join(format!("held-{}",held.len()));std::fs::rename(&source,&target)?;held.push((source,target));}}}
-  for (temp,target) in prepared{std::fs::create_dir_all(target.parent().unwrap())?;std::fs::rename(temp,&target)?;restored.push(target);}save(&root,&next)?;if let Some(pack)=&pack{super::pack_update::restore(backend,id,pack)?;}Ok(())
+  for item in &old.items{if preserved.iter().any(|p|p.id==item.id){continue;}let loc=location(item);if !seen.insert(loc.clone()){continue;}let source=storage::safe_join(&root,&loc)?;if source.is_file(){let target=staging.0.join(format!("held-{}",held.len()));crate::backend::protected_fs::rename(&source,&target)?;held.push((source,target));}}
+  if let Some(pack)=&pack{for (rel,expected) in &pack.additions{let source=storage::safe_join(&root,rel)?;if source.is_file()&&download::hash(&source,"sha512")?==*expected{let target=staging.0.join(format!("held-{}",held.len()));crate::backend::protected_fs::rename(&source,&target)?;held.push((source,target));}}}
+  for (temp,target) in prepared{crate::backend::protected_fs::create_dir_all(target.parent().unwrap())?;crate::backend::protected_fs::rename(temp,&target)?;restored.push(target);}save(&root,&next)?;if let Some(pack)=&pack{super::pack_update::restore(backend,id,pack)?;}Ok(())
  })();
- if let Err(error)=result{let mut failed=false;for path in restored{if std::fs::remove_file(path).is_err(){failed=true;}}for (source,temp) in held.into_iter().rev(){if std::fs::rename(temp,source).is_err(){failed=true;}}let _=save(&root,&old);if let Some(pack)=&recovery_pack{if super::pack_update::restore(backend,id,pack).is_err(){failed=true;}}if failed{let path=staging.0.to_string_lossy().into_owned();std::mem::forget(staging);return Err(BackendError::new("content_recovery",format!("Recovery files preserved at {path}")));}return Err(error);}
+ if let Err(error)=result{let mut failed=false;for path in restored{if crate::backend::protected_fs::remove_file(path).is_err(){failed=true;}}for (source,temp) in held.into_iter().rev(){if crate::backend::protected_fs::rename(temp,source).is_err(){failed=true;}}let _=save(&root,&old);if let Some(pack)=&recovery_pack{if super::pack_update::restore(backend,id,pack).is_err(){failed=true;}}if failed{let path=staging.0.to_string_lossy().into_owned();std::mem::forget(staging);return Err(BackendError::new("content_recovery",format!("Recovery files preserved at {path}")));}return Err(error);}
  let items=next.items.clone();record(backend,id,&mut next,"rollback",&items)?;save(&root,&next)?;Ok(next)
 }
 
 // Bound backups by the user's retention policy and reclaim unreferenced blobs.
-pub fn retain_backups(b:&Backend,root:&Path,state:&mut State)->Result<()> {let settings=b.settings();if !settings.backup_before_changes{state.snapshots.clear();}else{while state.snapshots.len()>settings.backup_retention{state.snapshots.remove(0);}}let hashes:std::collections::HashSet<_>=state.snapshots.iter().flat_map(|s|s.items.iter().map(|i|i.hash.as_str()).chain(s.pack.iter().flat_map(|p|p.metadata.values().filter_map(|h|h.as_deref())))).collect();let folder=root.join(".canary-content/blobs");if let Ok(files)=std::fs::read_dir(&folder){for file in files.flatten(){let name=file.file_name().to_string_lossy().into_owned();if file.file_type()?.is_file()&&name.len()==128&&name.chars().all(|c|c.is_ascii_hexdigit())&&!hashes.contains(name.as_str()){std::fs::remove_file(file.path())?;}}}Ok(())}
+pub fn retain_backups(b:&Backend,root:&Path,state:&mut State)->Result<()> {let settings=b.settings();if !settings.backup_before_changes{state.snapshots.clear();}else{while state.snapshots.len()>settings.backup_retention{state.snapshots.remove(0);}}let hashes:std::collections::HashSet<_>=state.snapshots.iter().flat_map(|s|s.items.iter().map(|i|i.hash.as_str()).chain(s.pack.iter().flat_map(|p|p.metadata.values().filter_map(|h|h.as_deref())))).collect();let folder=root.join(".canary-content/blobs");if let Ok(files)=std::fs::read_dir(&folder){for file in files.flatten(){let name=file.file_name().to_string_lossy().into_owned();if file.file_type()?.is_file()&&name.len()==128&&name.chars().all(|c|c.is_ascii_hexdigit())&&!hashes.contains(name.as_str()){crate::backend::protected_fs::remove_file(file.path())?;}}}Ok(())}

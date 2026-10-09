@@ -32,6 +32,8 @@ fs2 = "0.4"
 image = {version="0.25",default-features=false,features= ["png", "jpeg", "webp"] }
 flate2 = "1"
 tar = "0.4"
+cap-std = "4.0.3"
+cap-fs-ext = "4.0.3"
 [profile.release]
 codegen-units = 1
 lto = true

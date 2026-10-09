@@ -90,7 +90,7 @@ pub async fn filters(b:&Backend,content_kind:&str)->Result<Value>{
   assert_eq!(std::env::var("CANARY_CURSEFORGE_LIVE_VERIFY").as_deref(),Ok("true"),"Set the explicit live verification flag only after publisher confirmation and deployment");
   let root=std::env::temp_dir().join(format!("canary-cf-live-{}",uuid::Uuid::new_v4()));let _cleanup=super::super::storage::Staging(root.clone());let b=Arc::new(Backend::with_root(root).unwrap());
   assert!(curseforge::available(&b).await,"Gateway health must confirm actual API access before live installation");
-  let dir=b.root.join("instances/live");std::fs::create_dir_all(&dir).unwrap();
+  let dir=b.root.join("instances/live");crate::backend::protected_fs::create_dir_all(&dir).unwrap();
   let instance=Instance{id:"live".into(),name:"Canary CF live verification".into(),minecraft:"1.21.1".into(),loader:"fabric".into(),provider:"vanilla".into(),directory:dir.to_string_lossy().into(),..Instance::default()};b.save_instance(&instance).unwrap();
   let hits=search(&b,"mod","Fabric API","relevance",0,5,&instance.minecraft,&instance.loader,"").await.unwrap();
   let hit=hits["hits"].as_array().unwrap().iter().find(|p|p["download_allowed"]==true&&p["title"].as_str().is_some_and(|n|n.eq_ignore_ascii_case("Fabric API"))).expect("A permitted compatible Fabric API result is required");

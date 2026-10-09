@@ -33,8 +33,8 @@ fn denied(stage:&str,status:u16,oauth_error:Option<&str>)->BackendError{
 fn network(stage:&str)->BackendError{let mut error=BackendError::new("network","Could not reach the authentication service. Check your connection and try again.");error.stage=stage.into();error}
 fn auth_stage(app:Option<&AppHandle>,stage:&str){if let Some(app)=app{let _=app.emit("microsoft-auth-stage",serde_json::json!({"stage":stage}));}}
 async fn json(response:reqwest::Response,stage:&str)->Result<serde_json::Value>{
-    let status=response.status();if !status.is_success(){let body:serde_json::Value=response.json().await.unwrap_or_default();return Err(denied(stage,status.as_u16(),body["error"].as_str()));}
-    response.json().await.map_err(|_|BackendError::new(stage,"Authentication service returned an invalid response"))
+    let status=response.status();if !status.is_success(){let body:serde_json::Value=super::network::json(response).await.unwrap_or_default();return Err(denied(stage,status.as_u16(),body["error"].as_str()));}
+    super::network::json(response).await.map_err(|_|BackendError::new(stage,"Authentication service returned an invalid response"))
 }
 async fn exchange(b:&Backend,fields:&[(&str,&str)])->Result<OAuth>{
     let response=b.private_api_client.post(TOKEN_URL).form(fields).send().await.map_err(|_|network("microsoft_oauth"))?;
@@ -48,8 +48,8 @@ async fn minecraft_session(b:&Backend,oauth:&str,app:Option<&AppHandle>)->Result
     auth_stage(app,"xsts_auth");
     let response=b.private_api_client.post("https://xsts.auth.xboxlive.com/xsts/authorize").json(&serde_json::json!({"Properties":{"SandboxId":"RETAIL","UserTokens":[xt]},"RelyingParty":"rp://api.minecraftservices.com/","TokenType":"JWT"})).send().await.map_err(|_|network("xsts_auth"))?;
     if response.status().as_u16()==429||response.status().as_u16()>=500{return Err(denied("xsts_auth",response.status().as_u16(),None));}
-    if !response.status().is_success(){let v:serde_json::Value=response.json().await.unwrap_or_default(); let message=match v["XErr"].as_u64(){Some(2148916233)=>"Create an Xbox profile for this Microsoft account, then sign in again.",Some(2148916235)=>"Xbox Live is unavailable in this account's region.",Some(2148916236|2148916237)=>"Complete Xbox age verification before signing in.",Some(2148916238)=>"A parent must configure Xbox family permissions for this account.",_=>"Xbox authorization failed. Check your Xbox profile and sign in again."};return Err(BackendError::new("xsts_auth",message));}
-    let xsts:serde_json::Value=response.json().await?;
+    if !response.status().is_success(){let v:serde_json::Value=super::network::json(response).await.unwrap_or_default(); let message=match v["XErr"].as_u64(){Some(2148916233)=>"Create an Xbox profile for this Microsoft account, then sign in again.",Some(2148916235)=>"Xbox Live is unavailable in this account's region.",Some(2148916236|2148916237)=>"Complete Xbox age verification before signing in.",Some(2148916238)=>"A parent must configure Xbox family permissions for this account.",_=>"Xbox authorization failed. Check your Xbox profile and sign in again."};return Err(BackendError::new("xsts_auth",message));}
+    let xsts:serde_json::Value=super::network::json(response).await?;
     let hash=xsts["DisplayClaims"]["xui"][0]["uhs"].as_str().ok_or_else(||BackendError::new("xsts_auth","Xbox user hash missing"))?;
     let xuid=xsts["DisplayClaims"]["xui"][0]["xid"].as_str().unwrap_or("").to_owned();
     let token=xsts["Token"].as_str().ok_or_else(||BackendError::new("xsts_auth","Xbox session missing"))?;
@@ -73,7 +73,7 @@ fn skin_url(profile:&serde_json::Value)->Option<reqwest::Url>{
  let mut url=reqwest::Url::parse(skin["url"].as_str()?).ok()?;
  if url.host_str()!=Some("textures.minecraft.net"){return None;}
  if url.scheme()=="http"{url.set_scheme("https").ok()?;}
- (url.scheme()=="https").then_some(url)
+ super::network::public_url(&url).ok()?;Some(url)
 }
 async fn profile_skin(b:&Backend,profile:&serde_json::Value,uuid:&str)->Option<String>{
  let url=skin_url(profile)?;
@@ -85,7 +85,7 @@ async fn profile_skin(b:&Backend,profile:&serde_json::Value,uuid:&str)->Option<S
  let mut bytes=Vec::new();while let Some(chunk)=response.chunk().await.ok()?{if bytes.len()+chunk.len()>131072{return None;}bytes.extend_from_slice(&chunk);}
  if !bytes.starts_with(b"\x89PNG\r\n\x1a\n"){return None;}
  let image=image::load_from_memory(&bytes).ok()?;if image.width()!=64||!matches!(image.height(),32|64){return None;}
- std::fs::create_dir_all(path.parent()?).ok()?;std::fs::write(&path,bytes).ok()?;
+ crate::backend::protected_fs::create_dir_all(path.parent()?).ok()?;crate::backend::protected_fs::write(&path,bytes).ok()?;
  Some(path.to_string_lossy().into_owned())
 }
 fn callback(target:&str,state:&str)->Result<String>{
@@ -145,7 +145,7 @@ pub async fn begin(backend:Arc<Backend>,app:AppHandle)->Result<serde_json::Value
     Ok(serde_json::json!({"id":"auth-microsoft","url":url.as_str()}))
 }
 pub async fn identity(b:&Backend,account:&Account)->Result<accounts::LaunchIdentity>{
-    let _auth=b.auth.lock().await;let reference=account.credential_ref.as_deref().ok_or_else(||BackendError::new("relogin","Sign in with Microsoft again"))?;
+    let _auth=b.auth.lock().await;let reference=accounts::credential_reference(account,"microsoft")?;
     let refresh=Zeroizing::new(accounts::credentials(reference)?);let client=client_id();
     let oauth=exchange(b,&[("client_id",client.as_str()),("grant_type","refresh_token"),("refresh_token",refresh.as_str()),("scope",SCOPE)]).await?;
     if let Some(rotated)=&oauth.refresh_token{accounts::save_credentials(reference,rotated)?;}

@@ -27,7 +27,7 @@ pub async fn backend_snapshot(backend:State<'_,B>,local_only:Option<bool>)->Resu
     Ok(serde_json::json!({"instances":instances,"accounts":store.accounts,"settings":store.settings,"providers":providers,"activity":store.activity,"data_folder":backend.root,"physical_memory_mb":super::system::memory_mb(),"tasks":backend.tasks.lock().unwrap().values().map(|r|r.task.clone()).collect::<Vec<_>>()}))
 }
 #[tauri::command]
-pub fn save_backend_settings(backend:State<'_,B>,mut settings:Settings)->Result<()> {
+pub async fn save_backend_settings(backend:State<'_,B>,app:AppHandle,mut settings:Settings)->Result<()> {
     if let Some(total)=super::system::memory_mb(){settings.max_memory=settings.max_memory.min(super::memory::maximum(total).max(256));settings.min_memory=settings.min_memory.min(settings.max_memory.saturating_sub(128)).max(128);}
     if !matches!(settings.memory_mode.as_str(),"auto"|"manual"){return Err(BackendError::new("memory","Unknown memory mode"));}
     super::system::validate_memory(settings.min_memory,settings.max_memory)?;
@@ -35,12 +35,15 @@ pub fn save_backend_settings(backend:State<'_,B>,mut settings:Settings)->Result<
     if settings.instances_path!=backend.settings().instances_path{return Err(BackendError::new("storage_path","Use the storage migration dialog to change instance folders"));}
     if !(1..=32).contains(&settings.backup_retention)||!matches!(settings.log_retention_days,0|7|30|90){return Err(BackendError::new("settings","Invalid retention settings"));}
     if settings.active_account.as_ref().is_some_and(|id|!backend.store.lock().unwrap().accounts.iter().any(|a|&a.id==id)){return Err(BackendError::new("account","Default account no longer exists"));}
+    let b=backend.inner().clone();let jvm=settings.jvm_args.clone();let game=settings.game_args.clone();let a=app.clone();
+    tokio::task::spawn_blocking(move||java::authorize_arguments(&b,&a,&jvm,&game)).await.map_err(|_|BackendError::new("arguments","Could not verify launch arguments"))??;
+    if let Some(path)=settings.java_path.clone(){settings.java_path=Some(java::authorize_async(backend.inner().clone(),app,path).await?.to_string_lossy().into());}
     backend.store.lock().unwrap().settings=settings;backend.persist()
 }
 #[tauri::command]
 pub async fn detect_java(backend:State<'_,B>)->Result<Vec<JavaRuntime>>{java::detect(&backend.root).await}
 #[tauri::command]
-pub async fn test_java(path:String)->Result<JavaRuntime>{java::test(std::path::Path::new(&path),false).await}
+pub async fn test_java(backend:State<'_,B>,app:AppHandle,path:String)->Result<JavaRuntime>{let approved=java::authorize_async(backend.inner().clone(),app,path).await?;java::test(&approved,false).await}
 #[tauri::command]
 pub fn create_local_account(backend:State<'_,B>,username:String)->Result<Account>{accounts::local(&backend,&username)}
 #[tauri::command]
@@ -106,7 +109,7 @@ pub async fn create_instance(backend:State<'_,B>,app:AppHandle,name:String,minec
     let job=Job::tracked(b.clone(),&id,"install",name.trim(),Some(&id),Some(app.clone()),lease.cancel.clone(),task_id)?;
     let result=if existed{Err(BackendError::new("content_duplicate","This creation request already has an instance"))}else{staged_work(b.clone(),&id,job.clone(),false,async{
         super::download::cancellable(&job,super::loader_catalog::validate(&b,&minecraft,&loader,loader_version.as_deref())).await?;
-        let dir=b.instance_path(&id)?;std::fs::create_dir(&dir)?;for folder in ["mods","config","resourcepacks","shaderpacks","saves","screenshots","logs"]{std::fs::create_dir_all(dir.join(folder))?;}
+        let dir=b.instance_path(&id)?;crate::backend::protected_fs::create_dir(&dir)?;for folder in ["mods","config","resourcepacks","shaderpacks","saves","screenshots","logs"]{crate::backend::protected_fs::create_dir_all(dir.join(folder))?;}
         b.save_instance(&Instance{id:id.clone(),name:name.trim().into(),minecraft,loader,loader_version,provider:"vanilla".into(),directory:dir.to_string_lossy().into(),status:"installing".into(),..Instance::default()})?;
         prepare_leased(b.clone(),id.clone(),Some(app),false,job.clone()).await?;Ok(())
     }).await};job.finish(&result);result
@@ -145,18 +148,21 @@ pub fn cancel_operation(backend:State<'_,B>,app:AppHandle,id:String)->Result<()>
     let job=backend.jobs.lock().unwrap().get(&id).cloned().or_else(||backend.provider_requests.lock().unwrap().get(&id).cloned()).ok_or_else(||BackendError::new("operation","Operation not found"))?;job.store(true,Ordering::Relaxed);Ok(())
 }
 #[tauri::command]
-pub fn update_instance(backend:State<'_,B>,mut instance:Instance)->Result<Instance>{
+pub async fn update_instance(backend:State<'_,B>,app:AppHandle,mut instance:Instance)->Result<Instance>{
     let _lease=backend.inner().lease(&instance.id)?;let mut old=backend.instance(&instance.id)?;
     if instance.name.trim().is_empty(){return Err(BackendError::new("instance","Instance name required"));}
     if instance.overrides.memory_mode.as_deref().is_some_and(|mode|!matches!(mode,"auto"|"manual")){return Err(BackendError::new("memory","Unknown memory mode"));}
     let settings=backend.settings();if let (Some(total),Some(saved))=(super::system::memory_mb(),instance.overrides.max_memory){instance.overrides.max_memory=Some(saved.min(super::memory::maximum(total).max(256)));}let (min,max,_)=super::memory::resolve(&settings,&instance,super::system::memory_mb());super::system::validate_memory(min,max)?;if instance.overrides.width.is_some_and(|n|n<320)||instance.overrides.height.is_some_and(|n|n<240){return Err(BackendError::new("settings","Resolution is too small"));}
+    let b=backend.inner().clone();let jvm=instance.overrides.jvm_args.clone().unwrap_or_else(||settings.jvm_args.clone());let game=instance.overrides.game_args.clone().unwrap_or_else(||settings.game_args.clone());let a=app.clone();
+    tokio::task::spawn_blocking(move||java::authorize_arguments(&b,&a,&jvm,&game)).await.map_err(|_|BackendError::new("arguments","Could not verify launch arguments"))??;
+    if let Some(path)=instance.overrides.java.clone(){instance.overrides.java=Some(java::authorize_async(backend.inner().clone(),app,path).await?.to_string_lossy().into());}
     old.name=instance.name;old.icon=instance.icon;old.favorite=instance.favorite;old.overrides=instance.overrides;backend.normalize_account(&mut old);backend.save_instance(&old)?;Ok(old)
 }
 #[tauri::command]
 pub fn delete_instance(backend:State<'_,B>,id:String,confirmed:bool)->Result<()> {
     if !confirmed{return Err(BackendError::new("confirmation","Confirm deletion of this instance and its worlds"));}let path=backend.instance_path(&id)?;
     let _lease=backend.inner().lease(&id)?;let name=backend.instance(&id)?.name;
-    let managed=std::fs::canonicalize(path.parent().unwrap())?;let real=std::fs::canonicalize(&path)?;if real.parent()!=Some(managed.as_path()){return Err(BackendError::new("unsafe_path","Instance is outside the managed root"));}std::fs::remove_dir_all(real)?;backend.store.lock().unwrap().instance_catalog.retain(|i|i.id!=id);backend.record_activity("instance_removed",&name,Some(&id))?;Ok(())
+    let managed=std::fs::canonicalize(path.parent().unwrap())?;let real=std::fs::canonicalize(&path)?;if real.parent()!=Some(managed.as_path()){return Err(BackendError::new("unsafe_path","Instance is outside the managed root"));}crate::backend::protected_fs::remove_dir_all(real)?;backend.store.lock().unwrap().instance_catalog.retain(|i|i.id!=id);backend.record_activity("instance_removed",&name,Some(&id))?;Ok(())
 }
 #[tauri::command]
 pub fn open_instance_folder(backend:State<'_,B>,app:AppHandle,id:String,folder:String)->Result<()> {
@@ -168,7 +174,7 @@ pub fn open_instance_folder(backend:State<'_,B>,app:AppHandle,id:String,folder:S
 pub fn game_logs(backend:State<'_,B>,id:String)->Result<String>{
     let root=backend.instance_path(&id)?;let folder=storage::safe_join(&root,"logs")?;
     let mut logs:Vec<_>=std::fs::read_dir(folder)?.filter_map(|e|e.ok()).filter(|e|e.file_name().to_string_lossy().starts_with("canary-")&&e.path().extension().is_some_and(|x|x=="log")).collect();logs.sort_by_key(|e|e.file_name());
-    if let Some(log)=logs.last(){let path=storage::safe_join(&root,&format!("logs/{}",log.file_name().to_string_lossy()))?;let data=std::fs::read(path)?;return Ok(String::from_utf8_lossy(&data[data.len().saturating_sub(256*1024)..]).into());}Ok(String::new())
+    if let Some(log)=logs.last(){let path=storage::safe_join(&root,&format!("logs/{}",log.file_name().to_string_lossy()))?;let data=crate::backend::protected_fs::read(path)?;return Ok(super::privacy::diagnostic(&String::from_utf8_lossy(&data[data.len().saturating_sub(256*1024)..])));}Ok(String::new())
 }
 #[tauri::command]
 pub fn scan_screenshots(backend:State<'_,B>,app:AppHandle)->Result<serde_json::Value>{let mut images=vec![];for instance in backend.instances()?{
@@ -276,9 +282,9 @@ pub async fn begin_microsoft_login(app:AppHandle,backend:State<'_,B>)->Result<se
 #[tauri::command]pub async fn catalog_versions(backend:State<'_,B>,project:String,kind:String,request_id:Option<String>)->Result<Vec<serde_json::Value>>{provider_request(&backend,request_id,async{super::curseforge_content::versions(&backend,&project,&kind,"","",true).await}).await}
 
 #[tauri::command]pub fn reset_backend_settings(backend:State<'_,B>)->Result<()>{let old=backend.settings();backend.store.lock().unwrap().settings=Settings{instances_path:old.instances_path,active_account:old.active_account,..Settings::default()};backend.persist()}
-#[tauri::command]pub async fn cleanup_logs(backend:State<'_,B>)->Result<u32>{let b=backend.inner().clone();tokio::task::spawn_blocking(move||{let days=b.settings().log_retention_days;if days==0{return Ok(0);}let cutoff=now().saturating_sub(days as u64*86400);let mut removed=0;for instance in b.instances()?{if instance.status=="unavailable"||b.processes.lock().unwrap().contains_key(&instance.id){continue;}let root=b.instance_path(&instance.id)?;if let Ok(entries)=std::fs::read_dir(root.join("logs")){for entry in entries.flatten(){let name=entry.file_name().to_string_lossy().into_owned();if entry.file_type()?.is_file()&&name.starts_with("canary-")&&name.ends_with(".log")&&entry.metadata()?.modified()?.duration_since(std::time::UNIX_EPOCH).unwrap_or_default().as_secs()<cutoff{std::fs::remove_file(storage::safe_join(&root,&format!("logs/{name}"))?)?;removed+=1;}}}}Ok(removed)}).await.map_err(|_|BackendError::new("logs","Log cleanup failed"))?}
+#[tauri::command]pub async fn cleanup_logs(backend:State<'_,B>)->Result<u32>{let b=backend.inner().clone();tokio::task::spawn_blocking(move||{let days=b.settings().log_retention_days;if days==0{return Ok(0);}let cutoff=now().saturating_sub(days as u64*86400);let mut removed=0;for instance in b.instances()?{if instance.status=="unavailable"||b.processes.lock().unwrap().contains_key(&instance.id){continue;}let root=b.instance_path(&instance.id)?;if let Ok(entries)=std::fs::read_dir(root.join("logs")){for entry in entries.flatten(){let name=entry.file_name().to_string_lossy().into_owned();if entry.file_type()?.is_file()&&name.starts_with("canary-")&&name.ends_with(".log")&&entry.metadata()?.modified()?.duration_since(std::time::UNIX_EPOCH).unwrap_or_default().as_secs()<cutoff{crate::backend::protected_fs::remove_file(storage::safe_join(&root,&format!("logs/{name}"))?)?;removed+=1;}}}}Ok(removed)}).await.map_err(|_|BackendError::new("logs","Log cleanup failed"))?}
 #[tauri::command]pub async fn export_preferences(backend:State<'_,B>,app:AppHandle)->Result<()>{let mut settings=backend.settings();settings.instances_path=None;settings.active_account=None;tokio::task::spawn_blocking(move||{use tauri_plugin_dialog::DialogExt;if let Some(file)=app.dialog().file().add_filter("Canary preferences",&["json"]).set_file_name("canary-preferences.json").blocking_save_file(){let path=file.into_path().map_err(|_|BackendError::new("settings","Invalid preference file"))?;storage::write_json(&path,&settings)?;}Ok(())}).await.map_err(|_|BackendError::new("settings","Preference export failed"))?}
-#[tauri::command]pub async fn import_preferences(backend:State<'_,B>,app:AppHandle)->Result<()>{let b=backend.inner().clone();tokio::task::spawn_blocking(move||{use tauri_plugin_dialog::DialogExt;if let Some(file)=app.dialog().file().add_filter("Canary preferences",&["json"]).blocking_pick_file(){let path=file.into_path().map_err(|_|BackendError::new("settings","Invalid preference file"))?;if std::fs::metadata(&path)?.len()>1024*1024{return Err(BackendError::new("settings","Preference file too large"));}let mut settings:Settings=serde_json::from_slice(&std::fs::read(path)?)?;super::system::validate_memory(settings.min_memory,settings.max_memory)?;if !(1..=8).contains(&settings.concurrency)||!(1..=32).contains(&settings.backup_retention)||!matches!(settings.log_retention_days,0|7|30|90)||settings.width<320||settings.height<240{return Err(BackendError::new("settings","Invalid preference values"));}let old=b.settings();settings.instances_path=old.instances_path;settings.active_account=old.active_account;b.store.lock().unwrap().settings=settings;b.persist()?;}Ok(())}).await.map_err(|_|BackendError::new("settings","Preference import failed"))?}
+#[tauri::command]pub async fn import_preferences(backend:State<'_,B>,app:AppHandle)->Result<()>{let b=backend.inner().clone();tokio::task::spawn_blocking(move||{use tauri_plugin_dialog::DialogExt;if let Some(file)=app.dialog().file().add_filter("Canary preferences",&["json"]).blocking_pick_file(){let path=file.into_path().map_err(|_|BackendError::new("settings","Invalid preference file"))?;if std::fs::metadata(&path)?.len()>1024*1024{return Err(BackendError::new("settings","Preference file too large"));}let mut settings:Settings=serde_json::from_slice(&crate::backend::protected_fs::read(path)?)?;super::system::validate_memory(settings.min_memory,settings.max_memory)?;if !(1..=8).contains(&settings.concurrency)||!(1..=32).contains(&settings.backup_retention)||!matches!(settings.log_retention_days,0|7|30|90)||settings.width<320||settings.height<240{return Err(BackendError::new("settings","Invalid preference values"));}java::authorize_arguments(&b,&app,&settings.jvm_args,&settings.game_args)?;if let Some(path)=&settings.java_path{settings.java_path=Some(java::authorize(&b,&app,std::path::Path::new(path))?.to_string_lossy().into());}let old=b.settings();settings.instances_path=old.instances_path;settings.active_account=old.active_account;b.store.lock().unwrap().settings=settings;b.persist()?;}Ok(())}).await.map_err(|_|BackendError::new("settings","Preference import failed"))?}
 
 #[tauri::command]pub fn list_wallpapers(backend:State<'_,B>)->Result<Vec<super::wallpapers::Wallpaper>>{super::wallpapers::list(&backend)}
 #[tauri::command]pub async fn import_wallpaper(backend:State<'_,B>,app:AppHandle,target:String)->Result<Option<super::wallpapers::Wallpaper>>{let b=backend.inner().clone();tokio::task::spawn_blocking(move||{use tauri_plugin_dialog::DialogExt;if let Some(file)=app.dialog().file().add_filter("Background image",&["png","jpg","jpeg","webp"]).blocking_pick_file(){let path=file.into_path().map_err(|_|BackendError::new("wallpaper","Invalid image path"))?;return Ok(Some(super::wallpapers::import_file(&b,&path,&target)?));}Ok(None)}).await.map_err(|_|BackendError::new("wallpaper","Background import failed"))?}

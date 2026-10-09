@@ -3,7 +3,7 @@ pub type Result<T> = std::result::Result<T, BackendError>;
 #[derive(Debug, Clone, Serialize)]
 pub struct BackendError { pub code: String, pub stage: String, pub message: String, pub retryable: bool }
 impl BackendError {
-    pub fn new(code: &str, message: impl Into<String>) -> Self { Self { code: code.into(), stage: code.into(), message: message.into(), retryable: matches!(code, "network"|"download"|"cancelled"|"timeout"|"http_429"|"http_500"|"http_502"|"http_503"|"http_504") } }
+    pub fn new(code: &str, message: impl Into<String>) -> Self { Self { code: code.into(), stage: code.into(), message: super::privacy::diagnostic(&message.into()), retryable: matches!(code, "network"|"download"|"cancelled"|"timeout"|"http_429"|"http_500"|"http_502"|"http_503"|"http_504") } }
 }
 impl std::fmt::Display for BackendError { fn fmt(&self, f:&mut std::fmt::Formatter<'_>) -> std::fmt::Result { write!(f,"[{}] {}",self.code,self.message) } }
 impl std::error::Error for BackendError {}
@@ -40,7 +40,7 @@ impl Default for Instance {fn default()->Self { Self {last_server:None,internal:
 pub struct Account {pub id:String,pub provider:String,pub uuid:String,pub username:String,pub avatar:Option<String>,pub status:String,pub last_used:Option<u64>,pub credential_ref:Option<String>}
 #[derive(Default, Clone, Serialize, Deserialize)]
 #[serde(default)]
-pub struct Store {pub removed_accounts:Vec<String>,pub instance_roots:Vec<String>,pub instance_catalog:Vec<Instance>,pub schema:u32,pub settings:Settings,pub accounts:Vec<Account>,pub activity:Vec<Activity>}
+pub struct Store {pub trusted_java:std::collections::HashMap<String,String>,pub trusted_jvm:Vec<String>,pub removed_accounts:Vec<String>,pub instance_roots:Vec<String>,pub instance_catalog:Vec<Instance>,pub schema:u32,pub settings:Settings,pub accounts:Vec<Account>,pub activity:Vec<Activity>}
 #[derive(Clone, Serialize, Deserialize)]
 pub struct Activity {#[serde(default="activity_id")]pub id:String,pub timestamp:u64,pub instance:Option<String>,pub kind:String,pub message:String}
 #[derive(Clone, Serialize)]

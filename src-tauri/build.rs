@@ -1,3 +1,4 @@
+include!("src/app_commands.rs");
 fn main() {
     println!("cargo:rerun-if-env-changed=CANARY_CURSEFORGE_PROXY_URL");
     let windows = std::env::var("CARGO_CFG_TARGET_OS").as_deref() == Ok("windows");
@@ -11,7 +12,7 @@ fn main() {
     } else {
         tauri_build::Attributes::new()
     };
-    tauri_build::try_build(attributes).expect("Failed to generate Tauri resources");
+    tauri_build::try_build(attributes.app_manifest(tauri_build::AppManifest::new().commands(COMMANDS))).expect("Failed to generate Tauri resources");
     // Tauri links the icon resource to binaries, but the hidden native icon
     // regression check is a Cargo example and needs the same resource explicitly.
     if windows && std::env::var("CARGO_CFG_TARGET_ENV").as_deref() == Ok("msvc") {
