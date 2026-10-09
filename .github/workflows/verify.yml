@@ -2,6 +2,8 @@ name: Desktop verification
 on:
   push:
     branches: [main]
+  pull_request:
+    branches: [main]
   workflow_dispatch:
 permissions:
   contents: read
@@ -11,6 +13,31 @@ concurrency:
 env:
   CANARY_CURSEFORGE_PROXY_URL: ${{ vars.CANARY_CURSEFORGE_PROXY_URL }}
 jobs:
+  frontend:
+    runs-on: ubuntu-22.04
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '24'
+          cache: npm
+      - run: npm ci --no-audit --no-fund
+      - run: node scripts/check-release.mjs
+      - run: npm run build
+      - run: npx playwright install --with-deps chromium
+      - run: npm test
+      - name: Upload browser QA
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: canary-browser-qa
+          include-hidden-files: true
+          path: |
+            playwright-report/
+            test-results/
+            .qa/
+          if-no-files-found: warn
   curseforge-gateway:
     runs-on: ubuntu-22.04
     defaults:
@@ -44,6 +71,7 @@ jobs:
     steps:
       - uses: actions/checkout@v4
       - name: Record started verification
+        if: github.event_name != 'pull_request'
         shell: bash
         env:
           VERIFY_PLATFORM: ${{ matrix.platform }}
@@ -67,7 +95,7 @@ jobs:
                   failed = next((j for j in jobs if j['conclusion'] == 'failure' and os.environ['VERIFY_PLATFORM'] in j['name']), None)
                   if failed:
                       receipt['previous_failure'] = {'run_url': run['html_url'], 'steps': [s['name'] for s in failed['steps'] if s['conclusion'] == 'failure']}
-                      receipt['previous_failure']['log'] = subprocess.check_output(['gh', 'api', root + f"/actions/jobs/{failed['id']}/logs"], text=True)[-24000:]
+                      receipt['previous_failure']['log'] = subprocess.check_output(['gh', 'api', '--allow-escape-sequences', root + f"/actions/jobs/{failed['id']}/logs"], text=True)[-24000:]
                       break
           except (subprocess.CalledProcessError, KeyError) as error:
               receipt['previous_log_unavailable'] = str(error)
@@ -153,7 +181,7 @@ jobs:
             src-tauri/target/release/bundle/msi/*.msi
             src-tauri/target/release/bundle/deb/*.deb
       - name: Record verification result
-        if: always()
+        if: always() && github.event_name != 'pull_request'
         shell: bash
         env:
           VERIFY_STATUS: ${{ job.status }}
@@ -173,7 +201,7 @@ jobs:
                   jobs = json.loads(subprocess.check_output(['gh', 'api', endpoint], text=True))['jobs']
                   failed = [j for j in jobs if j['conclusion'] == 'failure' and os.environ['VERIFY_PLATFORM'] in j['name']]
                   receipt['failed_steps'] = [{'job': j['name'], 'steps': [s['name'] for s in j['steps'] if s['conclusion'] == 'failure']} for j in failed]
-                  receipt['failure_log'] = '\n'.join(subprocess.check_output(['gh', 'api', f"repos/{os.environ['GITHUB_REPOSITORY']}/actions/jobs/{j['id']}/logs"], text=True)[-24000:] for j in failed)
+                  receipt['failure_log'] = '\n'.join(subprocess.check_output(['gh', 'api', '--allow-escape-sequences', f"repos/{os.environ['GITHUB_REPOSITORY']}/actions/jobs/{j['id']}/logs"], text=True)[-24000:] for j in failed)
               except (subprocess.CalledProcessError, KeyError) as error:
                   receipt['log_unavailable'] = str(error)
           if Path('qa/windows-window-smoke/result.json').exists(): receipt['window_qa'] = json.loads(Path('qa/windows-window-smoke/result.json').read_text())
@@ -190,7 +218,7 @@ jobs:
           git push origin "$note"
   report-failure:
     needs: desktop
-    if: failure()
+    if: failure() && github.event_name != 'pull_request'
     runs-on: ubuntu-22.04
     permissions:
       contents: write
@@ -213,7 +241,7 @@ jobs:
               receipt = {'commit': os.environ['GITHUB_SHA'], 'platform': platform, 'status': 'failure',
                          'run_url': f"https://github.com/{os.environ['GITHUB_REPOSITORY']}/actions/runs/{os.environ['GITHUB_RUN_ID']}",
                          'failed_steps': [s['name'] for s in job['steps'] if s['conclusion'] == 'failure'],
-                         'failure_log': subprocess.check_output(['gh', 'api', root + f"/actions/jobs/{job['id']}/logs"], text=True)[-30000:]}
+                         'failure_log': subprocess.check_output(['gh', 'api', '--allow-escape-sequences', root + f"/actions/jobs/{job['id']}/logs"], text=True)[-30000:]}
               note = f'refs/notes/qa-{platform}'
               if subprocess.run(['git', 'ls-remote', '--exit-code', 'origin', note]).returncode == 0:
                   subprocess.run(['git', 'fetch', 'origin', f'{note}:{note}'], check=True)
@@ -226,3 +254,4 @@ jobs:
               subprocess.run(['git', 'notes', f'--ref=qa-{platform}', 'add', '-f', '-F', 'desktop-failure.json', 'HEAD'], check=True)
               subprocess.run(['git', 'push', 'origin', note], check=True)
           PY
+

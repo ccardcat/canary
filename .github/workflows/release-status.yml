@@ -46,7 +46,7 @@ jobs:
                   if job['conclusion'] == 'failure':
                       try:
                           receipt.setdefault('failure_logs', {})[job['name']] = subprocess.check_output(
-                              ['gh', 'api', root + f"/actions/jobs/{job['id']}/logs"], text=True)[-24000:]
+                              ['gh', 'api', '--allow-escape-sequences', root + f"/actions/jobs/{job['id']}/logs"], text=True)[-24000:]
                       except subprocess.CalledProcessError:
                           receipt.setdefault('logs_unavailable', []).append(job['name'])
           else:
@@ -66,3 +66,4 @@ jobs:
           subprocess.run(['git', 'notes', '--ref=release-diagnostics', 'add', '-f', '-F', 'release-diagnostics.json', commit], check=True)
           subprocess.run(['git', 'push', 'origin', note], check=True)
           PY
+

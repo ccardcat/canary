@@ -9,9 +9,9 @@
   --muted: #a5b0ac;
   --faint: #929e98;
   --text-disabled: #87938d;
-  --line-subtle: #ffffff20;
-  --line: #ffffff32;
-  --line-strong: #ffffff50;
+  --line-subtle: #ffffff12;
+  --line: #ffffff1c;
+  --line-strong: #ffffff30;
   --highlight: #ffffff12;
   --accent: #e9efec;
   --accent-fg: #111b16;
@@ -81,9 +81,9 @@
   --muted: #4e5c55;
   --faint: #5e6b64;
   --text-disabled: #748078;
-  --line-subtle: #263c3020;
-  --line: #263c3035;
-  --line-strong: #263c3059;
+  --line-subtle: #263c3012;
+  --line: #263c301c;
+  --line-strong: #263c3030;
   --highlight: #ffffff70;
   --accent: #263d32;
   --accent-fg: #fff;
@@ -151,3 +151,4 @@
 :root[data-mode="light"][data-accent="orange"] { --accent: #915727; }
 
 :root[data-mode="amoled"][data-background-source="solid"][data-material-titlebar="solid"] .window-titlebar{background:#000}
+

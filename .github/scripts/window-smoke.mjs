@@ -81,11 +81,11 @@ try{
    await click(textButton('.sidebar button','Settings'));await until(()=>evaluate(`!!document.querySelector('.settings-modal')`),'reopen Settings');
   }
  }
- const slider=async(name,value)=>{await evaluate(`(()=>{const e=[...document.querySelectorAll('input[type=range]')].find(e=>e.getAttribute('aria-label')===${JSON.stringify(name)});Object.getOwnPropertyDescriptor(HTMLInputElement.prototype,'value').set.call(e,${JSON.stringify(String(value))});e.dispatchEvent(new Event('input',{bubbles:true}));})()`);};
+ const slider=async(name,value)=>{await evaluate(`(()=>{const e=[...document.querySelectorAll('input[type=range]')].find(e=>e.getAttribute('aria-label')===${JSON.stringify(name)});if(!e)throw Error('Missing slider: '+${JSON.stringify(name)});if(e.disabled)throw Error('Disabled slider: '+${JSON.stringify(name)});Object.getOwnPropertyDescriptor(HTMLInputElement.prototype,'value').set.call(e,${JSON.stringify(String(value))});e.dispatchEvent(new Event('input',{bubbles:true}));e.dispatchEvent(new Event('change',{bubbles:true}));})()`);};
  const desktopActive=await evaluate("document.documentElement.dataset.windowMaterial!=='solid'");
  await click(textButton('.settings-nav button','Background'));
- if(desktopActive){await slider('Window transparency',77);await delay(750);await choose('Tint intensity','Strong');}
- await click(textButton('.settings-nav button','Appearance'));await slider('Surface opacity',74);await slider('Surface backdrop blur',23);await delay(750);
+ if(desktopActive){await click("[...document.querySelectorAll('.background-source-options button')].find(b=>b.querySelector('b')?.textContent==='Desktop')");await slider('Window transparency',77);await delay(750);await choose('Tint intensity','Strong');}
+ await click(textButton('.settings-nav button','Appearance'));await choose('Material preset','Glass');await slider('Surface opacity',74);await slider('Surface backdrop blur',23);await delay(750);
  const custom=await evaluate(`JSON.parse(localStorage.getItem('canary-visual'))`);if(desktopActive)assert.equal(custom.windowTransparency,77);assert.equal(custom.surfaceOpacity,74);assert.equal(custom.surfaceBlur,23);if(desktopActive)assert.equal(custom.tint,'strong');report.cases.push({name:'custom-opacity-blur-tint',windowTransparency:custom.windowTransparency,surfaceOpacity:custom.surfaceOpacity,surfaceBlur:custom.surfaceBlur,tint:custom.tint});
  await click(textButton('[role=group][aria-label="Sidebar position"] button','Right'));await key('F11',122);await until(()=>win('is_fullscreen'),'right-sidebar fullscreen');await finished();await screenshot('right-sidebar-fullscreen');await key('Escape',27);await until(()=>evaluate(`!document.querySelector('.settings-modal')`),'close right-sidebar Settings');assert.equal(await win('is_fullscreen'),true);await key('Escape',27);await until(async()=>!await win('is_fullscreen'),'right-sidebar restore');await finished();await click(textButton('.sidebar button','Settings'));await until(()=>evaluate(`!!document.querySelector('.settings-modal')`),'reopen Settings');
  await click(textButton('.settings-nav button','Window'));await choose('Window controls style','Traffic Lights');await choose('Control position','Left');await screenshot('left-traffic-controls');
@@ -131,3 +131,4 @@ try{
  throw error;
 }
 finally{await writeFile(resolve(folder,'result.json'),JSON.stringify(report,null,2));socket?.close();app.kill();closeSync(stdout);closeSync(stderr);}
+

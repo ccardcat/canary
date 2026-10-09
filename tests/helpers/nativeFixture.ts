@@ -26,7 +26,7 @@ mockIPC((command,args)=>{
   if(args?.localOnly&&globalThis.__startupQA?.holdSnapshot)return new Promise(resolve=>(globalThis.__startupQA.resolvers ||= []).push(()=>resolve(structuredClone(state))));
   return structuredClone(state);
  }
- if(command==='list_wallpapers')return globalThis.__customWallpapers||[];
+ if(command==='list_wallpapers')return globalThis.__startupQA?.holdWallpapers?new Promise(()=>{}):globalThis.__customWallpapers||[];
  if(command==='game_log_sessions')return [];
  if(command==='read_game_log')return '';
  if(command==='clear_activity'){state.activity=[];return;}
@@ -70,3 +70,4 @@ mockIPC((command,args)=>{
     });
   });
 }
+

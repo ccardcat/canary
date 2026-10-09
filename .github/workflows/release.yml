@@ -35,6 +35,34 @@ concurrency:
   cancel-in-progress: false
 
 jobs:
+  frontend:
+    runs-on: ubuntu-22.04
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ env.RELEASE_TAG }}
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '24'
+          cache: npm
+      - run: npm ci --no-audit --no-fund
+      - run: node scripts/check-release.mjs
+      - run: npm run build
+      - run: npx playwright install --with-deps chromium
+      - run: npm test
+      - name: Upload release browser QA
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: canary-release-browser-qa
+          include-hidden-files: true
+          path: |
+            playwright-report/
+            test-results/
+            .qa/
+          if-no-files-found: warn
+
   record-start:
     runs-on: ubuntu-22.04
     permissions:
@@ -89,6 +117,7 @@ jobs:
           sudo apt-get update
           sudo apt-get install -y libwebkit2gtk-4.1-dev libayatana-appindicator3-dev librsvg2-dev libdbus-1-dev patchelf
       - run: npm ci
+      - run: node scripts/check-release.mjs
       - name: Check release version
         shell: bash
         run: |
@@ -130,7 +159,7 @@ jobs:
             src-tauri/target/release/bundle/msi/*.msi
 
   publish:
-    needs: [build, record-start]
+    needs: [build, record-start, frontend]
     if: always()
     runs-on: ubuntu-22.04
     permissions:
@@ -145,7 +174,7 @@ jobs:
           ref: ${{ env.RELEASE_TAG }}
           fetch-depth: 0
       - name: Download installers
-        if: needs.build.result == 'success' || inputs.reuse_run != ''
+        if: needs.frontend.result == 'success' && (needs.build.result == 'success' || inputs.reuse_run != '')
         uses: actions/download-artifact@v4
         with:
           pattern: canary-*-x64
@@ -155,7 +184,7 @@ jobs:
           run-id: ${{ inputs.reuse_run || github.run_id }}
       - name: Publish complete release
         id: publish
-        if: needs.build.result == 'success' || inputs.reuse_run != ''
+        if: needs.frontend.result == 'success' && (needs.build.result == 'success' || inputs.reuse_run != '')
         shell: bash
         run: |
           exec > >(tee publication.log) 2>&1
@@ -207,7 +236,7 @@ jobs:
                   logs = []
                   for job in jobs:
                       if job['conclusion'] == 'failure':
-                          logs.append(subprocess.check_output(['gh', 'api', f"repos/{os.environ['GITHUB_REPOSITORY']}/actions/jobs/{job['id']}/logs"], text=True)[-20000:])
+                          logs.append(subprocess.check_output(['gh', 'api', '--allow-escape-sequences', f"repos/{os.environ['GITHUB_REPOSITORY']}/actions/jobs/{job['id']}/logs"], text=True)[-20000:])
                   receipt['failure_log'] = '\n'.join(logs)
               except subprocess.CalledProcessError as e:
                   receipt['failure_log'] = str(e)
@@ -222,3 +251,4 @@ jobs:
           git notes --ref=releases add -f -F release-status.json HEAD
           git push origin refs/notes/releases
           test "$PUBLISH_RESULT" = success
+

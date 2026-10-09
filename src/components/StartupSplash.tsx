@@ -32,10 +32,12 @@ export function StartupSplash({children}:{children:ReactNode}){
   void Promise.all([document.fonts.ready,decode(appImage),decode(sidebarImage)]).then(()=>{if(live)setDecodedKey(assetKey);});return()=>{live=false;};
  },[appImage,sidebarImage,assetKey]);
  useEffect(()=>{
-  if(!active||windowShown.current||!isTauri()||!native?.ready||!assetsReady)return;
+  // The startup deadline must also reveal the native window. A stalled asset
+  // decode or capability call must not leave an invisible process running.
+  if(windowShown.current||!isTauri()||(!expired&&(!active||!native?.ready||!assetsReady)))return;
   let frame=requestAnimationFrame(()=>{frame=requestAnimationFrame(()=>{windowShown.current=true;void invoke("show_main_window").catch(()=>{});});});
   return()=>cancelAnimationFrame(frame);
- },[active,native?.ready,assetsReady]);
+ },[active,native?.ready,assetsReady,expired]);
  useEffect(()=>{if(elapsed&&((settled&&assetsReady&&native?.ready)||expired))setLeaving(true);},[elapsed,settled,assetsReady,native?.ready,expired]);
  useEffect(()=>{
   if(!leaving)return;document.documentElement.dataset.startup="revealing";
@@ -52,3 +54,4 @@ export function StartupSplash({children}:{children:ReactNode}){
  return <><div className="startup-app" inert={active}>{children}</div>{active&&<div className={`startup-splash${leaving?" leaving":""}${reduced?" reduced":""}`} aria-label="Canary" role="status">
  <div className="startup-brand" ref={group}><img className="startup-logo" src="/branding/canary-bird-white.png" alt=""/><div className="startup-word-mask"><span className="startup-wordmark">CANARY</span></div></div></div>}</>;
 }
+
