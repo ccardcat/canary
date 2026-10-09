@@ -27,7 +27,7 @@ shlex = "1"
 regex = "1"
 tauri-plugin-dialog = "2"
 zeroize = "1"
-base64 = "0.22"
+base64 = "0.23"
 fs2 = "0.4"
 image = {version="0.25",default-features=false,features= ["png", "jpeg", "webp"] }
 flate2 = "1"
