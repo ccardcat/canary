@@ -39,10 +39,10 @@ jobs:
     runs-on: ubuntu-22.04
     timeout-minutes: 40
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
         with:
           ref: ${{ env.RELEASE_TAG }}
-      - uses: actions/setup-node@v4
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4
         with:
           node-version: '24'
           cache: npm
@@ -53,7 +53,7 @@ jobs:
       - run: npm test
       - name: Upload release browser QA
         if: always()
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
         with:
           name: canary-release-browser-qa
           include-hidden-files: true
@@ -68,7 +68,7 @@ jobs:
     permissions:
       contents: write
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
         with:
           ref: ${{ env.RELEASE_TAG }}
           fetch-depth: 0
@@ -99,15 +99,15 @@ jobs:
         include: ${{ fromJSON(github.event_name == 'workflow_dispatch' && inputs.platform == 'windows' && '[{"os":"windows-latest","bundles":"nsis,msi","platform":"windows-x64"}]' || '[{"os":"ubuntu-22.04","bundles":"deb,appimage","platform":"linux-x64"},{"os":"windows-latest","bundles":"nsis,msi","platform":"windows-x64"}]') }}
     runs-on: ${{ matrix.os }}
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
         with:
           ref: ${{ env.RELEASE_TAG }}
-      - uses: actions/setup-node@v4
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4
         with:
           node-version: '24'
           cache: npm
-      - uses: dtolnay/rust-toolchain@stable
-      - uses: Swatinem/rust-cache@v2
+      - uses: dtolnay/rust-toolchain@686976e191b89faba57d3206551f0f330d8cb249 # stable
+      - uses: Swatinem/rust-cache@6323deb102c322ba6fcbdcafc7e3dddab59af2b6 # v2
         with:
           workspaces: src-tauri -> target
           cache-on-failure: true
@@ -141,14 +141,33 @@ jobs:
         run: node .github/scripts/window-smoke.mjs qa/windows-window-smoke/canary-native-qa.exe
       - name: Upload Windows visual QA
         if: runner.os == 'Windows' && always()
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
         with:
           name: canary-release-windows-window-qa
           path: qa/windows-window-smoke/
           if-no-files-found: warn
+      - name: Record tagged build provenance
+        env:
+          RELEASE_PLATFORM: ${{ matrix.platform }}
+          WORKFLOW_SOURCE_SHA: ${{ github.workflow_sha }}
+        shell: bash
+        run: |
+          python - <<'PYTHON'
+          import hashlib, json, os, subprocess
+          from pathlib import Path
+          files=[p for p in Path('src-tauri/target/release/bundle').rglob('*') if p.is_file() and p.suffix in ('.exe','.msi','.deb','.AppImage')]
+          assert files, 'No installers for provenance'
+          value={'commit':subprocess.check_output(['git','rev-parse','HEAD'],text=True).strip(),'tag':os.environ['RELEASE_TAG'],'platform':os.environ['RELEASE_PLATFORM'],'run_id':os.environ['GITHUB_RUN_ID'],'workflow_sha':os.environ['WORKFLOW_SOURCE_SHA'],'files':[{'name':p.name,'sha256':hashlib.sha256(p.read_bytes()).hexdigest()} for p in files]}
+          Path('provenance.json').write_text(json.dumps(value,indent=2))
+          PYTHON
+      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+        with:
+          name: canary-release-provenance-${{ matrix.platform }}
+          path: provenance.json
+          if-no-files-found: error
       - name: Upload installers
         if: always() && steps.installers.outcome == 'success'
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
         with:
           name: canary-${{ matrix.platform }}
           if-no-files-found: error
@@ -169,19 +188,50 @@ jobs:
       GH_TOKEN: ${{ github.token }}
       GH_REPO: ${{ github.repository }}
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
         with:
           ref: ${{ env.RELEASE_TAG }}
           fetch-depth: 0
+      - name: Checkout trusted release policy
+        uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+        with:
+          ref: ${{ github.workflow_sha }}
+          path: release-policy
+      - name: Verify installer provenance
+        if: needs.frontend.result == 'success' && (needs.build.result == 'success' || inputs.reuse_run != '')
+        env:
+          REUSE_RUN: ${{ inputs.reuse_run }}
+        run: node release-policy/.github/scripts/verify-release-source.mjs
+      - name: Download source receipts
+        if: needs.frontend.result == 'success' && (needs.build.result == 'success' || inputs.reuse_run != '')
+        uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4
+        with:
+          pattern: canary-release-provenance-*
+          path: ${{ runner.temp }}/canary-release-provenance
+          github-token: ${{ github.token }}
+          run-id: ${{ inputs.reuse_run || github.run_id }}
+      - name: Verify tagged source receipts
+        if: needs.frontend.result == 'success' && (needs.build.result == 'success' || inputs.reuse_run != '')
+        env:
+          REUSE_RUN: ${{ inputs.reuse_run }}
+          CANARY_RELEASE_PROVENANCE: ${{ runner.temp }}/canary-release-provenance
+        run: node release-policy/.github/scripts/verify-release-source.mjs --receipts
       - name: Download installers
         if: needs.frontend.result == 'success' && (needs.build.result == 'success' || inputs.reuse_run != '')
-        uses: actions/download-artifact@v4
+        uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4
         with:
-          pattern: canary-*-x64
+          pattern: ${{ env.WINDOWS_ONLY == 'true' && 'canary-windows-x64' || 'canary-*-x64' }}
           path: ${{ runner.temp }}/canary-installers
           merge-multiple: true
           github-token: ${{ github.token }}
           run-id: ${{ inputs.reuse_run || github.run_id }}
+      - name: Verify downloaded installer bytes
+        if: needs.frontend.result == 'success' && (needs.build.result == 'success' || inputs.reuse_run != '')
+        env:
+          REUSE_RUN: ${{ inputs.reuse_run }}
+          CANARY_RELEASE_PROVENANCE: ${{ runner.temp }}/canary-release-provenance
+          CANARY_INSTALLERS: ${{ runner.temp }}/canary-installers
+        run: node release-policy/.github/scripts/verify-release-source.mjs --files
       - name: Publish complete release
         id: publish
         if: needs.frontend.result == 'success' && (needs.build.result == 'success' || inputs.reuse_run != '')

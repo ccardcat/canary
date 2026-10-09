@@ -17,19 +17,21 @@ jobs:
     runs-on: ubuntu-22.04
     timeout-minutes: 40
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-node@v4
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4
         with:
           node-version: '24'
           cache: npm
       - run: npm ci --no-audit --no-fund
+      - run: npm audit --audit-level=high
       - run: node scripts/check-release.mjs
       - run: npm run build
+      - run: node --test .github/scripts/verify-release-source.test.mjs
       - run: npx playwright install --with-deps chromium
       - run: npm test
       - name: Upload browser QA
         if: always()
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
         with:
           name: canary-browser-qa
           include-hidden-files: true
@@ -38,19 +40,29 @@ jobs:
             test-results/
             .qa/
           if-no-files-found: warn
+  rust-advisories:
+    runs-on: ubuntu-22.04
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+      - uses: dtolnay/rust-toolchain@686976e191b89faba57d3206551f0f330d8cb249 # stable
+      - name: Install audited scanner version
+        run: cargo install cargo-audit --version 0.22.2 --locked
+      - name: Scan locked Rust dependencies
+        run: cargo audit --file src-tauri/Cargo.lock
   curseforge-gateway:
     runs-on: ubuntu-22.04
     defaults:
       run:
         working-directory: services/curseforge-gateway
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-node@v4
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4
         with:
           node-version: '24'
           cache: npm
           cache-dependency-path: services/curseforge-gateway/package-lock.json
       - run: npm ci --no-audit --no-fund
+      - run: npm audit --audit-level=high
       - run: npm test
       - run: npx wrangler deploy --dry-run
   desktop:
@@ -66,53 +78,16 @@ jobs:
             bundles: deb
     runs-on: ${{ matrix.os }}
     permissions:
-      contents: write
+      contents: read
       actions: read
     steps:
-      - uses: actions/checkout@v4
-      - name: Record started verification
-        if: github.event_name != 'pull_request'
-        shell: bash
-        env:
-          VERIFY_PLATFORM: ${{ matrix.platform }}
-          GH_TOKEN: ${{ github.token }}
-        run: |
-          python - <<'PY'
-          import json, os, subprocess
-          receipt = {'commit': subprocess.check_output(['git', 'rev-parse', 'HEAD'], text=True).strip(),
-                     'status': 'running', 'platform': os.environ['VERIFY_PLATFORM'],
-                     'run_url': f"https://github.com/{os.environ['GITHUB_REPOSITORY']}/actions/runs/{os.environ['GITHUB_RUN_ID']}"}
-          try:
-              root = f"repos/{os.environ['GITHUB_REPOSITORY']}"
-              runs = json.loads(subprocess.check_output(['gh', 'api', root + '/actions/workflows/verify.yml/runs?per_page=4'], text=True))['workflow_runs']
-              for run in runs:
-                  if run['id'] == int(os.environ['GITHUB_RUN_ID']): continue
-                  jobs = json.loads(subprocess.check_output(['gh', 'api', root + f"/actions/runs/{run['id']}/jobs"], text=True))['jobs']
-                  receipt.setdefault('recent_jobs', []).extend(
-                      {'run_url': run['html_url'], 'job': j['name'], 'status': j['status'], 'conclusion': j['conclusion'],
-                       'steps': [{'name': s['name'], 'status': s['status'], 'conclusion': s['conclusion']} for s in j['steps']]}
-                      for j in jobs if os.environ['VERIFY_PLATFORM'] in j['name'])
-                  failed = next((j for j in jobs if j['conclusion'] == 'failure' and os.environ['VERIFY_PLATFORM'] in j['name']), None)
-                  if failed:
-                      receipt['previous_failure'] = {'run_url': run['html_url'], 'steps': [s['name'] for s in failed['steps'] if s['conclusion'] == 'failure']}
-                      receipt['previous_failure']['log'] = subprocess.check_output(['gh', 'api', '--allow-escape-sequences', root + f"/actions/jobs/{failed['id']}/logs"], text=True)[-24000:]
-                      break
-          except (subprocess.CalledProcessError, KeyError) as error:
-              receipt['previous_log_unavailable'] = str(error)
-          with open('desktop-verification.json', 'w') as output: json.dump(receipt, output, indent=2)
-          PY
-          git config user.name 'github-actions[bot]'
-          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
-          note="refs/notes/qa-${VERIFY_PLATFORM}"
-          if git ls-remote --exit-code origin "$note"; then git fetch origin "$note:$note"; fi
-          git notes --ref="qa-${VERIFY_PLATFORM}" add -f -F desktop-verification.json HEAD
-          git push origin "$note"
-      - uses: actions/setup-node@v4
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4
         with:
           node-version: '24'
           cache: npm
-      - uses: dtolnay/rust-toolchain@stable
-      - uses: Swatinem/rust-cache@v2
+      - uses: dtolnay/rust-toolchain@686976e191b89faba57d3206551f0f330d8cb249 # stable
+      - uses: Swatinem/rust-cache@6323deb102c322ba6fcbdcafc7e3dddab59af2b6 # v2
         with:
           workspaces: src-tauri -> target
           cache-on-failure: true
@@ -129,6 +104,12 @@ jobs:
         run: set -o pipefail; cargo check --locked --manifest-path src-tauri/Cargo.toml 2>&1 | tee cargo-check.log
       - shell: bash
         run: set -o pipefail; cargo test --locked --manifest-path src-tauri/Cargo.toml 2>&1 | tee cargo-test.log
+      - name: Release provenance regression tests
+        run: node --test .github/scripts/verify-release-source.test.mjs
+      - name: Controlled real Modrinth installation regression
+        if: runner.os == 'Linux'
+        shell: bash
+        run: set -o pipefail; cargo test --locked --manifest-path src-tauri/Cargo.toml installer::tests::real_modrinth_install -- --ignored 2>&1 | tee modrinth-install.log
       - name: Build desktop installers
         id: installers
         env:
@@ -151,7 +132,7 @@ jobs:
         run: set -o pipefail; node .github/scripts/csp-smoke.mjs qa/windows-window-smoke/canary-native-qa.exe 2>&1 | tee windows-csp-smoke.log
       - name: Upload Windows CSP QA
         if: runner.os == 'Windows' && always()
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
         with:
           name: canary-windows-csp-qa
           path: |
@@ -166,12 +147,12 @@ jobs:
         run: set -o pipefail; node .github/scripts/window-smoke.mjs qa/windows-window-smoke/canary-native-qa.exe 2>&1 | tee windows-window-smoke.log
       - name: Upload Windows visual QA
         if: runner.os == 'Windows' && always()
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
         with:
           name: canary-windows-window-qa
           path: qa/windows-window-smoke/
           if-no-files-found: warn
-      - uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
         if: always() && steps.installers.outcome == 'success'
         with:
           name: canary-built-${{ matrix.platform }}
@@ -181,7 +162,7 @@ jobs:
             src-tauri/target/release/bundle/msi/*.msi
             src-tauri/target/release/bundle/deb/*.deb
       - name: Record verification result
-        if: always() && github.event_name != 'pull_request'
+        if: always()
         shell: bash
         env:
           VERIFY_STATUS: ${{ job.status }}
@@ -204,54 +185,45 @@ jobs:
                   receipt['failure_log'] = '\n'.join(subprocess.check_output(['gh', 'api', '--allow-escape-sequences', f"repos/{os.environ['GITHUB_REPOSITORY']}/actions/jobs/{j['id']}/logs"], text=True)[-24000:] for j in failed)
               except (subprocess.CalledProcessError, KeyError) as error:
                   receipt['log_unavailable'] = str(error)
+          if Path('qa/windows-csp-smoke/result.json').exists(): receipt['csp_qa'] = json.loads(Path('qa/windows-csp-smoke/result.json').read_text())
           if Path('qa/windows-window-smoke/result.json').exists(): receipt['window_qa'] = json.loads(Path('qa/windows-window-smoke/result.json').read_text())
           with open('desktop-verification.json', 'w') as output:
               json.dump(receipt, output, indent=2)
           PY
-          git config user.name 'github-actions[bot]'
-          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
-          note="refs/notes/qa-${VERIFY_PLATFORM}"
-          if git ls-remote --exit-code origin "$note"; then
-            git fetch origin "$note:$note"
-          fi
-          git notes --ref="qa-${VERIFY_PLATFORM}" add -f -F desktop-verification.json HEAD
-          git push origin "$note"
-  report-failure:
+      - name: Upload verification receipt
+        if: always()
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+        with:
+          name: canary-verification-${{ matrix.platform }}-receipt
+          path: desktop-verification.json
+          if-no-files-found: error
+  publish-verification:
     needs: desktop
-    if: failure() && github.event_name != 'pull_request'
+    if: always() && github.event_name != 'pull_request'
     runs-on: ubuntu-22.04
     permissions:
       contents: write
-      actions: read
     steps:
-      - uses: actions/checkout@v4
-      - name: Record completed job failure logs
-        env:
-          GH_TOKEN: ${{ github.token }}
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+      - uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4
+        with:
+          pattern: canary-verification-*-receipt
+          path: verification-receipts
+      - name: Publish verified receipts as Git notes
+        shell: bash
         run: |
-          python3 - <<'PY'
+          python3 - <<'PYTHON'
           import json, os, subprocess
-          root = f"repos/{os.environ['GITHUB_REPOSITORY']}"
-          jobs = json.loads(subprocess.check_output(['gh', 'api', root + f"/actions/runs/{os.environ['GITHUB_RUN_ID']}/jobs"], text=True))['jobs']
-          subprocess.run(['git', 'config', 'user.name', 'github-actions[bot]'], check=True)
-          subprocess.run(['git', 'config', 'user.email', '41898282+github-actions[bot]@users.noreply.github.com'], check=True)
-          for job in jobs:
-              if job['conclusion'] != 'failure' or not job['name'].startswith('desktop'): continue
-              platform = 'windows' if 'windows' in job['name'] else 'linux'
-              receipt = {'commit': os.environ['GITHUB_SHA'], 'platform': platform, 'status': 'failure',
-                         'run_url': f"https://github.com/{os.environ['GITHUB_REPOSITORY']}/actions/runs/{os.environ['GITHUB_RUN_ID']}",
-                         'failed_steps': [s['name'] for s in job['steps'] if s['conclusion'] == 'failure'],
-                         'failure_log': subprocess.check_output(['gh', 'api', '--allow-escape-sequences', root + f"/actions/jobs/{job['id']}/logs"], text=True)[-30000:]}
-              note = f'refs/notes/qa-{platform}'
-              if subprocess.run(['git', 'ls-remote', '--exit-code', 'origin', note]).returncode == 0:
-                  subprocess.run(['git', 'fetch', 'origin', f'{note}:{note}'], check=True)
-                  saved = subprocess.run(['git', 'notes', f'--ref=qa-{platform}', 'show', 'HEAD'], capture_output=True, text=True)
-                  if saved.returncode == 0:
-                      previous = json.loads(saved.stdout)
-                      previous.update(receipt)
-                      receipt = previous
-              with open('desktop-failure.json', 'w') as output: json.dump(receipt, output, indent=2)
-              subprocess.run(['git', 'notes', f'--ref=qa-{platform}', 'add', '-f', '-F', 'desktop-failure.json', 'HEAD'], check=True)
-              subprocess.run(['git', 'push', 'origin', note], check=True)
-          PY
-
+          from pathlib import Path
+          subprocess.run(['git','config','user.name','github-actions[bot]'],check=True)
+          subprocess.run(['git','config','user.email','41898282+github-actions[bot]@users.noreply.github.com'],check=True)
+          for path in Path('verification-receipts').glob('*/desktop-verification.json'):
+              value=json.loads(path.read_text())
+              assert value['commit']==os.environ['GITHUB_SHA']
+              assert value['platform'] in ('windows','linux')
+              platform=value['platform']; note=f'refs/notes/qa-{platform}'
+              if subprocess.run(['git','ls-remote','--exit-code','origin',note]).returncode==0:
+                  subprocess.run(['git','fetch','origin',f'{note}:{note}'],check=True)
+              subprocess.run(['git','notes',f'--ref=qa-{platform}','add','-f','-F',str(path),'HEAD'],check=True)
+              subprocess.run(['git','push','origin',note],check=True)
+          PYTHON
