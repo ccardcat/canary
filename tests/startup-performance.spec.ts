@@ -144,6 +144,27 @@ test("particles resume after a hidden native window opens without visibilitychan
  }
 });
 
+test("native window state resumes particles even when WebView stays hidden",async({page})=>{
+ await page.addInitScript(()=>{
+  localStorage.setItem("canary-visual",JSON.stringify({backgroundSource:"canary",app:"nether-depths",ambient:"embers",showCommunity:false}));
+  Object.defineProperty(document,"hidden",{configurable:true,get:()=>true});
+  (globalThis as any).__nativeVisibilityQA={visible:false,minimized:false};
+ });
+ await nativeFixture(page);await page.goto("/");await expect(page.locator(".startup-splash")).toHaveCount(0);
+ const particle=page.locator(".ambient-particles.embers i").first();
+ await expect(particle).toHaveCSS("animation-play-state","paused");
+ // No visibilitychange/focus event: native polling must recover a lost event.
+ await page.evaluate(()=>(globalThis as any).__nativeVisibilityQA.visible=true);
+ await expect(particle).toHaveCSS("animation-play-state","running");
+ expect(await page.evaluate(()=>document.hidden)).toBe(true);
+ const time=await particle.evaluate(element=>Number(element.getAnimations()[0].currentTime));
+ await expect.poll(()=>particle.evaluate(element=>Number(element.getAnimations()[0].currentTime))).toBeGreaterThan(time+20);
+ await page.evaluate(()=>(globalThis as any).__nativeVisibilityQA.minimized=true);
+ await expect(particle).toHaveCSS("animation-play-state","paused");
+ await page.evaluate(()=>{(globalThis as any).__nativeVisibilityQA.minimized=false;window.dispatchEvent(new Event("focus"));});
+ await expect(particle).toHaveCSS("animation-play-state","running");
+});
+
 test("wallpaper changes remain paired and settle to a single decoded layer",async({page})=>{
  await page.addInitScript(()=>{if(!localStorage.getItem("canary-visual"))localStorage.setItem("canary-visual",JSON.stringify({backgroundSource:"canary",app:"meadow",materialLinked:true,materialStyle:"glass",showCommunity:false}));});
  await nativeFixture(page);await page.goto("/");await expect(page.locator(".startup-splash")).toHaveCount(0);

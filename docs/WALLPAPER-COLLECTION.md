@@ -49,3 +49,30 @@ the image files unchanged. Added browser regressions check actual resumed animat
 time, upward spark movement and speed persistence. All 225 browser-suite tests
 were discovered. Real Chromium and native WebView visual execution remain
 unavailable in this environment; browser scenarios were not executed.
+
+## Native visibility follow-up
+
+The previous fix still trusted `document.hidden`. A targeted reproduction now keeps
+that property true after the native window opens: the old provider leaves particles
+paused even after startup-ready/focus events. The provider now uses the actual Tauri
+window's `isVisible()` and `isMinimized()` state instead. Native focus/resize events,
+startup-ready, pageshow and document visibility events refresh it; a two-second
+watchdog recovers missed show/restore events. Browser previews retain ordinary
+document visibility. Two explicit read-only window capabilities allow those queries.
+
+Late asynchronous results cannot overwrite newer state, pending callbacks and
+polling are cleaned up on unmount, and temporary native query failures retain the
+last known native state. Minimized/hidden windows still pause particles. Wallpaper
+assets and the selected effect, quality, density, speed, Focus and reduced-motion
+behavior are unchanged.
+
+Validation: production build, TypeScript 6.0.3 compatibility check, 30 page-free
+tests, 12 actual settings component DOM scenarios and seven targeted provider DOM
+groups passed. The old provider fails the stale-document/native-visible scenario;
+the updated provider passes it, including minimize/restore, all 18 wallpapers,
+manual effects, Automatic, import fallback and preference persistence. A browser
+regression additionally checks that animation time advances with stale
+`document.hidden`, but it was not executed: Chromium exits with SIGTRAP and Firefox
+cannot locate its application directory in this managed environment. The full suite
+discovers 230 tests in 34 files. Actual native WebView rendering still needs a device
+run; the DOM and native-state mocks do not establish visual behavior on a real OS.

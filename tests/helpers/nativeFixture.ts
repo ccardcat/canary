@@ -64,6 +64,8 @@ mockIPC((command,args)=>{
  });
  if(command==='cancel_operation'){const install=globalThis.__materialQA.installs?.find(i=>i.args.taskId===args.id);if(install)install.reject({code:'cancelled',message:'Operation cancelled'});else globalThis.__materialQA.cancelCreate?.();return;}
  if(command==='plugin:window|is_maximized'||command==='plugin:window|is_fullscreen')return false;
+ if(command==='plugin:window|is_visible')return globalThis.__nativeVisibilityQA?.visible??!document.hidden;
+ if(command==='plugin:window|is_minimized')return globalThis.__nativeVisibilityQA?.minimized??false;
  return null;
 },{shouldMockEvents:true});
 ` + body,

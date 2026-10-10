@@ -5,7 +5,7 @@ import {catalogDefaults, normalizeCatalog, type CatalogPreferences} from "../ser
 import {CatalogSettings} from "./CatalogControls";
 import {SmoothRange} from "./SmoothRange";
 import {AmbientParticles} from "./AmbientParticles";
-import {startupReadyEvent} from "../services/startup";
+import {observeWindowVisibility} from "../services/windowVisibility";
 import {defaultSidebarImage,migrateBackgroundId} from "../services/backgrounds";
 import {resolveAmbient} from "../services/ambient";
 import {discordDefaults,type DiscordPreferences} from "../services/discord";
@@ -125,13 +125,10 @@ export function VisualAppearanceProvider({ children }: { children: ReactNode }) 
   useLayoutEffect(()=>{localStorage.setItem("canary-visual",JSON.stringify(value));},[value]);
   useEffect(()=>{const flush=()=>localStorage.setItem("canary-visual",JSON.stringify(savedRef.current));window.addEventListener("pagehide",flush);return()=>{window.removeEventListener("pagehide",flush);flush();};},[]);
   const update=useCallback((patch:Partial<Preferences>)=>{cancelAnimationFrame(previewFrame.current);previewFrame.current=0;pendingPreview.current={};setValue(old=>({...old,...patch,...(!("materialPreset" in patch)&&Object.keys(patch).some(key=>key in materialDefaults||["surfaceOpacity","surfaceBlur","glassIntensity"].includes(key))?{materialPreset:"custom"}:{})}));},[]);
-  useEffect(()=>{
-   // The native window starts hidden and may become visible without visibilitychange.
-   // CSS owns animation-play-state; imperative pause/play would override it permanently.
-   const sync=()=>{document.documentElement.dataset.documentVisible=String(!document.hidden);};sync();
-   document.addEventListener("visibilitychange",sync);window.addEventListener("focus",sync);window.addEventListener("pageshow",sync);window.addEventListener(startupReadyEvent,sync);
-   return()=>{document.removeEventListener("visibilitychange",sync);window.removeEventListener("focus",sync);window.removeEventListener("pageshow",sync);window.removeEventListener(startupReadyEvent,sync);};
-  },[]);
+  useEffect(()=>observeWindowVisibility(visible=>{
+   const root=document.documentElement;
+   if(root.dataset.documentVisible!==String(visible))root.dataset.documentVisible=String(visible);
+  }),[]);
   const effect=resolveAmbient(value.ambient,value.backgroundSource==="canary"?registry.find(p=>p.id===value.app)?.ambient:"off",value.sidebarBackgroundSource==="picture"?registry.find(p=>p.id===value.sidebar)?.ambient:"off");
   const image = value.backgroundSource==="canary"?registry.find(p => p.id === value.app)?.app:undefined;
   return <Context.Provider value={{registry,effectsPaused:value.focus?"focus":reduced?"motion":null,wallpapersReady,reload,value,native,update,preview }}>
