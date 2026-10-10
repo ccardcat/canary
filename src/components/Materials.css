@@ -447,6 +447,35 @@
   background:var(--surface-sidebar);
 }
 
+/* Explicit solid backgrounds have no wallpaper or vignette. Opacity belongs
+   to the sheet, never to its navigation labels. Old picture preferences retain
+   their existing treatment and material behavior. */
+:root:is([data-sidebar-background="theme"],[data-sidebar-background="color"]) .canary-app>.sidebar::after {
+  background:color-mix(in srgb,var(--sidebar-paint,var(--surface-sidebar)) var(--sidebar-color-opacity,100%),transparent);
+}
+:root[data-sidebar-background="color"] .canary-app>.sidebar {
+  --sidebar-paint:var(--sidebar-color);
+  --text:var(--sidebar-color-ink);
+  --text-primary:var(--sidebar-color-ink);
+  --text-secondary:color-mix(in srgb,var(--sidebar-color-ink) 76%,var(--sidebar-color));
+  --muted:var(--text-secondary);
+  --icon-primary:var(--sidebar-color-ink);
+  --surface-hover:color-mix(in srgb,var(--sidebar-color-ink) 10%,transparent);
+  --surface-selected:color-mix(in srgb,var(--sidebar-color-ink) 15%,transparent);
+  --surface-pressed:color-mix(in srgb,var(--sidebar-color-ink) 20%,transparent);
+  --focus-ring:var(--sidebar-color-ink);
+  color:var(--sidebar-color-ink);
+}
+:root:is([data-reduce-transparency="true"],[data-focus="true"],[data-quality="low"]):is([data-sidebar-background="theme"],[data-sidebar-background="color"]) .canary-app>.sidebar::after {
+  background:var(--sidebar-paint,var(--surface-sidebar));
+}
+.sidebar-settings>.material-layout-controls {grid-template-columns:minmax(0,1fr);}
+.sidebar-settings .background-settings {margin-top:30px;}
+.sidebar-color-control {display:flex;align-items:center;gap:12px;flex-wrap:wrap;}
+:root .sidebar-color-control input[type="color"] {width:54px;height:36px;padding:4px;cursor:pointer;}
+.sidebar-color-preview {display:grid;gap:8px;padding:20px;border-radius:var(--mat-sidebar-radius,16px);margin-block:18px;}
+.sidebar-color-preview span {font-size:calc(12px * var(--ui-font-scale,1));}
+
 /* Keep the four layout choices balanced, with controls aligned within each row. */
 :root .material-layout-controls {
   grid-template-columns:repeat(2,minmax(0,1fr));

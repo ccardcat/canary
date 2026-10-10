@@ -1,3 +1,4 @@
+import {settingsSection} from "./helpers/settings";
 import { test, expect, type Page, type Locator } from "@playwright/test";
 import { mkdirSync, writeFileSync } from "node:fs";
 import { nativeFixture } from "./helpers/nativeFixture";
@@ -5,6 +6,8 @@ import { nativeFixture } from "./helpers/nativeFixture";
 const directory = ".qa/stabilization";
 const nav = (page:Page, name:string) => page.locator(".sidebar nav").getByRole("button", {name,exact:true});
 async function choose(page:Page, label:string, name:string) {
+ if(await page.locator(".settings-modal").isVisible()){if(["Material preset","Shared material","Button style","Card material"].includes(label))await settingsSection(page,"materials");if(label==="Sidebar layout")await settingsSection(page,"sidebar");}
+
   await page.getByRole("combobox",{name:label,exact:true}).click();
   await page.getByRole("option",{name,exact:true}).click();
 }
@@ -76,7 +79,7 @@ test("Storage, Accounts and About keep their geometry at narrow widths and low h
     await page.setViewportSize({width,height});
     for(const tab of ["Storage","Account","About"]) {
       const match=tab;
-      await page.locator(".settings-nav").getByRole("button",{name:match,exact:true}).click();await page.waitForTimeout(600);
+      await settingsSection(page,match);await page.waitForTimeout(600);
       await layout(page,page.locator(".settings-content"));
       if(tab==="Storage") {
         const gap=await page.locator(".storage-settings").evaluate(e=>{const a=e.querySelector(".storage-maintenance")!.getBoundingClientRect(),b=e.querySelector(".storage-actions")!.getBoundingClientRect();return b.top-a.bottom;});
@@ -118,9 +121,9 @@ test("every Settings section and main page is contained across materials and mod
   test.setTimeout(180000);await page.goto("/");
   const results=[];
   for(const material of ["Solid","Soft","Vibrancy","Glass","Clear Glass","Liquid Glass","Transparent"]) {
-    await nav(page,"Settings").click();await choose(page,"Material preset","Vibrancy");await page.getByText("Advanced materials",{exact:true}).click();await choose(page,"Shared material",material);
+    await nav(page,"Settings").click();await settingsSection(page,"materials");await choose(page,"Material preset","Vibrancy");await page.getByText("Advanced materials",{exact:true}).click();await choose(page,"Shared material",material);
     for(const mode of ["Light","Dark","AMOLED"]) {
-      await page.locator(".mode-grid").getByRole("button",{name:mode,exact:true}).click();await page.waitForTimeout(300);
+      await settingsSection(page,"appearance");await settingsSection(page,"appearance");await page.locator(".mode-grid").getByRole("button",{name:mode,exact:true}).click();await page.waitForTimeout(300);
       await layout(page,page.locator(".settings-content"));
       await page.screenshot({path:`${directory}/material-${material.replaceAll(" ","-")}-${mode}.png`});
       results.push({material,mode});
@@ -129,8 +132,8 @@ test("every Settings section and main page is contained across materials and mod
     for(const screen of ["Home","Discover","Library","Downloads"]) {await nav(page,screen).click();await page.waitForTimeout(400);await layout(page,page.locator(".page-transition"));await page.screenshot({path:`${directory}/page-${material.replaceAll(" ","-")}-${screen}.png`});}
   }
   await nav(page,"Settings").click();
-  const tabs=await page.locator(".settings-nav button").all();
-  for(const tab of tabs) {await tab.click();await page.waitForTimeout(400);await layout(page,page.locator(".settings-content"));await page.screenshot({path:`${directory}/section-${(await tab.textContent())!.trim()}.png`});}
+  const tabs=await page.locator(".settings-nav [data-settings-section]").evaluateAll(nodes=>nodes.map(node=>node.getAttribute("data-settings-section")!));
+  for(const id of tabs) {await settingsSection(page,id);await page.waitForTimeout(400);await layout(page,page.locator(".settings-content"));await page.screenshot({path:`${directory}/section-${id}.png`});}
   writeFileSync(`${directory}/materials.json`,JSON.stringify(results,null,2));
 });
 
@@ -147,7 +150,7 @@ test("tooltips stay above native modals, popup bounds and titlebar hit targets r
   const bounds=(await popup.boundingBox())!;expect(bounds.x).toBeGreaterThanOrEqual(12);expect(bounds.x+bounds.width).toBeLessThanOrEqual(1268);expect(bounds.y+bounds.height).toBeLessThanOrEqual(788);
   await page.keyboard.press("Escape");await expect(popup).toBeHidden();await page.waitForTimeout(250);await expect(dialog).not.toHaveClass(/closing/);await expect(dialog).toBeVisible();await dialog.getByRole("button",{name:"Close",exact:true}).click();
   await expect(dialog).toBeHidden();
-  await nav(page,"Settings").click();await page.locator(".settings-nav").getByRole("button",{name:"Window",exact:true}).click();
+  await nav(page,"Settings").click();await settingsSection(page,"Window");
   await page.waitForTimeout(400);await page.screenshot({path:`${directory}/window-controls-settings.png`});
   await page.evaluate(()=>document.querySelector(".window-titlebar")!.setAttribute("data-controls","traffic-lights"));
   for(const target of await page.locator(".window-controls button").all()){const r=(await target.boundingBox())!;expect(r.width).toBeGreaterThanOrEqual(28);expect(r.height).toBeGreaterThanOrEqual(28);}

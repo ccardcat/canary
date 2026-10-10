@@ -1,3 +1,4 @@
+import {settingsSection} from "./helpers/settings";
 import {test,expect,type Page} from '@playwright/test';
 import {readFileSync,existsSync} from 'node:fs';
 import {resolve,extname,sep} from 'node:path';
@@ -42,8 +43,8 @@ test('production CSP preserves startup, wallpaper, fonts, themes and live surfac
  await expect.poll(()=>page.evaluate(()=>[...document.images].filter(i=>i.src.includes('/branding/')).every(i=>i.complete&&i.naturalWidth>0))).toBe(true);
  expect(await page.evaluate(async()=>{await document.fonts.ready;return document.fonts.check('16px Nunito');})).toBe(true);
  await page.locator('.sidebar').getByRole('button',{name:'Settings',exact:true}).click();
- for(const theme of ['Dark','AMOLED','Light']){await page.locator('.mode-grid').getByRole('button',{name:theme,exact:true}).click();await expect(page.locator('html')).toHaveAttribute('data-mode',theme.toLowerCase());}
- const slider=page.getByRole('slider',{name:'Surface opacity',exact:true});await slider.fill('54');await slider.press('Tab');
+ for(const theme of ['Dark','AMOLED','Light']){await settingsSection(page,"appearance");await page.locator('.mode-grid').getByRole('button',{name:theme,exact:true}).click();await expect(page.locator('html')).toHaveAttribute('data-mode',theme.toLowerCase());}
+ await settingsSection(page,'materials');const slider=page.getByRole('slider',{name:'Surface opacity',exact:true});await slider.fill('54');await slider.press('Tab');
  await expect.poll(()=>page.evaluate(()=>JSON.parse(localStorage.getItem('canary-visual')!).surfaceOpacity)).toBe(54);
  expect(await page.evaluate(()=>(globalThis as any).__csp)).toEqual([]);
 });

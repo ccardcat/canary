@@ -1,9 +1,12 @@
+import {settingsSection} from "./helpers/settings";
 import {test,expect,type Page} from "@playwright/test";
 import {mkdirSync} from "node:fs";
 import {nativeFixture} from "./helpers/nativeFixture";
 const presets=["Solid","Soft","Vibrancy","Glass","Clear Glass","Liquid Glass","Transparent"];
 const nav=(page:Page,name:string)=>page.locator(".sidebar nav").getByRole("button",{name,exact:true});
-async function choose(page:Page,name:string,option:string){await page.getByRole("combobox",{name,exact:true}).click();await page.getByRole("option",{name:option,exact:true}).click();}
+async function choose(page:Page,name:string,option:string){
+ if(await page.locator(".settings-modal").isVisible()){if(["Material preset","Shared material","Button style","Card material"].includes(name))await settingsSection(page,"materials");if(name==="Sidebar layout")await settingsSection(page,"sidebar");}
+await page.getByRole("combobox",{name,exact:true}).click();await page.getByRole("option",{name:option,exact:true}).click();}
 async function start(page:Page,mode="dark",side="left",layout="attached",compact=false){
  await nativeFixture(page);await page.emulateMedia({reducedMotion:"reduce"});
  await page.addInitScript(({mode,side,layout,compact})=>{

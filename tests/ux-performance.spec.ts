@@ -1,3 +1,4 @@
+import {settingsSection} from "./helpers/settings";
 import {test,expect,type Page} from "@playwright/test";
 import {nativeFixture} from "./helpers/nativeFixture";
 import {mkdirSync} from "node:fs";
@@ -41,7 +42,7 @@ test("10,000 log lines stay windowed, searchable, ANSI-free and respect scrollin
  await page.screenshot({path:".qa/ux-pass/game-logs.png"});
 });
 test("Physical RAM defines manual range, high allocation persists and instance can inherit",async({page})=>{
- await setup(page);await nav(page,"Settings").click();await page.locator(".settings-nav").getByRole("button",{name:"Canary",exact:true}).click();
+ await setup(page);await nav(page,"Settings").click();await settingsSection(page,"Canary");
  for(const gb of [8,16,32,64]){await page.evaluate(gb=>(globalThis as any).__materialQA.state.physical_memory_mb=gb*1024,gb);await emit(page,"instances-changed",{});await expect(page.getByRole("slider",{name:"Maximum memory",exact:true})).toHaveAttribute("max",String(gb-1));}
  const slider=page.getByRole("slider",{name:"Maximum memory",exact:true});await slider.fill("48");await slider.press("Tab");await page.getByRole("button",{name:"Save",exact:true}).click();
  await expect.poll(()=>page.evaluate(()=>(globalThis as any).__materialQA.state.settings.max_memory)).toBe(49152);
@@ -51,7 +52,7 @@ test("Physical RAM defines manual range, high allocation persists and instance c
 });
 test("Particle drag previews without persistence or IPC per pixel",async({page})=>{
  await page.addInitScript(()=>localStorage.setItem("canary-visual",JSON.stringify({ambient:"snow",density:12,particleOpacity:35})));
- await setup(page);await nav(page,"Settings").click();await page.locator(".settings-nav").getByRole("button",{name:"Effects",exact:true}).click();
+ await setup(page);await nav(page,"Settings").click();await settingsSection(page,"Effects");
  await expect(page.locator(".effects-preferences")).toBeVisible();await page.waitForTimeout(350); // wait for the settings page exit/entry animation
  await page.evaluate(()=>{const original=Storage.prototype.setItem;let writes=0;(globalThis as any).__writes=()=>writes;Storage.prototype.setItem=function(key:string,value:string){if(key==="canary-visual")writes++;return original.call(this,key,value);};(globalThis as any).__callsBefore=(globalThis as any).__materialQA.calls.length;});
  const slider=page.getByRole("slider",{name:"Particle speed",exact:true});await slider.scrollIntoViewIfNeeded();const box=await slider.boundingBox();expect(box).not.toBeNull();
@@ -90,7 +91,7 @@ test("Long lines wrap within a bounded buffer; crash summary, filters and copy u
 });
 test("Vibrancy is distinct, has no bright frame or nested blur, and fits three themes",async({page})=>{
  await page.addInitScript(()=>localStorage.setItem("canary-visual",JSON.stringify({materialStyle:"vibrancy",materialLinked:true,materialPreset:"vibrancy",surfaceOpacity:76,surfaceBlur:28,app:"sakura1",font:"Monocraft",minecraft:"headings"})));
- await setup(page);await nav(page,"Settings").click();await page.getByText("Advanced materials",{exact:true}).click();
+ await setup(page);await nav(page,"Settings").click();await settingsSection(page,"materials");await page.getByText("Advanced materials",{exact:true}).click();
  await expect(page.locator("html")).toHaveAttribute("data-material-sidebar","vibrancy");
  await expect(page.locator(".sidebar")).toHaveCSS("border-top-color","rgba(0, 0, 0, 0)");
  expect(await page.locator(".sidebar .nav-capsule").evaluateAll(nodes=>nodes.every(node=>getComputedStyle(node).backdropFilter==="none"))).toBe(true);
@@ -102,9 +103,9 @@ test("Vibrancy is distinct, has no bright frame or nested blur, and fits three t
  expect(new Set(signatures).size).toBe(4);
  await page.getByRole("combobox",{name:"Material preset",exact:true}).click();await page.getByRole("option",{name:"Vibrancy",exact:true}).click();
  for(const mode of ["Dark","Light","AMOLED"]){
-  await page.locator(".mode-grid").getByRole("button",{name:mode,exact:true}).click();
+  await settingsSection(page,"appearance");await page.locator(".mode-grid").getByRole("button",{name:mode,exact:true}).click();
   await expect(page.locator(".settings-modal")).toBeVisible();expect(await page.locator(".settings-modal").evaluate(el=>el.scrollWidth<=el.clientWidth)).toBe(true);
-  await page.locator(".material-preview").scrollIntoViewIfNeeded();await page.waitForTimeout(300); // allow the theme transition to finish
+  await settingsSection(page,"materials");await page.locator(".material-preview").scrollIntoViewIfNeeded();await page.waitForTimeout(300); // allow the theme transition to finish
   await page.screenshot({path:".qa/ux-pass/vibrancy-"+mode.toLowerCase()+".png"});
  }
 });

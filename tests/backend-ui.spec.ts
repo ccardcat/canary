@@ -1,3 +1,4 @@
+import {settingsSection} from "./helpers/settings";
 import {test,expect} from "@playwright/test";
 // Contract tests only. Actual Minecraft/download/storage integration is run
 // separately through the native backend-check executable, without these fixtures.
@@ -150,7 +151,7 @@ test("native account, Play/Stop and human error details connect to the backend",
 });
 test("existing Settings saves real runtime settings and Java selection",async({page})=>{
   await page.getByRole("button",{name:"Settings",exact:true}).first().click();
-  await page.locator(".settings-nav").getByRole("button",{name:"Canary",exact:true}).click();
+  await settingsSection(page,"Canary");
   await page.getByRole("button",{name:"Find Java",exact:true}).click();
   await page.getByRole("combobox",{name:"Java executable",exact:true}).click();await page.getByRole("option",{name:"Test vendor · 21.0.1 · amd64 · C:/Java/bin/java.exe",exact:true}).click();
   await page.getByRole("slider",{name:"Maximum memory",exact:true}).fill("6"); await page.getByRole("slider",{name:"Maximum memory",exact:true}).press("Tab");
@@ -298,13 +299,14 @@ test("switching providers cancels pending Content requests and discards stale Mo
 
 test("storage cleanup requires confirmation and RAM warning leaves account defaults selectable",async({page})=>{
  await page.getByRole("button",{name:"Settings",exact:true}).first().click();
- await page.locator(".settings-nav").getByRole("button",{name:"Canary",exact:true}).click();
+ await settingsSection(page,"storage");
  const storage=page.locator(".storage-settings");await expect(storage.locator(".storage-breakdown")).toContainText("Cache");await expect(storage.locator(".storage-breakdown")).toContainText("4.00 GB");
  await storage.getByRole("button",{name:"Clear cache",exact:true}).click();const dialog=page.getByRole("dialog",{name:"Clear cache",exact:true});await expect(dialog).toContainText("Worlds, instances, Java and accounts are preserved");
  expect(await page.evaluate(()=> (globalThis as any).__backendTest.calls.some((c:any)=>c.command==="clear_download_cache"))).toBe(false);
  await dialog.getByRole("button",{name:"Cancel",exact:true}).click();await expect(dialog).toHaveCount(0);
  await storage.getByRole("button",{name:"Clear cache",exact:true}).click();await dialog.getByRole("button",{name:"Clear",exact:true}).click();await expect(dialog).toHaveCount(0);
  expect(await page.evaluate(()=> (globalThis as any).__backendTest.calls.filter((c:any)=>c.command==="clear_download_cache").length)).toBe(1);
+ await settingsSection(page,"minecraft");
  const max=page.getByRole("slider",{name:"Maximum memory",exact:true});await max.fill("7");await max.press("Tab");await expect(page.getByText("You are allocating almost all system memory.",{exact:false})).toBeVisible();
  await page.getByRole("combobox",{name:"Default account",exact:true}).click();await page.getByRole("option",{name:"Last used account",exact:true}).click();await expect(page.getByRole("combobox",{name:"Default account",exact:true})).toContainText("Last used account");
  await page.evaluate(()=>{const state=(globalThis as any).__backendTest.state;state.accounts=[{id:"older",provider:"local",username:"OlderQA",last_used:100,status:"local"},{id:"recent",provider:"local",username:"RecentQA",last_used:200,status:"local"}];});
@@ -320,14 +322,14 @@ test("rapid F11 is locked and a maximized window restores without replacing geom
 });
 
 test("native material uses a transparent root and restores Mica after fullscreen fallback",async({page})=>{
- await page.getByRole("button",{name:"Settings",exact:true}).first().click();await page.locator(".settings-nav").getByRole("button",{name:"Background",exact:true}).click();await page.getByText("Windows window material",{exact:true}).click();await page.getByRole("combobox",{name:"Window Material",exact:true}).click();await page.getByRole("option",{name:"Mica",exact:true}).click();
+ await page.getByRole("button",{name:"Settings",exact:true}).first().click();await settingsSection(page,"Background");await page.getByText("Windows window material",{exact:true}).click();await page.getByRole("combobox",{name:"Window Material",exact:true}).click();await page.getByRole("option",{name:"Mica",exact:true}).click();
  await expect(page.locator("html")).toHaveAttribute("data-window-material","mica");await expect(page.locator("html")).toHaveCSS("background-color","rgba(0, 0, 0, 0)");await expect(page.locator(".visual-backdrop")).toBeHidden();
  await page.keyboard.press("F11");await expect(page.locator("html")).toHaveAttribute("data-window-material","acrylic");await page.keyboard.press("F11");await expect(page.locator("html")).toHaveAttribute("data-window-material","mica");
  await page.reload();await expect(page.locator("html")).toHaveAttribute("data-window-material","mica");await expect(page.locator("html")).toHaveAttribute("data-window-fullscreen","false");
 });
 
 test("glass select keyboard chooses options and Escape preserves the surrounding settings",async({page})=>{
- await page.getByRole("button",{name:"Settings",exact:true}).first().click();await page.locator(".settings-nav").getByRole("button",{name:"Window",exact:true}).click();
+ await page.getByRole("button",{name:"Settings",exact:true}).first().click();await settingsSection(page,"Window");
  const control=page.getByRole("combobox",{name:"Titlebar branding",exact:true});await control.focus();await page.keyboard.press("ArrowDown");await page.keyboard.press("Home");await page.keyboard.press("ArrowDown");await page.keyboard.press("Enter");await expect(control).toContainText("Text");await expect(page.locator(".window-brand img")).toHaveCount(0);
  await control.click();const popup=page.getByRole("listbox",{name:"Titlebar branding",exact:true});await expect(popup).toBeVisible();const box=await popup.boundingBox();expect(box!.x).toBeGreaterThanOrEqual(0);expect(box!.x+box!.width).toBeLessThanOrEqual(1280);expect(box!.y+box!.height).toBeLessThanOrEqual(800);
  await page.keyboard.press("Escape");await expect(popup).toBeHidden();await expect(page.locator(".settings-modal")).toBeVisible();await expect(control).toBeFocused();
@@ -354,7 +356,7 @@ test("CurseForge unavailable has no pagination and Modrinth still restores",asyn
 test("Desktop background enables Acrylic and window transparency previews live before native commit",async({page})=>{
  await expect(page.locator(".startup-splash")).toHaveCount(0);
  await page.getByRole("button",{name:"Settings",exact:true}).first().click();
- await page.locator(".settings-nav").getByRole("button",{name:"Background",exact:true}).click();
+ await settingsSection(page,"Background");
  await page.getByRole("button",{name:/^Desktop/}).click();
  await expect(page.locator("html")).toHaveAttribute("data-window-material","acrylic");
  const slider=page.getByRole("slider",{name:"Window transparency",exact:true});await slider.scrollIntoViewIfNeeded();
@@ -366,7 +368,7 @@ test("Desktop background enables Acrylic and window transparency previews live b
  expect(await page.evaluate(()=>(globalThis as any).__backendTest.calls.filter((c:any)=>c.command==="apply_window_material").length)).toBe(count);
  const draft=Number(await slider.inputValue());await page.mouse.up();
  await expect.poll(()=>page.evaluate(()=>(globalThis as any).__backendTest.calls.filter((c:any)=>c.command==="apply_window_material").at(-1)?.args.transparency)).toBe(draft);
- await page.reload();await page.getByRole("button",{name:"Settings",exact:true}).first().click();await page.locator(".settings-nav").getByRole("button",{name:"Background",exact:true}).click();
+ await page.reload();await page.getByRole("button",{name:"Settings",exact:true}).first().click();await settingsSection(page,"Background");
  await expect(page.getByRole("slider",{name:"Window transparency",exact:true})).toHaveValue(String(draft));
  await page.getByRole("button",{name:/^Picture/}).click();await expect(page.locator(".visual-backdrop")).toBeVisible();await expect(page.locator("html")).toHaveAttribute("data-window-material","solid");
 });

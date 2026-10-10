@@ -14,15 +14,15 @@ export function QualityControls({ russian, value, update }: Props) {
   const text = polishMessages[russian ? "ru" : "en"];
   return <section className="visual-preferences"><h3>{text.quality}</h3><div className="font-options">{["low", "balanced", "high"].map(quality => <button key={quality} className={value.quality === quality ? "selected" : ""} aria-pressed={value.quality === quality} onClick={() => update({ quality })}>{text[quality as "low"]}</button>)}</div><p className="settings-note">{russian?"Низкое качество отключает размытие UI и frost, ограничивая эффекты шестью частицами.":"Low quality disables UI blur and frost, and limits effects to six particles."}</p></section>;
 }
-export function PolishControls({ russian, value, update, group="all" }: Props & {group?:"all"|"layout"|"background"|"effects"}) {
+export function PolishControls({ russian, value, update, group="all" }: Props & {group?:"all"|"layout"|"interface"|"background"|"effects"}) {
   const text = polishMessages[russian ? "ru" : "en"];
   const [target, setTarget] = useState<"globalTreatment" | "sidebarTreatment">("globalTreatment");
   const range = (label:string,number:number,min:number,max:number,change:(n:number)=>void,unit="%") => <SmoothRange label={label} value={number} min={min} max={max} onCommit={change} unit={unit}/>;
   const treatment = value[target];
   const patch = (key: string, n: number | string) => update({ [target]: { ...treatment, [key]: n } });
   return <>
-    {(group==="all"||group==="layout")&&<>
-    <h4>{text.sidebar}</h4><div className="font-options" role="group" aria-label={text.sidebar}>{["left", "right"].map(sidebarSide => <button key={sidebarSide} aria-pressed={value.sidebarSide === sidebarSide} className={value.sidebarSide === sidebarSide ? "selected" : ""} onClick={() => update({ sidebarSide })}>{text[sidebarSide as "left"]}</button>)}</div>
+    {(group==="all"||group==="layout"||group==="interface")&&<>
+    {group!=="interface"&&<><h4>{text.sidebar}</h4><div className="font-options" role="group" aria-label={text.sidebar}>{["left", "right"].map(sidebarSide => <button key={sidebarSide} aria-pressed={value.sidebarSide === sidebarSide} className={value.sidebarSide === sidebarSide ? "selected" : ""} onClick={() => update({ sidebarSide })}>{text[sidebarSide as "left"]}</button>)}</div></>}
     <h4>{text.cursor}</h4><div className="font-options" role="group" aria-label={text.cursor}>{(["custom", "system"] as const).map(cursor => <button key={cursor} aria-pressed={value.cursor === cursor} className={value.cursor === cursor ? "selected" : ""} onClick={() => update({ cursor })}>{text[({ custom: "customCursor", system: "system" } as const)[cursor]]}</button>)}</div>
     <div className="toggle-setting"><div><b>{text.focus}</b><span>{text.focusSub}</span></div><button className={value.focus ? "toggle on" : "toggle"} role="switch" aria-label={text.focus} aria-checked={value.focus} onClick={() => update({ focus: !value.focus })}><i /></button></div>
     {range(text.glass, value.glass, 5, 35, glass => update({ glass }))}</>}

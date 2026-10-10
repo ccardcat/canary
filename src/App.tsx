@@ -1,3 +1,6 @@
+import {SettingsNavigation,settingsGroups} from "./components/SettingsNavigation";
+import {SidebarSettings} from "./components/SidebarSettings";
+import {sidebarInk} from "./services/sidebarAppearance";
 import {EmptyState} from "./components/EmptyState";
 import {useAnchoredPopover} from "./hooks/useAnchoredPopover";
 import {ProviderSelect,ProviderUnavailable} from "./components/ProviderUI";
@@ -51,13 +54,11 @@ import {
   Search,
   Server,
   Settings as SettingsIcon,
-  SlidersHorizontal,
   UserRound,
   X,
   Sun,
   Moon,
   Monitor,
-  Palette,
   Info,
   Heart,
 } from "lucide-react";
@@ -409,7 +410,7 @@ function App() {
             <div className="brand">
               <img
                 src={
-                  resolvedMode === "light"
+                  (visual.sidebarBackgroundSource==="color"?sidebarInk(visual.sidebarColor)==="#111111":resolvedMode === "light")
                     ? "/branding/canary-bird-black.png"
                     : "/branding/canary-bird-white.png"
                 }
@@ -1516,7 +1517,7 @@ function SettingsModal({
         ...(panel.current?.querySelectorAll<HTMLElement>(
           "button:not(:disabled),select:not(:disabled):not([aria-hidden='true']),input:not(:disabled),textarea:not(:disabled),summary,a[href],[tabindex='0']",
         ) || []),
-      ].filter(element=>element.getClientRects().length>0&&element.tabIndex>=0);
+      ].filter(element=>element.getClientRects().length>0&&element.tabIndex>=0&&!element.closest("[inert]"));
       const first = elements[0],
         last = elements[elements.length - 1];
       if (event.shiftKey && document.activeElement === first) {
@@ -1534,23 +1535,12 @@ function SettingsModal({
     };
   }, []);
   const russian=lang==="ru";
-  const sections: [string,string,typeof Palette,string][] = [
-    ["appearance",t("appearance"),Palette,"appearance material vibrancy glass opacity blur tint acrylic mica transparency оформление материал стекло прозрачность размытие community popular visibility популярно популярное сообщество сообществе"],
-    ["window",russian?"Окно":"Window",Monitor,"window titlebar branding controls F11 fullscreen maximize окно заголовок кнопки fullscreen"],
-    ["background",russian?"Фон":"Background",Image,"background wallpaper hero rotation import фон обои главная карусель"],
-    ["effects",russian?"Эффекты":"Effects",Sun,"effects particles snow sakura autumn wind motion эффекты снег сакура листья ветер"],
-    ["typography",russian?"Типографика":"Typography",SlidersHorizontal,"font typography size Monocraft шрифт масштаб размер"],
-    ["storage",russian?"Хранилище":"Storage",LibraryIcon,"storage directory migration cache папка диск хранилище перенос кэш"],
-    ["minecraft","Minecraft",Boxes,"minecraft java memory ram arguments resolution игра память аргументы разрешение"],
-    ["discord","Discord",Activity,"discord rich presence privacy status activity приватность статус активность"],
-    ["downloads",t("downloads"),Download,"downloads concurrency загрузки параллельные"],
-    ["accountSettings",t("accountSettings"),UserRound,"accounts Microsoft Ely.by local профиль аккаунт вход"],
-    ["advanced",t("advanced"),SettingsIcon,"advanced quality performance logs backups restore retention дополнительные качество логи резервные"],
-    ["language",t("language"),SlidersHorizontal,"language locale язык локализация"],
-    ["canary",t("canary"),Download,"canary runtime settings настройки minecraft"],
-    ["about",t("about"),Info,"about version версия информация"],
-  ];
-  const results=sections.filter(([id,label,_icon,words])=>(id+" "+label+" "+words).toLowerCase().includes(search.toLowerCase().trim()));
+  const groups=settingsGroups(russian);
+  const sections=groups.flatMap(group=>group.sections.map(section=>({...section,group:group.label})));
+  const selected=sections.find(section=>section.id===tab);
+  const results=sections.filter(section=>(section.label+" "+section.description+" "+section.group+" "+section.keywords).toLowerCase().includes(search.toLowerCase().trim()));
+  const content=useRef<HTMLDivElement>(null);
+  useEffect(()=>{if(content.current)content.current.scrollTop=0;},[tab,search]);
   return (
     <motion.div
       className="modal-backdrop"
@@ -1580,28 +1570,12 @@ function SettingsModal({
             <X size={19} />
           </button>
         </div>
-        <div className="settings-search"><input type="search" aria-label={russian?"Поиск настроек":"Search settings"} placeholder={russian?"Поиск настроек: Vibrancy, F11, фон, шрифт…":"Search settings: Vibrancy, F11, background, font…"} value={search} onChange={e=>setSearch(e.target.value)}/></div>
+        <div className="settings-search"><input type="search" aria-label={russian?"Поиск настроек":"Search settings"} placeholder={russian?"Найти настройку: фон, боковая панель, память…":"Find a setting: background, sidebar, memory…"} value={search} onChange={e=>setSearch(e.target.value)}/></div>
         <div className="settings-layout">
           <nav className="settings-nav" aria-label={t("settings")}>
-            {sections.map(([id, label, Icon]) => (
-              <button
-                key={id}
-                className={tab === id ? "active" : ""}
-                aria-current={tab === id ? "page" : undefined}
-                onClick={() => {setSearch("");setTab(id);}}
-              >
-                {tab === id && (
-                  <motion.span
-                    className="nav-capsule"
-                    layoutId="settings-active"
-                  />
-                )}
-                <Icon size={17} />
-                <span>{label}</span>
-              </button>
-            ))}
+            <SettingsNavigation groups={groups} tab={tab} onSelect={id=>{setSearch("");setTab(id);}}/>
           </nav>
-          <div className="settings-content">
+          <div className="settings-content" ref={content}>
             <AnimatePresence mode="wait" initial={false}>
               <motion.div
                 key={tab}
@@ -1610,17 +1584,14 @@ function SettingsModal({
                 exit={{ opacity: 0 }}
                 transition={{duration:.12}}
               >
-                {search.trim()?<div className="settings-results">{results.length?results.map(([id,label,Icon])=><button key={id} onClick={()=>{setTab(id);setSearch("");}}><Icon size={17}/> {label}</button>):<p>{russian?"Настройки не найдены":"No settings found"}</p>}</div>:tab === "discord" ? <DiscordSettings russian={russian} status={discordStatus}/> :tab === "window" ? <WindowPreferencesPanel russian={russian}/> :tab === "background" ? <><VisualPreferences russian={russian} group="background"/><HeroSettings russian={russian}/></> :tab === "effects" ? <EffectsPreferences russian={russian}><MotionPreference t={t} reduceMotion={reduceMotion} setReduceMotion={setReduceMotion}/></EffectsPreferences> :tab === "typography" ? <VisualPreferences russian={russian} group="typography"/> :tab === "storage" ? <StorageSettings russian={russian}/> :tab === "minecraft"?<RuntimeSettingsPanel russian={russian} section="minecraft"/> :tab === "downloads"?<RuntimeSettingsPanel russian={russian} section="downloads"/> :tab === "appearance" ? (
+                {!search.trim()&&selected&&<div className="settings-breadcrumb"><span>{selected.group}<ChevronRight size={12}/>{selected.label}</span><p>{selected.description}</p></div>}
+                {search.trim()?<div className="settings-results">{results.length?results.map(section=>{const Icon=section.icon;return <button key={section.id} data-settings-result={section.id} onClick={()=>{setTab(section.id);setSearch("");}}><Icon size={17}/><span><b>{section.label}</b><small>{section.group} · {section.description}</small></span></button>;}):<p>{russian?"Настройки не найдены":"No settings found"}</p>}</div>:tab === "discord" ? <DiscordSettings russian={russian} status={discordStatus}/> :tab === "window" ? <WindowPreferencesPanel russian={russian}/> :tab === "background" ? <><VisualPreferences russian={russian} group="background"/><HeroSettings russian={russian}/></> :tab === "effects" ? <EffectsPreferences russian={russian}><MotionPreference t={t} reduceMotion={reduceMotion} setReduceMotion={setReduceMotion}/></EffectsPreferences> :tab === "typography" ? <VisualPreferences russian={russian} group="typography"/> :tab === "materials" ? <MaterialPreferencesPanel russian={russian}/> :tab === "sidebar" ? <SidebarSettings russian={russian} compact={compact} setCompact={setCompact}/> :tab === "layout" ? <><VisualPreferences russian={russian} group="layout"/><InterfaceVisibilityPanel russian={russian}/></> :tab === "quality" ? <VisualQuality russian={russian}/> :tab === "storage" ? <StorageSettings russian={russian}/> :tab === "minecraft"?<RuntimeSettingsPanel russian={russian} section="minecraft"/> :tab === "downloads"?<RuntimeSettingsPanel russian={russian} section="downloads"/> :tab === "appearance" ? (
                   <Appearance
                     t={t}
                     mode={mode}
                     setMode={setMode}
                     accent={accent}
                     setAccent={setAccent}
-                    compact={compact}
-                    setCompact={setCompact}
-                    reduceMotion={reduceMotion}
-                    setReduceMotion={setReduceMotion}
                     preset={preset}
                     setPreset={setPreset}
                   />
@@ -1629,7 +1600,7 @@ function SettingsModal({
                 ) : tab === "canary" && isTauri() ? (
                   <RuntimeSettingsPanel russian={lang === "ru"}/>
                 ) : tab === "advanced" ? (
-                  <><VisualQuality russian={lang === "ru"}/>{isTauri()&&<RuntimeSettingsPanel russian={russian} section="advanced"/>}</>
+                  <>{isTauri()?<RuntimeSettingsPanel russian={russian} section="advanced"/>:<p className="settings-note">{russian?"Резервные копии и логи доступны в установленном лаунчере.":"Backups and logs are available in the installed launcher."}</p>}</>
                 ) : tab === "language" ? (
                   <LanguageSettings t={t} lang={lang} setLang={setLang} />
                 ) : (
@@ -1675,10 +1646,6 @@ function Appearance({
   setMode,
   accent,
   setAccent,
-  compact,
-  setCompact,
-  reduceMotion,
-  setReduceMotion,
   preset,
   setPreset,
 }: {
@@ -1687,10 +1654,6 @@ function Appearance({
   setMode: (x: Mode) => void;
   accent: Accent;
   setAccent: (x: Accent) => void;
-  compact: boolean;
-  setCompact: (x: boolean) => void;
-  reduceMotion: boolean;
-  setReduceMotion: (x: boolean) => void;
   preset: string;
   setPreset: (x: string) => void;
 }) {
@@ -1702,7 +1665,7 @@ function Appearance({
   return (
     <div className="appearance-settings">
       <div className="setting-intro">
-        <h3>{t("appearance")}</h3>
+        <h3>{t("home")==="Главная"?"Тема и цвета":"Theme & colors"}</h3>
         <p>{t("appearanceSub")}</p>
       </div>
       <h4>{t("mode")}</h4>
@@ -1749,25 +1712,6 @@ function Appearance({
           </button>
         ))}
       </div>
-      <MaterialPreferencesPanel russian={t("home")==="Главная"}/>
-      <h4>{t("home")==="Главная"?"Расположение интерфейса":"Interface layout"}</h4>
-      <div className="toggle-setting">
-        <div>
-          <b>{t("compact")}</b>
-          <span>{t("compactSub")}</span>
-        </div>
-        <button
-          className={compact ? "toggle on" : "toggle"}
-          role="switch"
-          aria-label={t("compact")}
-          aria-checked={compact}
-          onClick={() => setCompact(!compact)}
-        >
-          <i />
-        </button>
-      </div>
-      <VisualPreferences group="layout" russian={t("home") == "Главная"} effectsControls={<MotionPreference t={t} reduceMotion={reduceMotion} setReduceMotion={setReduceMotion}/>}/>
-      <InterfaceVisibilityPanel russian={t("home")==="Главная"}/>
       <p className="settings-note">{t("storedLocally")}</p>
     </div>
   );

@@ -1,3 +1,4 @@
+import {settingsSection} from "./helpers/settings";
 import {test,expect,type Page} from "@playwright/test";
 import {nativeFixture} from "./helpers/nativeFixture";
 import {mkdirSync} from "node:fs";
@@ -35,7 +36,7 @@ test("Microsoft account shows a skin head, branded capitalized provider and no S
  await start(page);
  const texture='data:image/svg+xml,'+encodeURIComponent('<svg xmlns="http://www.w3.org/2000/svg" width="64" height="64"><rect x="8" y="8" width="8" height="8" fill="#c28a60"/><rect x="10" y="11" width="2" height="1" fill="#ddd"/><rect x="13" y="11" width="2" height="1" fill="#ddd"/></svg>');
  await page.evaluate(texture=>{const q=(globalThis as any).__materialQA;q.state.accounts[1].avatar=texture;},texture);
- await nav(page,"Settings").click();await page.locator(".settings-nav").getByRole("button",{name:"Account",exact:true}).click();
+ await nav(page,"Settings").click();await settingsSection(page,"Account");
  const account=page.locator(".runtime-account").filter({hasText:"LicensedPlayer"});
  await account.locator(".popover-action").click();await expect(account.locator(".account-provider")).toHaveText("Microsoft");
  await expect(account.locator(".microsoft-logo")).toBeVisible();await expect(account).not.toContainText("Signed in");
@@ -79,10 +80,10 @@ test("Failed selection review downloads nothing and preserves the basket",async(
 });
 
 test("Cards, search, buttons and instance panels follow live material opacity in three themes",async({page})=>{
- await start(page);await nav(page,"Settings").click();await choose(page,"Material preset","Clear Glass");
+ await start(page);await nav(page,"Settings").click();await settingsSection(page,"materials");await choose(page,"Material preset","Clear Glass");
  const opacity=page.getByRole("slider",{name:"Surface opacity",exact:true});await opacity.fill("55");await opacity.press("Tab");
  for(const theme of ["Dark","Light","AMOLED"]){
-  await page.locator(".mode-grid").getByRole("button",{name:theme,exact:true}).click();await page.keyboard.press("Escape");
+  await settingsSection(page,"appearance");await page.locator(".mode-grid").getByRole("button",{name:theme,exact:true}).click();await page.keyboard.press("Escape");
   await nav(page,"Discover").click();await expect(page.locator(".discover-page .compact-project-card").first()).toBeVisible();
   const alpha=await page.locator(".search-field").evaluate(e=>getComputedStyle(e).backgroundColor);expect(alpha).toMatch(/0\.4[0-9]|49%/);
   await page.waitForTimeout(250);await page.screenshot({path:".qa/unified-content/"+theme.toLowerCase()+".png"});

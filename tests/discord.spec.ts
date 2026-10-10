@@ -1,10 +1,11 @@
+import {settingsSection} from "./helpers/settings";
 import { test, expect, type Page } from "@playwright/test";
 import { nativeFixture } from "./helpers/nativeFixture";
 
 const nav=(page:Page,name:string)=>page.locator(".sidebar nav").getByRole("button",{name,exact:true});
 const last=async(page:Page)=>page.evaluate(()=>
   (window as any).__materialQA.calls.filter((c:any)=>c.command==="discord_presence_context").at(-1)?.args);
-async function settings(page:Page){await nav(page,"Settings").click();await page.locator(".settings-nav").getByRole("button",{name:"Discord",exact:true}).click();}
+async function settings(page:Page){await nav(page,"Settings").click();await settingsSection(page,"Discord");}
 test.beforeEach(async({page})=>{await nativeFixture(page);await page.goto("/");await expect(page.locator(".home-greeting")).toBeVisible();});
 
 test("old preferences default to On; Off and privacy settings persist across restart",async({page})=>{
@@ -38,9 +39,9 @@ test("opening and closing a provider project updates semantic project context",a
 });
 
 test("language switch localizes Discord settings and sends updated presence locale",async({page})=>{
-  await settings(page);await page.locator(".settings-nav").getByRole("button",{name:"Language",exact:true}).click();await page.getByRole("button",{name:"Русский Русский интерфейс"}).click();
+  await settings(page);await settingsSection(page,"Language");await page.getByRole("button",{name:"Русский Русский интерфейс"}).click();
   await expect.poll(async()=>((await last(page))?.view.locale)).toBe("ru");
-  await page.locator(".settings-nav").getByRole("button",{name:"Discord",exact:true}).click();
+  await settingsSection(page,"Discord");
   await expect(page.getByRole("switch",{name:"Показывать название экземпляра",exact:true})).toBeVisible();
   await expect(page.getByRole("switch",{name:"Показывать установки и загрузки",exact:true})).toBeVisible();
   await expect(page.locator(".discord-settings")).toContainText("Discord не запущен или недоступен");
@@ -50,8 +51,8 @@ test("Discord status is neutral and settings fit Light, Dark, AMOLED and Monocra
   await page.evaluate(()=>{const old=JSON.parse(localStorage.getItem("canary-visual")||"{}");localStorage.setItem("canary-visual",JSON.stringify({...old,font:"Monocraft",minecraft:"full"}));});await page.reload();
   await nav(page,"Settings").click();
   for(const theme of ["Light","Dark","AMOLED"]){
-    await page.locator(".settings-nav").getByRole("button",{name:"Appearance",exact:true}).click();await page.locator(".mode-grid").getByRole("button",{name:theme,exact:true}).click();
-    await page.locator(".settings-nav").getByRole("button",{name:"Discord",exact:true}).click();await expect(page.locator(".discord-settings [role=switch]")).toHaveCount(5);
+    await settingsSection(page,"Appearance");await settingsSection(page,"appearance");await page.locator(".mode-grid").getByRole("button",{name:theme,exact:true}).click();
+    await settingsSection(page,"Discord");await expect(page.locator(".discord-settings [role=switch]")).toHaveCount(5);
     expect(await page.locator(".settings-content").evaluate(e=>e.scrollWidth<=e.clientWidth+1)).toBe(true);
     await expect(page.getByRole("alert")).toHaveCount(0);
   }

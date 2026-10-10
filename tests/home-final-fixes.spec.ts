@@ -1,10 +1,11 @@
+import {settingsSection} from "./helpers/settings";
 import {test,expect,type Page} from "@playwright/test";
 import {mkdirSync} from "node:fs";
 import {nativeFixture} from "./helpers/nativeFixture";
 
 async function settings(page:Page,tab:string){
  await page.getByRole("button",{name:"Settings",exact:true}).first().click();
- await page.locator(".settings-nav").getByRole("button",{name:tab,exact:true}).click();
+ await settingsSection(page,tab);
 }
 test("Home banner is hidden by default and its visibility survives restart",async({page})=>{
  await nativeFixture(page);await page.goto("/");
@@ -44,7 +45,7 @@ test("Surface opacity remains adjustable when cards are Solid but buttons use gl
  await page.addInitScript(()=>localStorage.setItem("canary-visual",JSON.stringify({materialPreset:"custom",materialLinked:false,surfaceOpacity:40,materialCategories:{cards:"solid",buttons:"glass",sidebar:"solid",popovers:"solid",dialogs:"solid",inputs:"solid",titlebar:"solid",floating:"solid"}})));
  await nativeFixture(page);await page.goto("/");
  const opacity=()=>page.evaluate(()=>parseFloat(getComputedStyle(document.documentElement).getPropertyValue("--mat-buttons-opacity")));
- const before=await opacity();await settings(page,"Appearance");
+ const before=await opacity();await settings(page,"materials");
  const slider=page.getByRole("slider",{name:"Surface opacity",exact:true});
  await expect(slider).toBeEnabled();await expect(page.getByRole("slider",{name:"Surface backdrop blur",exact:true})).toBeDisabled();
  await slider.fill("80");await slider.press("ArrowRight");await slider.press("ArrowLeft");
@@ -66,7 +67,7 @@ for(const theme of ["light","dark","amoled","system"]){test(`Home surfaces keep 
  const before=await paint();expect(before.alpha).toBeGreaterThan(.1);expect(before.alpha).toBeLessThan(.8);expect(before.border).toBe("1px");expect(before.text).not.toBe(before.background);
  await card.hover();expect((await paint()).alpha).toBeLessThan(.8);
  await page.screenshot({path:`.qa/home-final/${theme}-desktop.png`});
- await settings(page,"Appearance");const slider=page.getByRole("slider",{name:"Surface opacity",exact:true});
+ await settings(page,"materials");const slider=page.getByRole("slider",{name:"Surface opacity",exact:true});
  await slider.fill("80");await slider.dispatchEvent("change");await slider.press("ArrowRight");await slider.press("ArrowLeft");
  await page.keyboard.press("Escape");await expect.poll(async()=>(await paint()).opacity).toBeGreaterThan(before.opacity);
  const after=await paint();expect(after.buttons).toBeGreaterThan(before.buttons);expect(after.alpha).toBeLessThan(1);

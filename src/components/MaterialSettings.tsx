@@ -13,7 +13,7 @@ function MaterialSwatch({preset,value}:{preset:MaterialPreset;value:Values}) {
  useLayoutEffect(()=>{if(ref.current)applyMaterialTokens(ref.current,{...value,...materialPresetPatch(preset),glassIntensity:35,quality:'balanced',focus:false});},[preset,value]);
  return <span ref={ref} className="material-swatch" aria-hidden="true"><span className="material-swatch-sheet"><i/><i/><i/></span></span>;
 }
-export default function MaterialSettings({russian,value,update,preview}:{russian:boolean;value:Values;update:(patch:Partial<Values>)=>void;preview?:(patch:Partial<Values>)=>void}){
+export default function MaterialSettings({russian,value,update,preview,excludeSidebar=false}:{russian:boolean;excludeSidebar?:boolean;value:Values;update:(patch:Partial<Values>)=>void;preview?:(patch:Partial<Values>)=>void}){
  const label=(en:string,ru:string)=>russian?ru:en;
  const names:Record<SurfaceMaterial,string>={solid:label('Solid','Сплошной'),soft:label('Soft','Мягкий'),vibrancy:'Vibrancy',glass:label('Glass','Стекло'),clear:label('Clear Glass','Чистое стекло'),liquid:label('Liquid Glass','Жидкое стекло'),transparent:label('Transparent','Прозрачный')};
  const categories:Record<MaterialCategory,string>={cards:label('Card material','Материал карточек'),buttons:label('Button style','Стиль кнопок'),sidebar:label('Sidebar material','Материал боковой панели'),popovers:label('Popovers / dropdowns','Меню и списки'),dialogs:label('Dialogs / modals','Диалоги'),inputs:label('Input controls','Поля ввода'),titlebar:label('Titlebar material','Материал заголовка'),floating:label('Floating controls','Плавающие элементы')};
@@ -38,8 +38,8 @@ export default function MaterialSettings({russian,value,update,preview}:{russian
   </div>
 </details>
   <details className="material-disclosure material-advanced"><summary>{label('Advanced materials','Дополнительные настройки материалов')}</summary><label className="material-check"><input type="checkbox" checked={value.materialLinked} onChange={e=>change({materialLinked:e.target.checked,materialStyle:value.materialCategories.cards,materialCategories:{...categoryValues}})}/>{label("Use one style everywhere","Использовать один стиль везде")}</label>
-  {value.materialLinked?<label>{label("Shared material","Общий материал")}<GlassSelect aria-label={label("Shared material","Общий материал")} value={value.materialStyle} onChange={e=>change({materialStyle:e.target.value as SurfaceMaterial})}>{materialStyles.map(s=><option key={s} value={s}>{names[s]}</option>)}</GlassSelect></label>:<div className="material-controls">{materialCategories.map(selectCategory)}</div>}
-  <div className="material-controls">{range(label('Material intensity','Интенсивность материала'),'materialIntensity',0,100)}{range(label('Saturation','Насыщенность'),'materialSaturation',50,160)}{range(label('Brightness','Яркость'),'materialBrightness',80,120)}{range(label('Contrast','Контраст'),'materialContrast',80,120)}{range(label('Edge highlight','Светлый кант'),'materialHighlight',0,160)}{range(label('Border strength','Выраженность края'),'materialBorder',0,160)}{range(label('Shadow depth','Глубина теней'),'materialShadow',0,160)}{range(label('Corner radius','Скругление'),'materialRadius',8,28)}{range(label('Sidebar intensity','Интенсивность боковой панели'),'sidebarMaterialIntensity',0,150)}{range(label('Titlebar intensity','Интенсивность заголовка'),'titlebarMaterialIntensity',0,150)}</div><label className="material-check"><input type="checkbox" checked={value.materialAccent} onChange={e=>change({materialAccent:e.target.checked})}/>{label('Subtle accent tint','Лёгкий оттенок акцента')}</label></details>
+  {value.materialLinked?<label>{label("Shared material","Общий материал")}<GlassSelect aria-label={label("Shared material","Общий материал")} value={value.materialStyle} onChange={e=>change({materialStyle:e.target.value as SurfaceMaterial})}>{materialStyles.map(s=><option key={s} value={s}>{names[s]}</option>)}</GlassSelect></label>:<div className="material-controls">{materialCategories.filter(key=>!excludeSidebar||key!=="sidebar").map(selectCategory)}</div>}
+  <div className="material-controls">{range(label('Material intensity','Интенсивность материала'),'materialIntensity',0,100)}{range(label('Saturation','Насыщенность'),'materialSaturation',50,160)}{range(label('Brightness','Яркость'),'materialBrightness',80,120)}{range(label('Contrast','Контраст'),'materialContrast',80,120)}{range(label('Edge highlight','Светлый кант'),'materialHighlight',0,160)}{range(label('Border strength','Выраженность края'),'materialBorder',0,160)}{range(label('Shadow depth','Глубина теней'),'materialShadow',0,160)}{range(label('Corner radius','Скругление'),'materialRadius',8,28)}{!excludeSidebar&&range(label('Sidebar intensity','Интенсивность боковой панели'),'sidebarMaterialIntensity',0,150)}{range(label('Titlebar intensity','Интенсивность заголовка'),'titlebarMaterialIntensity',0,150)}</div><label className="material-check"><input type="checkbox" checked={value.materialAccent} onChange={e=>change({materialAccent:e.target.checked})}/>{label('Subtle accent tint','Лёгкий оттенок акцента')}</label></details>
   <label className="material-check"><input type="checkbox" checked={value.reduceTransparency} onChange={e=>change({reduceTransparency:e.target.checked})}/>{label('Reduce transparency','Уменьшить прозрачность')}</label>
   <button className="quiet-button" onClick={()=>update(materialPresetPatch())}><RotateCcw size={14}/>{label('Reset materials','Сбросить материалы')}</button>
  </section>;
@@ -49,8 +49,10 @@ export function MaterialLayoutSettings({
   russian,
   value,
   update,
+  group="all",
 }: {
   russian: boolean;
+  group?:"all"|"sidebar"|"cards";
   value: Values;
   update: (patch: Partial<Values>) => void;
 }) {
@@ -58,7 +60,7 @@ export function MaterialLayoutSettings({
   const change = (patch: Partial<Values>) => update(patch);
   return (
     <div className="material-controls material-layout-controls">
-      <label>
+      {group!=="cards"&&<label>
         <span className="material-control-label">{label("Sidebar layout", "Расположение боковой панели")}</span>
         <GlassSelect
           aria-label={label("Sidebar layout", "Расположение боковой панели")}
@@ -70,7 +72,8 @@ export function MaterialLayoutSettings({
           <option value="attached">{label("Attached", "Прикреплённая")}</option>
           <option value="floating">{label("Floating", "Плавающая")}</option>
         </GlassSelect>
-      </label>
+      </label>}
+      {group!=="sidebar"&&<>
       <label>
         <span className="material-control-label">{label("Instance card layout", "Карточки экземпляров")}</span>
         <GlassSelect
@@ -115,6 +118,7 @@ export function MaterialLayoutSettings({
           <option value="compact">{label("Compact", "Компактная")}</option>
         </GlassSelect>
       </label>
+      </>}
     </div>
   );
 }

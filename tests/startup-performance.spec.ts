@@ -1,3 +1,4 @@
+import {settingsSection} from "./helpers/settings";
 import {test,expect} from "@playwright/test";
 import {mkdirSync,writeFileSync} from "node:fs";
 import {nativeFixture} from "./helpers/nativeFixture";
@@ -108,7 +109,7 @@ test("startup preserves a saved light glass theme and background",async({page})=
  expect(material).toHaveLength(1);expect(material[0].args.theme).toBe("light");
  await page.screenshot({path:".qa/startup/saved-light.png"});
  await page.getByRole("button",{name:"Settings",exact:true}).first().click();
- await page.locator(".settings-nav").getByRole("button",{name:"Background",exact:true}).click();
+ await settingsSection(page,"Background");
  await page.getByRole("button",{name:/Solid color/}).click();
  await expect(page.locator("html")).toHaveAttribute("data-background-source","solid");
  await page.waitForTimeout(250);
@@ -129,7 +130,7 @@ test("wallpaper changes remain paired and settle to a single decoded layer",asyn
  await page.addInitScript(()=>{if(!localStorage.getItem("canary-visual"))localStorage.setItem("canary-visual",JSON.stringify({backgroundSource:"canary",app:"green",materialLinked:true,materialStyle:"glass",showCommunity:false}));});
  await nativeFixture(page);await page.goto("/");await expect(page.locator(".startup-splash")).toHaveCount(0);
  await page.getByRole("button",{name:"Settings",exact:true}).first().click();
- await page.locator(".settings-nav").getByRole("button",{name:"Background",exact:true}).click();
+ await settingsSection(page,"Background");
  await page.getByRole("checkbox",{name:"Use one picture for launcher and sidebar"}).check();
  for(const number of [1,2]){
   await page.locator(".background-options").getByRole("button",{name:`Sakura ${number}`,exact:true}).click();
@@ -148,7 +149,7 @@ test("native material deduplication restores Solid after a delayed Desktop reque
  await nativeFixture(page);await page.goto("/");await expect(page.locator(".startup-splash")).toHaveCount(0);
  await page.evaluate(()=>{const qa=(globalThis as any).__startupQA;(globalThis as any).__materialQA.overrides={apply_window_material:(args:any)=>args.requested==="acrylic"?new Promise(resolve=>{qa.releaseMaterial=()=>resolve({requested:"acrylic",actual:"acrylic",fallback:false});}):{requested:args.requested,actual:args.requested,fallback:false}};});
  await page.getByRole("button",{name:"Settings",exact:true}).first().click();
- await page.locator(".settings-nav").getByRole("button",{name:"Background",exact:true}).click();
+ await settingsSection(page,"Background");
  await page.getByRole("button",{name:/Desktop.*Transparent Windows window/}).click();
  await expect.poll(()=>page.evaluate(()=>!!(globalThis as any).__startupQA.releaseMaterial)).toBe(true);
  await page.getByRole("button",{name:/Solid color/}).click();

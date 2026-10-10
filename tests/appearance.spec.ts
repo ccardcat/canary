@@ -1,3 +1,4 @@
+import {settingsSection} from "./helpers/settings";
 import { test, expect } from "@playwright/test";
 
 test.beforeEach(async ({ page }) => {
@@ -8,7 +9,7 @@ test.beforeEach(async ({ page }) => {
 });
 
 test("interface scale updates centrally and persists independently of font family",async({page})=>{
- await page.locator(".settings-nav").getByRole("button",{name:"Typography",exact:true}).click();
+ await settingsSection(page,"Typography");
  for(const font of ["Nunito","Monocraft"]){
   await page.locator(".font-options").getByRole("button",{name:font,exact:true}).click();
   if(font==="Monocraft")await page.getByRole("button",{name:"Full interface",exact:true}).click();
@@ -18,12 +19,12 @@ test("interface scale updates centrally and persists independently of font famil
    expect(await page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth)).toBe(true);
   }
  }
- await page.reload();await page.getByRole("button",{name:"Settings",exact:true}).click();await page.locator(".settings-nav").getByRole("button",{name:"Typography",exact:true}).click();
+ await page.reload();await page.getByRole("button",{name:"Settings",exact:true}).click();await settingsSection(page,"Typography");
  await expect(page.getByRole("button",{name:"120%",exact:true})).toHaveAttribute("aria-pressed","true");
  await expect(page.locator(".font-options").getByRole("button",{name:"Monocraft",exact:true})).toHaveAttribute("aria-pressed","true");
- await page.locator(".settings-nav").getByRole("button",{name:"Language",exact:true}).click();
+ await settingsSection(page,"Language");
  await page.getByRole("button",{name:/Русский интерфейс/}).click();
- await page.locator(".settings-nav").getByRole("button",{name:"Типографика",exact:true}).click();
+ await settingsSection(page,"Типографика");
  await expect(page.locator(".visual-preferences[data-visual-group]")).toContainText("Размер интерфейса");
  for(const font of ["Nunito","Monocraft"]){await page.locator(".font-options").getByRole("button",{name:font,exact:true}).click();for(const scale of [90,100,110,120]){await page.getByRole("button",{name:`${scale}%`,exact:true}).click();expect(await page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth)).toBe(true);}}
  await expect(page.locator(".settings-modal")).toBeVisible();
@@ -31,9 +32,9 @@ test("interface scale updates centrally and persists independently of font famil
 });
 
 test("background pairing, independent selections and restart persistence", async ({ page }) => {
-  const background=()=>page.locator(".settings-nav").getByRole("button",{name:"Background",exact:true}).click();
-  const target=(name:string)=>page.getByRole("group",{name:"Background target"}).getByRole("button",{name,exact:true}).click();
-  await background();const options=page.locator('[data-visual-group="background"] .background-options');
+  const background=()=>settingsSection(page,"Background");
+  const target=(name:string)=>settingsSection(page,name==="Sidebar"?"sidebar":"background");
+  await background();const options=page.locator(".background-options");
   for(const name of ["Dark Blue","Gray","Green","Sakura 1","Sakura 2"]){
     await options.getByRole("button",{name,exact:true}).click();
     await expect(options.getByRole("button",{name,exact:true})).toHaveAttribute("aria-pressed","true");
@@ -56,7 +57,7 @@ test("background pairing, independent selections and restart persistence", async
 });
 
 test("fonts, Minecraft modes, ambient and reduced motion", async ({ page }) => {
-  await page.locator(".settings-nav").getByRole("button",{name:"Typography",exact:true}).click();
+  await settingsSection(page,"Typography");
   for (const name of ["Manrope", "Plus Jakarta Sans", "Rubik", "Monocraft", "Nunito"]) {
     await page.getByRole("button", { name, exact: true }).click();
     await expect(page.locator("html")).toHaveAttribute("data-ui-font", name);
@@ -65,7 +66,7 @@ test("fonts, Minecraft modes, ambient and reduced motion", async ({ page }) => {
   await page.getByRole("button", { name: "Monocraft", exact: true }).click();
   await page.getByRole("button", { name: "Full interface", exact: true }).click();
   await expect(page.locator("html")).toHaveAttribute("data-minecraft", "full");
-  await page.locator(".settings-nav").getByRole("button",{name:"Effects",exact:true}).click();
+  await settingsSection(page,"Effects");
   await page.getByRole("button", { name: "Snow", exact: true }).click();
   await expect(page.locator(".ambient-particles i:visible")).toHaveCount(12);
   await page.getByRole("switch", { name: "Reduce motion", exact: true }).click();
@@ -81,15 +82,15 @@ test("fonts, Minecraft modes, ambient and reduced motion", async ({ page }) => {
 
 test("theme-aware title bar, language and desktop geometry", async ({ page }) => {
   for (const mode of ["Light", "Dark", "AMOLED", "System"]) {
-    await page.locator(".mode-grid").getByRole("button", { name: mode, exact: true }).click();
+    await settingsSection(page,"appearance");await page.locator(".mode-grid").getByRole("button", { name: mode, exact: true }).click();
     await expect(page.locator(".preset-grid button.selected")).toHaveCount(1);
     await expect(page.locator(".window-titlebar")).toBeVisible();
     const light = await page.locator("html").getAttribute("data-mode") === "light";
     await expect(page.locator(".window-titlebar img")).toHaveAttribute("src", `/branding/canary-bird-${light ? "black" : "white"}.png`);
   }
-  await page.locator(".settings-nav").getByRole("button", { name: "Language", exact: true }).click();
+  await settingsSection(page,"Language");
   await page.getByRole("button", { name: /Русский интерфейс/ }).click();
-  await page.locator(".settings-nav").getByRole("button", { name: "Фон", exact: true }).click();
+  await settingsSection(page,"Фон");
   await expect(page.getByRole("heading", { name: "Фон лаунчера", exact: true })).toBeVisible();
   await page.keyboard.press("Escape");
   for (const [width, height] of [[1280,720],[1440,900],[1920,1080],[800,600]]) {
@@ -99,9 +100,9 @@ test("theme-aware title bar, language and desktop geometry", async ({ page }) =>
 });
 
 test("Sakura pairs crossfade, persist and select automatic ambient without overriding explicit effects", async ({ page }) => {
-  const section=(name:string)=>page.locator(".settings-nav").getByRole("button",{name,exact:true}).click();
+  const section=(name:string)=>settingsSection(page,name);
   await section("Effects");await page.getByRole("button",{name:"Automatic",exact:true}).click();await section("Background");
-  const options=page.locator('[data-visual-group="background"] .background-options');
+  const options=page.locator(".background-options");
   await page.getByRole("checkbox",{name:"Use one picture for launcher and sidebar"}).check();
   for(const number of [1,2]){
     await options.getByRole("button",{name:"Sakura "+number,exact:true}).click();
@@ -114,7 +115,7 @@ test("Sakura pairs crossfade, persist and select automatic ambient without overr
   await section("Effects");await page.getByRole("button",{name:"Snow",exact:true}).click();await section("Background");
   await options.getByRole("button",{name:"Sakura 1",exact:true}).click();await expect(page.locator(".ambient-particles")).toHaveClass(/snow/);
   await page.getByRole("checkbox",{name:"Use one picture for launcher and sidebar"}).uncheck();
-  await page.getByRole("group",{name:"Background target"}).getByRole("button",{name:"Sidebar",exact:true}).click();await options.getByRole("button",{name:"Gray",exact:true}).click();
+  await settingsSection(page,"sidebar");await options.getByRole("button",{name:"Gray",exact:true}).click();
   await page.reload();await expect(page.locator(".global-wallpaper .artwork-current")).toHaveCSS("background-image",/sakura1-bg.jpg/);
   await expect(page.locator(".sidebar-art .artwork-current")).toHaveCSS("background-image",/gray-sidebar.jpg/);
 });
@@ -146,13 +147,13 @@ test("invalid saved material preferences clamp to readable supported settings",a
 test("light dialogs remain readable and low quality limits surface blur",async({page})=>{
  await page.addInitScript(()=>localStorage.setItem("canary-visual",JSON.stringify({quality:"low",surfaceBlur:32,surfaceOpacity:55})));
  await page.reload();await page.getByRole("button",{name:"Settings",exact:true}).click();
- await page.locator(".mode-grid").getByRole("button",{name:"Light",exact:true}).click();
+ await settingsSection(page,"appearance");await page.locator(".mode-grid").getByRole("button",{name:"Light",exact:true}).click();
  await expect(page.locator("html")).toHaveAttribute("data-mode","light");
  const alpha=async(selector:string)=>page.locator(selector).evaluate(e=>{const canvas=document.createElement("canvas");canvas.width=canvas.height=1;const context=canvas.getContext("2d")!;context.fillStyle=getComputedStyle(e).backgroundColor;context.fillRect(0,0,1,1);return context.getImageData(0,0,1,1).data[3]/255;});
  expect(await alpha(".settings-modal")).toBeGreaterThanOrEqual(.99);
  await expect(page.locator("html")).toHaveAttribute("data-quality","low");
  await expect(page.locator(".settings-modal")).toHaveCSS("backdrop-filter","none");
- await page.locator(".settings-nav").getByRole("button",{name:"Background",exact:true}).click();await page.getByText("Windows window material",{exact:true}).click();await page.getByRole("combobox",{name:"Background source",exact:true}).click();
+ await settingsSection(page,"Background");await page.getByText("Windows window material",{exact:true}).click();await page.getByRole("combobox",{name:"Background source",exact:true}).click();
  expect(await alpha("dialog.glass-select-popup[open]")).toBeGreaterThanOrEqual(.68);
  await page.keyboard.press("Escape");await expect(page.locator(".settings-modal")).toBeVisible();
 });

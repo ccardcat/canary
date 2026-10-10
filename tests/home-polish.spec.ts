@@ -1,3 +1,4 @@
+import {settingsSection} from "./helpers/settings";
 import {reloadWithPreferences} from './helpers/preferences';
 import { test, expect, type Page } from "@playwright/test";
 import { mkdirSync } from "node:fs";
@@ -13,6 +14,8 @@ async function settings(page: Page) {
     .click();
 }
 async function choose(page: Page, name: string, option: string) {
+ if(await page.locator(".settings-modal").isVisible()){if(["Material preset","Shared material","Button style","Card material"].includes(name))await settingsSection(page,"materials");if(name==="Sidebar layout")await settingsSection(page,"sidebar");}
+
   await page.getByRole("combobox", { name, exact: true }).evaluate(el=>{for(let details=el.closest("details");details;details=details.parentElement?.closest("details")??null)details.open=true;});
   await page.getByRole("combobox", { name, exact: true }).click();
   await page.getByRole("option", { name: option, exact: true }).click();
@@ -254,7 +257,7 @@ test("community visibility is searchable, applies live, persists and preserves a
     materialStyle: "liquid",
     showCommunity: false,
   });
-  await settings(page);
+  await settings(page);await settingsSection(page,"layout");
   await page
     .getByRole("switch", {
       name: "Show popular community projects",
@@ -289,8 +292,8 @@ test("RU Monocraft particle labels have a real gap and regrouped settings retain
   expect(headings).toEqual(
     expect.arrayContaining(["Оформление", "Поверхности"]),
   );
-  for(const section of ["Фон","Эффекты","Типографика"]){await page.locator(".settings-nav").getByRole("button",{name:section,exact:true}).click();await expect(page.locator(".settings-content h3").first()).toContainText(section);}
-  await page.locator(".settings-nav").getByRole("button",{name:"Эффекты",exact:true}).click();
+  for(const section of ["Фон","Эффекты","Типографика"]){await settingsSection(page,section);await expect(page.locator(".settings-content h3").first()).toContainText(section);}
+  await settingsSection(page,"Эффекты");
   const preset = page.getByRole("combobox", {
     name: "Пресет частиц",
     exact: true,
@@ -433,7 +436,7 @@ test("Project details lighten Back/tabs and widen metadata with themes and every
   await page.keyboard.press("Escape");
   for (const theme of ["Light", "Dark", "AMOLED"]) {
     await settings(page);
-    await page
+    await settingsSection(page,"appearance");await page
       .locator(".mode-grid")
       .getByRole("button", { name: theme, exact: true })
       .click();
@@ -520,7 +523,7 @@ test("long Home names and empty Continue remain readable at desktop scale equiva
       .getByRole("button", { name: "Настройки", exact: true })
       .first()
       .click();
-    await page.locator(".settings-nav").getByRole("button",{name:"Типографика",exact:true}).click();
+    await settingsSection(page,"Типографика");
     await page
       .locator(".font-options")
       .getByRole("button", { name: font, exact: true })

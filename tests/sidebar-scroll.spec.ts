@@ -1,3 +1,4 @@
+import {settingsSection} from "./helpers/settings";
 import { test, expect, type Page } from "@playwright/test";
 import { mkdirSync } from "node:fs";
 import { nativeFixture } from "./helpers/nativeFixture";
@@ -40,6 +41,8 @@ async function start(page: Page, russian = false) {
 }
 
 async function choose(page: Page, name: string, option: string) {
+ if(await page.locator(".settings-modal").isVisible()){if(["Material preset","Shared material","Button style","Card material"].includes(name))await settingsSection(page,"materials");if(name==="Sidebar layout")await settingsSection(page,"sidebar");}
+
   await page.getByRole("combobox", { name, exact: true }).evaluate(el=>{for(let details=el.closest("details");details;details=details.parentElement?.closest("details")??null)details.open=true;});
   await page.getByRole("combobox", { name, exact: true }).click();
   await page.getByRole("option", { name: option, exact: true }).click();
@@ -391,7 +394,7 @@ test("arrow-free scrollbar styles inherit across pages, dialogs, themes and mate
     .click();
   const colors = [];
   for (const theme of ["Light", "Dark", "AMOLED", "System"]) {
-    await page
+    await settingsSection(page,"appearance");await page
       .locator(".mode-grid")
       .getByRole("button", { name: theme, exact: true })
       .click();

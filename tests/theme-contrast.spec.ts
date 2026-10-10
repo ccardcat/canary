@@ -1,10 +1,13 @@
+import {settingsSection} from "./helpers/settings";
 import {reloadWithSeed} from './helpers/preferences';
 import {test, expect, type Page} from '@playwright/test';
 import {mkdirSync, writeFileSync} from 'node:fs';
 import {nativeFixture} from './helpers/nativeFixture';
 
 const nav=(page:Page,name:string)=>page.locator('.sidebar nav').getByRole('button',{name,exact:true});
-async function choose(page:Page,label:string,name:string){await page.getByRole('combobox',{name:label,exact:true}).evaluate(el=>{for(let details=el.closest('details');details;details=details.parentElement?.closest('details')??null)details.open=true;});await page.getByRole('combobox',{name:label,exact:true}).click();await page.getByRole('option',{name,exact:true}).click();}
+async function choose(page:Page,label:string,name:string){
+ if(await page.locator(".settings-modal").isVisible()){if(["Material preset","Shared material","Button style","Card material"].includes(label))await settingsSection(page,"materials");if(label==="Sidebar layout")await settingsSection(page,"sidebar");}
+await page.getByRole('combobox',{name:label,exact:true}).evaluate(el=>{for(let details=el.closest('details');details;details=details.parentElement?.closest('details')??null)details.open=true;});await page.getByRole('combobox',{name:label,exact:true}).click();await page.getByRole('option',{name,exact:true}).click();}
 const palettes=[['light','white'],['light','softLight'],['light','frost'],['light','warm'],['dark','graphite'],['dark','black'],['dark','softDark'],['dark','midnight'],['amoled','graphite']];
 const accents=['monochrome','white','gray','mint','emerald','aqua','blue','purple','rose','orange'];
 const materials=['Solid','Soft','Vibrancy','Glass','Clear Glass','Liquid Glass','Transparent'];
@@ -29,7 +32,7 @@ test('rendered foreground contrast across every palette, accent and material on 
         const output=[];
         for(const accent of accents){
           root.dataset.accent=accent;await new Promise(resolve=>setTimeout(resolve,20));
-          const modal=document.querySelector('.settings-modal')!,input=document.querySelector('.settings-search input')!,button=document.querySelector('.mode-grid button:not(.selected)')!;
+          const modal=document.querySelector('.settings-modal')!,input=document.querySelector('.settings-search input')!,button=document.querySelector('.settings-group-toggle')!;
           const modalFill=rgba(getComputedStyle(modal).backgroundColor),inputFill=rgba(getComputedStyle(input).backgroundColor),buttonFill=rgba(getComputedStyle(button).backgroundColor);
           const placeholder=rgba(getComputedStyle(input,'::placeholder').color);
           // Contrast uses the displayed stack: wallpaper tint, modal backdrop,

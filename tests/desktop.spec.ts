@@ -1,3 +1,4 @@
+import {settingsSection} from "./helpers/settings";
 import { test, expect, type Page } from "@playwright/test";
 const project = (i: number) => ({
   project_id: `pack-${i}`,
@@ -199,7 +200,7 @@ test("account repeated click, outside click and Escape; Settings trap and live l
       .first()
       .evaluate((el) => getComputedStyle(el).color),
   ).not.toBe("rgb(255, 255, 255)");
-  await page.locator(".settings-nav").getByRole("button",{name:"Effects",exact:true}).click();
+  await settingsSection(page,"Effects");
   await page
     .getByRole("switch", { name: "Reduce motion", exact: true })
     .click();
@@ -292,7 +293,7 @@ test("System responds live, AMOLED remains black, and OS reduced motion stops am
       .locator("body")
       .evaluate((el) => getComputedStyle(el).getPropertyValue("--bg").trim()),
   ).toBe("#000");
-  await page.locator(".mode-grid").getByRole("button", { name: "System", exact: true }).click();
+  await settingsSection(page,"appearance");await page.locator(".mode-grid").getByRole("button", { name: "System", exact: true }).click();
   await page.emulateMedia({ colorScheme: "light" });
   await expect(page.locator("html")).toHaveAttribute("data-mode", "light");
   await expect(page.locator(".brand img")).toHaveAttribute(

@@ -1,3 +1,4 @@
+import {settingsSection} from "./helpers/settings";
 import {reloadWithPreferences} from './helpers/preferences';
 import {test,expect,type Page,type Route} from '@playwright/test';
 import {mkdirSync,writeFileSync} from 'node:fs';
@@ -7,8 +8,11 @@ const materials=['Solid','Soft','Vibrancy','Glass','Clear Glass','Liquid Glass',
 const ids=['solid','soft','vibrancy','glass','clear','liquid','transparent'];
 const directory='.qa/material-install-state';
 const nav=(page:Page,name:string)=>page.locator('.sidebar').getByRole('button',{name,exact:true});
-async function choose(page:Page,label:string,name:string){await page.getByRole('combobox',{name:label,exact:true}).click();await page.getByRole('option',{name,exact:true}).click();}
+async function choose(page:Page,label:string,name:string){
+ if(await page.locator(".settings-modal").isVisible()){if(["Material preset","Shared material","Button style","Card material"].includes(label))await settingsSection(page,"materials");if(label==="Sidebar layout")await settingsSection(page,"sidebar");}
+await page.getByRole('combobox',{name:label,exact:true}).click();await page.getByRole('option',{name,exact:true}).click();}
 async function preset(page:Page,index:number){
+ await settingsSection(page,"materials");
  const comparison=page.locator('.material-disclosure').filter({has:page.locator('.material-preset-control')});
  if(!await comparison.evaluate(el=>(el as HTMLDetailsElement).open))await comparison.locator('summary').click();
  await page.locator('.material-preset-control').filter({has:page.locator('b',{hasText:new RegExp('^'+materials[index]+'$')})}).click();
@@ -40,7 +44,7 @@ test('all seven presets and reset preserve every sidebar layout, unrelated setti
   }
   await preset(page,4);await page.reload();await expect(page.locator('html')).toHaveAttribute('data-sidebar-mode',mode);await expect(page.locator('html')).toHaveAttribute('data-sidebar-side',side);await expect(page.locator('html')).toHaveAttribute('data-material-cards','clear');
   expect(await page.locator('.sidebar').evaluate(e=>e.classList.contains('compact'))).toBe(compact);
-  await nav(page,'Settings').click();await page.getByRole('button',{name:'Reset materials',exact:true}).click();
+  await nav(page,'Settings').click();await settingsSection(page,'materials');await page.getByRole('button',{name:'Reset materials',exact:true}).click();
   expect(await page.evaluate(keys=>{const saved=JSON.parse(localStorage.getItem('canary-visual')!);return Object.fromEntries(keys.map(key=>[key,saved[key]]));},Object.keys(unrelated))).toEqual(unrelated);
   await page.keyboard.press('Escape');
  }
@@ -56,7 +60,7 @@ test('material identity differs on five backgrounds in Light, Dark, AMOLED and l
  test.setTimeout(600000);const rows:any[]=[];await page.goto('/');await nav(page,'Settings').click();
  const backgrounds=[['dark','linear-gradient(#090e17,#090e17)'],['bright','linear-gradient(#fafcf9,#fafcf9)'],['colorful','linear-gradient(45deg,#b97183,#619d92,#577bc1)'],['photo','url(/backgrounds/sakura1-bg.jpg)'],['gradient','linear-gradient(135deg,#838f99,#a3a296)']];
  for(const theme of ['Light','Dark','AMOLED','System']){
-  await page.locator('.mode-grid').getByRole('button',{name:theme,exact:true}).click();
+  await settingsSection(page,"appearance");await page.locator('.mode-grid').getByRole('button',{name:theme,exact:true}).click();
   if(theme==='System')await page.emulateMedia({colorScheme:'light',reducedMotion:'reduce'});
   for(let i=0;i<materials.length;i++){
    await preset(page,i);
@@ -133,7 +137,7 @@ test('restored task snapshots keep provider/project identity, multiple tasks rem
 test('actual Discover card text retains contrast in all presets and themes over bright and colorful wallpapers',async({page})=>{
  test.setTimeout(180000);await page.addInitScript(()=>localStorage.setItem('canary-visual',JSON.stringify({app:'sakura1',intensity:100,blur:0,globalTreatment:{overlay:35,vignette:0}})));await discover(page);const results:any[]=[];
  for(const theme of ['Light','Dark','AMOLED'])for(let i=0;i<materials.length;i++){
-  await nav(page,'Settings').click();await page.locator('.mode-grid').getByRole('button',{name:theme,exact:true}).click();await preset(page,i);await page.keyboard.press('Escape');await expect(page.locator('.settings-modal')).toHaveCount(0);
+  await nav(page,'Settings').click();await settingsSection(page,"appearance");await page.locator('.mode-grid').getByRole('button',{name:theme,exact:true}).click();await preset(page,i);await page.keyboard.press('Escape');await expect(page.locator('.settings-modal')).toHaveCount(0);
   for(const [background,image] of [['bright','linear-gradient(#fff,#fff)'],['colorful','linear-gradient(45deg,#d66a97,#5cc9a4,#4d75c7)']]){
    await page.locator('.global-wallpaper .artwork-layer').evaluateAll((nodes,image)=>nodes.forEach(node=>(node as HTMLElement).style.backgroundImage=image),image);
    await card(page).scrollIntoViewIfNeeded();const origin=(await card(page).boundingBox())!;
@@ -153,7 +157,7 @@ test('actual Discover card text retains contrast in all presets and themes over 
 
 
 test('changing layout and corner radius keeps the selected material preset',async({page})=>{
- await page.goto('/');await nav(page,'Settings').click();await preset(page,4);await choose(page,'Sidebar layout','Floating');
+ await page.goto('/');await nav(page,'Settings').click();await preset(page,4);await choose(page,'Sidebar layout','Floating');await settingsSection(page,'materials');
  await page.locator('.material-advanced summary').click();await page.getByRole('slider',{name:'Corner radius',exact:true}).fill('24');await page.getByRole('slider',{name:'Corner radius',exact:true}).press('Tab');
  await expect(page.getByRole('combobox',{name:'Material preset',exact:true})).toContainText('Clear Glass');
  const saved=await page.evaluate(()=>JSON.parse(localStorage.getItem('canary-visual')!));expect(saved).toMatchObject({materialPreset:'clear',materialStyle:'clear',materialRadius:24,sidebarMode:'floating'});

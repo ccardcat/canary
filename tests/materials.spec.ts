@@ -1,13 +1,16 @@
+import {settingsSection} from "./helpers/settings";
 import {test,expect,type Page} from '@playwright/test';
 import {mkdirSync} from 'node:fs';
 import {nativeFixture} from './helpers/nativeFixture';
 
 async function choose(page:Page,name:string,option:string){
+ if(await page.locator(".settings-modal").isVisible()){if(["Material preset","Shared material","Button style","Card material"].includes(name))await settingsSection(page,"materials");if(name==="Sidebar layout")await settingsSection(page,"sidebar");}
+
  await page.getByRole('combobox',{name,exact:true}).evaluate(el=>{for(let details=el.closest('details');details;details=details.parentElement?.closest('details')??null)details.open=true;});
  await page.getByRole('combobox',{name,exact:true}).click();
  await page.getByRole('option',{name:option,exact:true}).click();
 }
-async function settings(page:Page){await page.getByRole('button',{name:'Settings',exact:true}).first().click();}
+async function settings(page:Page){await page.getByRole('button',{name:'Settings',exact:true}).first().click();await settingsSection(page,'materials');}
 test('legacy preferences migrate without losing artwork, typography, cursor or independent categories',async({page})=>{
  await page.addInitScript(()=>localStorage.setItem('canary-visual',JSON.stringify({app:'sakura1',sidebar:'green',font:'Monocraft',cursor:'system',surfaceBlur:12,materialCategories:{cards:'liquid',buttons:'bogus'},materialIntensity:Infinity})));
  await page.route('https://api.modrinth.com/**',r=>r.fulfill({json:{hits:[],total_hits:0}}));await page.goto('/');
@@ -66,7 +69,7 @@ test('compact instances preserve primary actions, move favorite up and persist l
 });
 
 test('account actions stay horizontal, destructive hover/focus resets, rename/delete keep confirmations',async({page})=>{
- await nativeFixture(page);await page.goto('/');await settings(page);await choose(page,'Material preset','Liquid Glass');await page.locator('.settings-nav').getByRole('button',{name:'Account',exact:true}).click();
+ await nativeFixture(page);await page.goto('/');await settings(page);await choose(page,'Material preset','Liquid Glass');await settingsSection(page,'Account');
  const account=page.locator('.runtime-account').first();const edit=account.getByRole('button',{name:'Rename',exact:true});const remove=account.getByRole('button',{name:'Remove',exact:true});
  await expect(account).toBeVisible();
  await expect.poll(async()=>{const a=(await edit.boundingBox())!,b=(await remove.boundingBox())!;return Math.abs(a.y-b.y);}).toBeLessThan(2);
@@ -86,15 +89,16 @@ test('RU/EN Monocraft settings, both sidebar sides, themes and scaled viewports 
  await page.addInitScript(()=>{if(!localStorage.getItem('canary-visual'))localStorage.setItem('canary-visual',JSON.stringify({font:'Monocraft',minecraft:'full',app:'sakura1',sidebar:'default',sidebarMode:'floating',instanceLayout:'compact'}));});
  await page.goto('/');await settings(page);await choose(page,'Material preset','Liquid Glass');
  for(const mode of ['Dark','Light','AMOLED','System']){
-  await page.locator('.mode-grid').getByRole('button',{name:mode,exact:true}).click();
+  await settingsSection(page,'appearance');
+  await settingsSection(page,"appearance");await page.locator('.mode-grid').getByRole('button',{name:mode,exact:true}).click();
   const light=await page.locator('html').getAttribute('data-mode')==='light';const img=page.locator('.window-brand img');
   await expect(img).toHaveAttribute('src',`/branding/canary-bird-${light?'black':'white'}.png`);
   await expect.poll(()=>img.evaluate(el=>(el as HTMLImageElement).naturalWidth)).toBeGreaterThan(0);
   const brand=(await page.locator('.window-brand').boundingBox())!;expect(Math.abs(brand.x+brand.width/2-640)).toBeLessThan(1);
-  await page.locator('.material-preview').scrollIntoViewIfNeeded();
+  await settingsSection(page,'materials');await page.locator('.material-preview').scrollIntoViewIfNeeded();
   await page.screenshot({path:`.qa/materials/${mode.toLowerCase()}-settings.png`});
  }
- await page.locator('.settings-nav').getByRole('button',{name:'Language',exact:true}).click();await page.getByRole('button',{name:/Русский интерфейс/}).click();await page.locator('.settings-nav').getByRole('button',{name:'Оформление',exact:true}).click();
+ await settingsSection(page,'Language');await page.getByRole('button',{name:/Русский интерфейс/}).click();await settingsSection(page,'Оформление');
  for(const scale of [1,1.25,1.5]){
   await page.setViewportSize({width:Math.round(1280/scale),height:Math.round(800/scale)});
   expect(await page.locator('.accent-grid button').evaluateAll(nodes=>nodes.every(node=>{const label=node.querySelector('span')!,a=label.getBoundingClientRect(),b=node.getBoundingClientRect();return a.left>=b.left&&a.right<=b.right+1;}))).toBe(true);
@@ -104,7 +108,7 @@ test('RU/EN Monocraft settings, both sidebar sides, themes and scaled viewports 
  }
  await page.keyboard.press('Escape');await page.setViewportSize({width:760,height:540});
  for(const side of ['left','right']){
-  await page.locator('.sidebar nav').getByRole('button',{name:'Настройки',exact:true}).click();await page.locator('.settings-nav').getByRole('button',{name:'Оформление',exact:true}).click();await page.getByRole('group',{name:'Расположение боковой панели',exact:true}).getByRole('button',{name:side==='left'?'Слева':'Справа',exact:true}).click();await page.keyboard.press('Escape');await page.reload();
+  await page.locator('.sidebar nav').getByRole('button',{name:'Настройки',exact:true}).click();await settingsSection(page,'sidebar');await page.getByRole('group',{name:'Сторона боковой панели',exact:true}).getByRole('button',{name:side==='left'?'Слева':'Справа',exact:true}).click();await page.keyboard.press('Escape');await page.reload();
   await expect(page.locator('html')).toHaveAttribute('data-sidebar-side',side);expect(await page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth)).toBe(true);
  }
 });

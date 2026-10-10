@@ -1,3 +1,4 @@
+import {sidebarDefaults,normalizeSidebar,applySidebarTokens,type SidebarPreferences} from "../services/sidebarAppearance";
 import {applyBackgroundTokens} from "./appearancePreview";
 import {BackgroundSettings} from "./BackgroundSettings";
 import {catalogDefaults, normalizeCatalog, type CatalogPreferences} from "../services/catalog";
@@ -23,15 +24,15 @@ import {isTauri,convertFileSrc} from "@tauri-apps/api/core";
 import {useBackend} from "../services/backend";
 import {windowDefaults,useNativeMaterial,WindowMaterialSettings,WindowControlsSettings,type WindowPreferences} from "./WindowMaterial";
 const fonts = ["Nunito", "Manrope", "Plus Jakarta Sans", "Rubik", "Monocraft"];
-export type Preferences = CatalogPreferences & DiscordPreferences & PolishPreferences & WindowPreferences & MaterialPreferences & LayoutPreferences & { app: string; sidebar: string; linked: boolean; intensity: number; blur: number; sidebarBlur: number; font: string; fontScale: 90 | 100 | 110 | 120; minecraft: "headings" | "full"; showCommunity:boolean; backgroundVersion:number;compactCardsVersion:number; ambient: "off" | "automatic" | "sakura" | "snow" | "autumn" };
-const defaults: Preferences = { ...catalogDefaults,...discordDefaults, ...polishDefaults,...windowDefaults,...layoutDefaults,...materialDefaults, app: "green", sidebar: "default", linked: false, intensity: 85, blur: 8, sidebarBlur: 12, font: "Nunito", fontScale:100, minecraft: "headings", showCommunity:true, backgroundVersion:1, compactCardsVersion:1, ambient: "off" };
+export type Preferences = SidebarPreferences & CatalogPreferences & DiscordPreferences & PolishPreferences & WindowPreferences & MaterialPreferences & LayoutPreferences & { app: string; sidebar: string; linked: boolean; intensity: number; blur: number; sidebarBlur: number; font: string; fontScale: 90 | 100 | 110 | 120; minecraft: "headings" | "full"; showCommunity:boolean; backgroundVersion:number;compactCardsVersion:number; ambient: "off" | "automatic" | "sakura" | "snow" | "autumn" };
+const defaults: Preferences = { ...sidebarDefaults,...catalogDefaults,...discordDefaults, ...polishDefaults,...windowDefaults,...layoutDefaults,...materialDefaults, app: "green", sidebar: "default", linked: false, intensity: 85, blur: 8, sidebarBlur: 12, font: "Nunito", fontScale:100, minecraft: "headings", showCommunity:true, backgroundVersion:1, compactCardsVersion:1, ambient: "off" };
 const freshDefaults:Preferences={...defaults,...materialPresetPatch("solid"),backgroundSource:"solid",materialRadius:14,cursor:"system",showCommunity:false};
 export function normalizePreferences(input:unknown):Preferences {
  const saved=input&&typeof input==="object"?input as Record<string,unknown>:{};
  const base=Object.keys(saved).length?defaults:freshDefaults;
- const result={...base,...normalizeCatalog(saved),...normalizeMaterials(Object.keys(saved).length?saved:base),...normalizeLayout(Object.keys(saved).length?saved:base),globalTreatment:{...base.globalTreatment},sidebarTreatment:{...base.sidebarTreatment}};
+ const result={...base,...normalizeSidebar(saved),...normalizeCatalog(saved),...normalizeMaterials(Object.keys(saved).length?saved:base),...normalizeLayout(Object.keys(saved).length?saved:base),globalTreatment:{...base.globalTreatment},sidebarTreatment:{...base.sidebarTreatment}};
  const fields=result as unknown as Record<string,unknown>;
- for(const key of Object.keys(defaults).filter(key=>!(key in materialDefaults)&&!(key in layoutDefaults)&&!(key in catalogDefaults))){const value=saved[key];if(typeof value===typeof fields[key]&&(typeof value!=="number"||Number.isFinite(value)))fields[key]=value;}
+ for(const key of Object.keys(defaults).filter(key=>!(key in materialDefaults)&&!(key in layoutDefaults)&&!(key in catalogDefaults)&&!(key in sidebarDefaults))){const value=saved[key];if(typeof value===typeof fields[key]&&(typeof value!=="number"||Number.isFinite(value)))fields[key]=value;}
  const enums:Record<string,string[]>={backgroundSource:["canary","desktop","solid"],material:["solid","transparent","acrylic","mica","mica-alt"],tint:["neutral","theme","strong"],vibrancyPreset:["off","subtle","balanced","glass","custom"],titlebarBranding:["icon","text","icon-text","hidden"],windowControls:["windows","minimal","compact","traffic-lights"],controlsPosition:["left","right"],effectPreset:["off","low","medium","high","custom"],ambient:["off","automatic","sakura","snow","autumn"],quality:["low","balanced","high"],sidebarSide:["left","right"],cursor:["system","custom"],minecraft:["headings","full"],font:fonts};
  for(const [key,allowed] of Object.entries(enums))if(!allowed.includes(String(fields[key])))fields[key]=(defaults as unknown as Record<string,unknown>)[key];
  const ranges:Record<string,[number,number]>={windowTransparency:[0,100],surfaceOpacity:[20,100],surfaceBlur:[0,32],glassIntensity:[0,70],heroSpeed:[7,20],particleWind:[0,200],density:[4,24],particleSpeed:[40,180],particleOpacity:[5,70],particleSize:[50,160],glass:[5,35],intensity:[0,100],blur:[0,32],sidebarBlur:[0,20],sidebarIntensity:[0,100]};
@@ -84,6 +85,7 @@ export function VisualAppearanceProvider({ children }: { children: ReactNode }) 
   useEffect(() => { const media = matchMedia("(prefers-reduced-motion: reduce)"); const sync = () => setReduced(media.matches); sync(); media.addEventListener("change", sync); return () => media.removeEventListener("change", sync); }, []);
   useLayoutEffect(() => {
 
+    applySidebarTokens(document.documentElement,value);
     applyLayoutTokens(document.documentElement,value);
     applyMaterialTokens(document.documentElement,value);
     const root = document.documentElement;
@@ -110,7 +112,7 @@ export function VisualAppearanceProvider({ children }: { children: ReactNode }) 
    if(previewFrame.current)return;
    previewFrame.current=requestAnimationFrame(()=>{
     previewFrame.current=0;const patch=pendingPreview.current;pendingPreview.current={};
-    const next={...savedRef.current,...patch};applyBackgroundTokens(document.documentElement,next);
+    const next={...savedRef.current,...patch};applyBackgroundTokens(document.documentElement,next);applySidebarTokens(document.documentElement,next);
     if(Object.keys(patch).some(key=>key in layoutDefaults))applyLayoutTokens(document.documentElement,next);
     if(Object.keys(patch).some(key=>key in materialDefaults||["surfaceOpacity","surfaceBlur","glassIntensity"].includes(key)))applyMaterialTokens(document.documentElement,next);
    });
@@ -142,8 +144,8 @@ export function VisualPreferences({ russian,group="all",effectsControls }: { rus
 
   return <section className="visual-preferences" data-visual-group={group}>
 
-    {(group==="all"||group==="layout")&&<div className="visual-appearance-group"><MaterialLayoutSettings russian={russian} value={value} update={update}/><CatalogSettings russian={russian} value={value} update={update}/><PolishControls russian={russian} value={value} update={update} group="layout"/>{group==="all"&&native&&<details className="material-disclosure"><summary>{russian?"Материал окна Windows":"Windows window material"}</summary><WindowMaterialSettings russian={russian} value={value} update={update} preview={preview} nativeOnly {...native}/></details>}</div>}
-    {(group==="all"||group==="background")&&<BackgroundSettings russian={russian}/>}
+    {(group==="all"||group==="layout")&&<div className="visual-appearance-group"><MaterialLayoutSettings russian={russian} value={value} update={update} group="cards"/><CatalogSettings russian={russian} value={value} update={update}/><PolishControls russian={russian} value={value} update={update} group="interface"/>{group==="all"&&native&&<details className="material-disclosure"><summary>{russian?"Материал окна Windows":"Windows window material"}</summary><WindowMaterialSettings russian={russian} value={value} update={update} preview={preview} nativeOnly {...native}/></details>}</div>}
+    {(group==="all"||group==="background")&&<BackgroundSettings russian={russian} target={group==="background"?"app":undefined}/>}
     {group==="all"&&<EffectsPreferences russian={russian}>{effectsControls}</EffectsPreferences>}
     {(group==="all"||group==="typography")&&<div className="visual-typography-group"><h3>{russian?"Типографика":"Typography"}</h3><h4>{text["Interface font"]}</h4><div className="font-options">{fonts.map(font => <button key={font} style={{ fontFamily: `"${font}", Nunito, sans-serif` }} className={value.font === font ? "selected" : ""} aria-pressed={value.font === font} onClick={() => update({ font })}>{font}</button>)}</div>
     <h4>{text["Interface size"]}</h4><div className="font-options">{([90,100,110,120] as const).map(fontScale=><button key={fontScale} aria-pressed={value.fontScale===fontScale} className={value.fontScale===fontScale?"selected":""} onClick={()=>update({fontScale})}>{fontScale}%</button>)}</div>
@@ -154,10 +156,10 @@ export function VisualPreferences({ russian,group="all",effectsControls }: { rus
 
 export function SidebarArtwork() {
   const { value,registry } = useContext(Context);
-  if((value.materialLinked?value.materialStyle:value.materialCategories.sidebar)==="solid")return null;
+  if(value.sidebarBackgroundSource!=="picture"||(value.materialLinked?value.materialStyle:value.materialCategories.sidebar)==="solid")return null;
   return <ArtworkFade source={registry.find(p => p.id === value.sidebar)?.sidebar || "/backgrounds/sidebar-bg.webp"} className="sidebar-art" />;
 }
-export function WindowPreferencesPanel({russian}:{russian:boolean}){const {value,update}=useContext(Context);return <WindowControlsSettings russian={russian} value={value} update={update}/>;}
+export function WindowPreferencesPanel({russian}:{russian:boolean}){const {value,update,preview,native}=useContext(Context);return <><WindowControlsSettings russian={russian} value={value} update={update}/>{native&&<WindowMaterialSettings russian={russian} value={value} update={update} preview={preview} nativeOnly {...native}/>}</>;}
 export function EffectsPreferences({russian,children}:{russian:boolean;children?:ReactNode}){
  const {value,update}=useContext(Context);const text=appearanceMessages[russian?"ru":"en"];
  const preset=(p:string)=>{const settings={off:{ambient:"off" as const},low:{density:6,particleOpacity:25,particleSize:85,particleSpeed:75},medium:{density:12,particleOpacity:35,particleSize:110,particleSpeed:100},high:{density:24,particleOpacity:45,particleSize:125,particleSpeed:115},custom:{}};update({...settings[p as keyof typeof settings],effectPreset:p,...p!=="off"&&value.ambient==="off"?{ambient:"snow" as const}:{}});};
@@ -172,7 +174,7 @@ export function VisualQuality({ russian }: { russian: boolean }) {
   return <QualityControls russian={russian} value={value} update={update} />;
 }
 
-export function MaterialPreferencesPanel({russian}:{russian:boolean}) { const {value,update,preview}=useVisualAppearance();return <MaterialSettings russian={russian} value={value} update={update} preview={preview}/>; }
+export function MaterialPreferencesPanel({russian}:{russian:boolean}) { const {value,update,preview}=useVisualAppearance();return <MaterialSettings russian={russian} value={value} update={update} preview={preview} excludeSidebar/>; }
 
 export function InterfaceVisibilityPanel({ russian }: { russian: boolean }) {
   const { value, update } = useVisualAppearance();

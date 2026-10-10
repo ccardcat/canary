@@ -57,8 +57,8 @@ test('Settings search shows translated section names without internal keywords',
   await page.getByRole('button',{name:'Settings',exact:true}).click();
   await page.locator('.settings-search input').fill('glass');
   await expect(page.locator('.settings-results')).toContainText('Appearance');
-  await expect(page.locator('.settings-results small')).toHaveCount(0);
-  await page.locator('.settings-results').getByRole('button',{name:'Appearance',exact:true}).click();
+  await expect(page.locator('.settings-results small')).toContainText('Card, button and menu');
+  await page.locator('[data-settings-result=materials]').click();
   await expect(page.locator('.material-settings')).toBeVisible();
 });
 

@@ -1,3 +1,4 @@
+import {settingsSection} from "./helpers/settings";
 import {reloadWithPreferences} from './helpers/preferences';
 import { test, expect } from "@playwright/test";
 
@@ -68,7 +69,7 @@ test("custom cursors preserve editing; ordinary right click is suppressed", asyn
 });
 test("advanced backgrounds reset, crossfade and effect budgets persist", async ({ page }) => {
   await page.getByRole("button", { name:"Settings",exact:true }).click();
-  await page.locator(".settings-nav").getByRole("button",{name:"Background",exact:true}).click();await page.getByRole("group",{name:"Background source",exact:true}).getByRole("button",{name:/Picture/}).click();await page.getByText("Color and framing",{exact:true}).click();
+  await settingsSection(page,"Background");await page.getByRole("group",{name:"Background source",exact:true}).getByRole("button",{name:/Picture/}).click();await page.getByText("Color and framing",{exact:true}).click();
   const brightness = page.getByRole("slider",{name:"Brightness",exact:true});
   await brightness.focus(); await page.keyboard.press("End");
   await expect(page.locator("html")).toHaveCSS("--wallpaper-brightness","1.3");
@@ -80,11 +81,11 @@ test("advanced backgrounds reset, crossfade and effect budgets persist", async (
   await expect(page.locator(".global-wallpaper .artwork-current")).toHaveCSS("background-image",/green-bg.webp/);
   await page.locator(".background-options").first().getByRole("button",{name:"Gray"}).click();
   await expect(page.locator(".global-wallpaper .artwork-current")).toHaveCSS("background-image",/gray-bg.png/);
-  await page.locator(".settings-nav").getByRole("button",{name:"Effects",exact:true}).click();await page.getByRole("button",{name:"Snow",exact:true}).click();
-  await page.locator(".settings-nav").getByRole("button",{name:"Appearance",exact:true}).click();
+  await settingsSection(page,"Effects");await page.getByRole("button",{name:"Snow",exact:true}).click();
+  await settingsSection(page,"layout");
   await page.getByRole("switch",{name:"Focus mode",exact:true}).click();
   await expect(page.locator(".ambient-particles")).toHaveCount(0);
-  await page.locator(".settings-nav").getByRole("button",{name:"Advanced",exact:true}).click();
+  await settingsSection(page,"quality");
   await page.getByRole("button",{name:"Low",exact:true}).click();
   await page.reload();
   await expect(page.locator("html")).toHaveAttribute("data-quality","low");
