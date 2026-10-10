@@ -69,7 +69,9 @@ pub async fn launch(backend:Arc<Backend>,mut instance:Instance,job:Arc<Job>,app:
     if let Some(stderr)=errors{tokio::spawn(super::privacy::lines(stderr,sender.clone(),vec![secret]));}
     drop(sender);
     let output_app=app.clone();let output_id=instance.id.clone();let history_backend=backend.clone();
-    tokio::spawn(async move{
+    let loader_explanation=Arc::new(std::sync::Mutex::new(super::mod_failure::Explanation::default()));
+    let output_explanation=loader_explanation.clone();
+    let mut output_task=tokio::spawn(async move{
         use tokio::io::AsyncWriteExt;
         let Ok(file)=super::protected_fs::append(&log_path).map(tokio::fs::File::from_std) else{return};
         let mut writer=tokio::io::BufWriter::new(file);let mut written=0usize;let mut batch=vec![];
@@ -77,7 +79,7 @@ pub async fn launch(backend:Arc<Backend>,mut instance:Instance,job:Arc<Job>,app:
         let mut tick=tokio::time::interval(std::time::Duration::from_millis(50));
         loop {
             let (closed,flush_due)=tokio::select!{
-                line=receiver.recv()=>match line{Some(line)=>{if let Some(server)=server_tracker.line(&line,now()){if super::server_history::record(&history_backend,&output_id,server).is_ok(){if let Some(app)=&output_app{let _=app.emit("instances-changed",());}}}written+=line.len()+1;let _=writer.write_all(line.as_bytes()).await;let _=writer.write_all(b"\n").await;batch.push(line);(false,false)},None=>(true,true)},
+                line=receiver.recv()=>match line{Some(line)=>{output_explanation.lock().unwrap().push(&line);if let Some(server)=server_tracker.line(&line,now()){if super::server_history::record(&history_backend,&output_id,server).is_ok(){if let Some(app)=&output_app{let _=app.emit("instances-changed",());}}}written+=line.len()+1;let _=writer.write_all(line.as_bytes()).await;let _=writer.write_all(b"\n").await;batch.push(line);(false,false)},None=>(true,true)},
                 _=tick.tick()=>(false,true)
             };
             if !batch.is_empty()&&(closed||batch.len()>=256||flush_due){
@@ -92,12 +94,16 @@ pub async fn launch(backend:Arc<Backend>,mut instance:Instance,job:Arc<Job>,app:
     let monitor=backend.clone();let started=std::time::Instant::now();
     tokio::spawn(async move {
         let exit=loop{match child.lock().await.try_wait(){Ok(Some(status))=>break Ok(status),Err(error)=>break Err(error),Ok(None)=>{}}tokio::time::sleep(std::time::Duration::from_millis(200)).await;};
-        instance.playtime+=started.elapsed().as_secs();instance.status=if exit.as_ref().is_ok_and(|s|s.success())||stopping.load(std::sync::atomic::Ordering::Relaxed){ "ready" }else{"crashed"}.into();
-        if let Ok(status)=&exit{if !status.success()&&!stopping.load(std::sync::atomic::Ordering::Relaxed){instance.error=Some(BackendErrorData{code:"process_exit".into(),message:format!("Minecraft exited with code {:?}",status.code())});}}
+        let played=started.elapsed().as_secs();
+        // Drain the already sanitized output so a short loader failure is not
+        // lost to the process-exit/output-reader scheduling race.
+        let _=tokio::time::timeout(std::time::Duration::from_secs(1),&mut output_task).await;
+        instance.playtime+=played;instance.status=if exit.as_ref().is_ok_and(|s|s.success())||stopping.load(std::sync::atomic::Ordering::Relaxed){ "ready" }else{"crashed"}.into();
+        if let Ok(status)=&exit{if !status.success()&&!stopping.load(std::sync::atomic::Ordering::Relaxed){let explanation=loader_explanation.lock().unwrap().message();instance.error=Some(BackendErrorData{code:if explanation.is_some(){"content_runtime_conflict"}else{"process_exit"}.into(),message:explanation.unwrap_or_else(||format!("Minecraft exited with code {:?}",status.code()))});}}
         let _=monitor.save_instance(&instance);
         {let mut store=monitor.store.lock().unwrap();store.activity.push(Activity{id:uuid::Uuid::new_v4().to_string(),timestamp:now(),instance:Some(instance.id.clone()),kind:if instance.status=="crashed"{"game_crashed"}else{"game_exited"}.into(),message:instance.name.clone()});if store.activity.len()>300{store.activity.remove(0);}}
         let _=monitor.persist();monitor.processes.lock().unwrap().remove(&instance.id);monitor.discord.changed();
-        if instance.status=="crashed" {if let Ok(task)=Job::tracked(monitor.clone(),&instance.id,"launch",&instance.name,Some(&instance.id),app.clone(),Arc::new(std::sync::atomic::AtomicBool::new(false)),None){task.finish(&Err::<(),_>(BackendError::new("process_exit","Minecraft exited with an error. Open the instance game logs for details.")));}}
+        if instance.status=="crashed" {if let Ok(task)=Job::tracked(monitor.clone(),&instance.id,"launch",&instance.name,Some(&instance.id),app.clone(),Arc::new(std::sync::atomic::AtomicBool::new(false)),None){let error=instance.error.as_ref().map(|e|BackendError::new(&e.code,&e.message)).unwrap_or_else(||BackendError::new("process_exit","Minecraft exited with an error. Open the instance game logs for details."));task.finish(&Err::<(),_>(error.clone()));if error.code=="content_runtime_conflict"{if let Some(app)=&app{if let Ok(mut detail)=serde_json::to_value(error){detail["instance_id"]=serde_json::json!(instance.id);let _=app.emit("backend-error",detail);}}}}}
         if let Some(app)=app {let _=app.emit("process-exited",serde_json::json!({"id":instance.id,"status":instance.status,"playtime":instance.playtime,"exit_code":exit.ok().and_then(|s|s.code())}));}
     });
     job.emit("running","success",&pid.to_string());Ok(pid)

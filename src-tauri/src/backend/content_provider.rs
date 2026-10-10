@@ -4,6 +4,70 @@ use serde::{Serialize,Deserialize};
 use serde_json::{Value,json};
 use std::{sync::Arc,path::Path};
 fn endpoint(parts:&[&str])->reqwest::Url {let mut u=reqwest::Url::parse("https://api.modrinth.com/v2/").unwrap();u.path_segments_mut().unwrap().pop_if_empty().extend(parts);u}
+pub fn no_release_error(name:&str,i:&Instance,beta:bool)->BackendError{
+ let issue=super::content_compatibility::Issue::new("no_release",name,if beta{"any"}else{"stable"},&format!("Minecraft {} / {}",i.minecraft,i.loader));
+ let mut error=content::compatibility_error("content_incompatible",issue);error.message=format!("{name}: no {}release for Minecraft {} / {}",if beta{""}else{"stable "},i.minecraft,i.loader);error
+}
+pub fn version_error(name:&str,v:&Value,i:&Instance)->BackendError{
+ let game_ok=v["game_versions"].as_array().is_some_and(|a|a.iter().any(|x|x==&i.minecraft));
+ let values=if game_ok{&v["loaders"]}else{&v["game_versions"]};let required=values.as_array().map(|a|a.iter().filter_map(Value::as_str).collect::<Vec<_>>().join(", ")).unwrap_or_default();
+ content::compatibility_error("content_incompatible",super::content_compatibility::Issue::new(if game_ok{"loader"}else{"minecraft"},name,&required,if game_ok{&i.loader}else{&i.minecraft}))
+}
+pub fn project_conflict(name:&str,other:&str,version:&str)->BackendError{
+ let mut issue=super::content_compatibility::Issue::new("conflict",name,"",version);issue.other=other.into();content::compatibility_error("dependency",issue)
+}
+pub fn validate_plans(plans:&[Plan],state:&State)->Result<()>{
+ let selected=plans.iter().flat_map(|p|p.items.iter().map(move|item|(item,if item.kind=="datapack"{p.world.as_deref()}else{None}))).collect::<Vec<_>>();
+ let same_world=|item:&Item,world:Option<&str>|item.kind!="datapack"||world.is_some_and(|w|item.path.starts_with(&format!("saves/{w}/datapacks/")));
+ for (item,world) in &selected{
+  if let Some((other,_))=selected.iter().find(|(x,w)|x.provider==item.provider&&x.project==item.project&&x.kind==item.kind&&w==world&&x.version!=item.version){
+   let mut issue=super::content_compatibility::Issue::new("dependency_version",&item.name,&item.number,&other.number);issue.dependency=item.project.clone();issue.other=other.name.clone();return Err(content::compatibility_error("dependency",issue));
+  }
+  let active=|p:&Planned,w:Option<&str>|p.required||state.items.iter().find(|x|x.provider==p.provider&&x.project.as_deref()==Some(&p.project)&&same_world(x,w)).is_none_or(|x|x.enabled);
+  if !active(item,*world){continue;}
+  for dep in &item.conflicts{
+   let pid=dep["project_id"].as_str();let vid=dep["version_id"].as_str();if pid.is_none()&&vid.is_none(){continue;}
+   if let Some((other,_))=selected.iter().find(|(x,w)|x.provider==item.provider&&pid.is_none_or(|id|x.project==id)&&vid.is_none_or(|id|x.version==id)&&active(x,*w)){
+    return Err(project_conflict(&item.name,&other.name,&other.number));
+   }
+   if let Some(other)=state.items.iter().find(|x|x.enabled&&!x.missing&&x.provider==item.provider&&pid.is_none_or(|id|x.project.as_deref()==Some(id))&&vid.is_none_or(|id|x.provider_version.as_deref()==Some(id))&&!selected.iter().any(|(p,w)|p.provider==x.provider&&Some(&p.project)==x.project.as_ref()&&same_world(x,*w))){
+    return Err(project_conflict(&item.name,&other.name,&other.version));
+   }
+  }
+ }Ok(())
+}
+pub fn validate_transaction(b:&Backend,id:&str,old:&State,next:&[Item],files:&[(Item,std::path::PathBuf)])->Result<()>{
+ let instance=b.instance(id)?;let root=b.instance_path(id)?;let mut mods=vec![];let mut incoming=vec![];let mut affected=vec![];let mut direct=std::collections::HashMap::new();
+ for item in next.iter().filter(|x|x.kind=="mod"&&x.enabled&&!x.missing){
+  let new=files.iter().find(|(new,_)|new.id==item.id);let path=if let Some((_,path))=new{path.clone()}else{storage::safe_join(&root,&content::location(item))?};
+  let info=match content::inspect(&path,&instance){Ok(info)=>info,Err(error)if new.is_some()=>return Err(error),Err(_)=>continue};
+  if new.is_some(){if let Some(issue)=info.issue{return Err(content::compatibility_error("content_incompatible",issue));}incoming.extend(info.metadata.iter().map(|m|m.id.clone()));affected.extend(info.metadata.iter().flat_map(|m|std::iter::once(m.id.clone()).chain(m.aliases.iter().map(|(id,_)|id.clone()))));}
+  for mid in &info.mod_ids{if let Some((name,version))=direct.insert(mid.clone(),(item.name.clone(),item.version.clone())){if new.is_some()||files.iter().any(|(x,_)|x.mod_ids.contains(mid)){
+   let mut issue=super::content_compatibility::Issue::new("duplicate",&item.name,"",&version);issue.other=name;issue.dependency=mid.clone();return Err(content::compatibility_error("content_duplicate",issue));
+  }}}
+  mods.extend(info.metadata);
+ }
+ for item in old.items.iter().filter(|item|item.enabled&&!next.iter().any(|x|x.id==item.id)){
+  if let Ok(info)=content::inspect(&storage::safe_join(&root,&content::location(item))?,&instance){affected.extend(info.metadata.iter().flat_map(|m|std::iter::once(m.id.clone()).chain(m.aliases.iter().map(|(id,_)|id.clone()))));}
+ }
+ let mut builtins=vec!["minecraft","java"];
+ match instance.loader.as_str(){"fabric"=>builtins.push("fabricloader"),"quilt"=>builtins.extend(["quilt_loader","fabricloader"]),"forge"=>builtins.push("forge"),"neoforge"=>builtins.push("neoforge"),_=>{}}
+ if let Some(issue)=super::content_compatibility::relationships(&mods,&incoming,&affected,&builtins){return Err(content::compatibility_error("dependency",issue));}Ok(())
+}
+pub fn inspect_batch(b:&Backend,id:&str,paths:&[String])->Result<Vec<content::Inspection>>{
+ let instance=b.instance(id)?;let root=b.instance_path(id)?;let state=content::scan(b,id)?;
+ let mut inspections=paths.iter().map(|p|content::inspect(Path::new(p),&instance)).collect::<Result<Vec<_>>>()?;
+ let mut mods=vec![];let mut direct=std::collections::HashMap::new();
+ for item in state.items.iter().filter(|x|x.kind=="mod"&&x.enabled&&!x.missing){if let Ok(info)=content::inspect(&storage::safe_join(&root,&content::location(item))?,&instance){for mid in info.mod_ids{direct.insert(mid,(item.name.clone(),item.version.clone()));}mods.extend(info.metadata);}}
+ let mut incoming=vec![];let mut affected=vec![];
+ for info in &mut inspections{if info.kind!="mod"{continue;}incoming.extend(info.metadata.iter().map(|m|m.id.clone()));affected.extend(info.metadata.iter().flat_map(|m|std::iter::once(m.id.clone()).chain(m.aliases.iter().map(|(id,_)|id.clone()))));
+  for mid in &info.mod_ids{if let Some((name,version))=direct.insert(mid.clone(),(info.name.clone(),info.version.clone())){if info.issue.is_none(){let mut issue=super::content_compatibility::Issue::new("duplicate",&info.name,"",&version);issue.other=name;issue.dependency=mid.clone();info.issue=Some(issue);}}}
+  mods.extend(info.metadata.clone());
+ }
+ let mut builtins=vec!["minecraft","java"];match instance.loader.as_str(){"fabric"=>builtins.push("fabricloader"),"quilt"=>builtins.extend(["quilt_loader","fabricloader"]),"forge"=>builtins.push("forge"),"neoforge"=>builtins.push("neoforge"),_=>{}}
+ if let Some(issue)=super::content_compatibility::relationships(&mods,&incoming,&affected,&builtins){if let Some(info)=inspections.iter_mut().find(|i|i.kind=="mod"&&i.issue.is_none()){info.issue=Some(issue);}}
+ for info in &mut inspections{if info.issue.is_some(){info.compatibility="incompatible".into();}}Ok(inspections)
+}
 pub async fn search(b:&Backend,i:&Instance,kind:&str,q:&str,sort:&str,offset:u32,strict:bool)->Result<Value>{
  content::folder(kind,if kind=="datapack"{Some("validation")}else{None})?;
  if !matches!(sort,"relevance"|"downloads"|"updated"|"newest"){return Err(BackendError::new("content_search","Invalid sorting"));}
@@ -26,7 +90,7 @@ pub async fn versions(b:&Backend,i:&Instance,p:&str,kind:&str,beta:bool)->Result
  list.sort_by(|a,b|{let ar=a["version_type"]=="release";let br=b["version_type"]=="release";br.cmp(&ar).then_with(||b["date_published"].as_str().cmp(&a["date_published"].as_str()))});Ok(list)
 }
 #[derive(Clone,Serialize,Deserialize)]
-pub struct Planned {#[serde(default="content::default_provider")]pub provider:String,pub project:String,pub version:String,pub name:String,pub number:String,pub kind:String,pub icon:Option<String>,pub file:Value,#[serde(default)]pub required:bool,pub dependencies:Vec<String>}
+pub struct Planned {#[serde(default="content::default_provider")]pub provider:String,pub project:String,pub version:String,pub name:String,pub number:String,pub kind:String,pub icon:Option<String>,pub file:Value,#[serde(default)]pub required:bool,pub dependencies:Vec<String>,#[serde(default)]pub conflicts:Vec<Value>}
 #[derive(Clone,Serialize,Deserialize)]
 pub struct Plan {pub items:Vec<Planned>,pub optional:Vec<String>,pub world:Option<String>,pub fingerprint:String}
 pub async fn preview(b:&Backend,i:&Instance,p:&str,version:Option<&str>,kind:&str,world:Option<String>,beta:bool)->Result<Plan>{
@@ -34,36 +98,38 @@ pub async fn preview(b:&Backend,i:&Instance,p:&str,version:Option<&str>,kind:&st
  if kind=="datapack"{let rel=content::folder(kind,world.as_deref())?;let w=storage::safe_join(&root,&rel)?.parent().unwrap().to_path_buf();if !w.join("level.dat").is_file(){return Err(BackendError::new("world_required","Select an existing Minecraft world"));}}
  if kind=="shader"&&!state.items.iter().any(|x|x.enabled&&!x.missing&&x.kind=="mod"&&["iris","oculus","optifine","canvas"].iter().any(|name|x.mod_ids.iter().any(|id|id==name))){return Err(BackendError::new("shader_support","This instance needs compatible Iris, Oculus or OptiFine before installing shaders"));}
  let root_project=project(b,p).await?;let canonical=root_project["id"].as_str().ok_or_else(||BackendError::new("metadata","Project ID missing"))?.to_owned();let mut known=std::collections::HashMap::from([(canonical.clone(),root_project)]);
- let mut pending=vec![(Some(canonical),version.map(str::to_owned),kind.to_owned(),false)];let mut items=vec![];let mut optional=vec![];let mut seen=std::collections::HashMap::new();
+ let mut pending=vec![(Some(canonical),version.map(str::to_owned),kind.to_owned(),false)];let mut items:Vec<Planned>=vec![];let mut optional=vec![];let mut seen=std::collections::HashMap::new();
  while let Some((project_id,version_id,kind,required))=pending.pop(){
   if items.len()>=64{return Err(BackendError::new("dependency","Dependency graph exceeds 64 projects"));}
-  let v=if let Some(id)=version_id {let v=download::json(b,endpoint(&["version",&id]).as_str()).await?;if project_id.as_ref().is_some_and(|p|v["project_id"].as_str()!=Some(p)){return Err(BackendError::new("dependency","Version belongs to another project"));}if !compatible(&v,i,&kind){return Err(BackendError::new("content_incompatible",format!("Version does not support {} / {}",i.minecraft,i.loader)));}v}else{versions(b,i,project_id.as_deref().ok_or_else(||BackendError::new("dependency","Dependency has no project or version"))?,&kind,beta).await?.into_iter().next().ok_or_else(||BackendError::new("content_incompatible",format!("No compatible release for Minecraft {} / {}",i.minecraft,i.loader)))?};
+  let named=if let Some(pid)=&project_id{known.get(pid).and_then(|v|v["title"].as_str()).unwrap_or(pid).to_owned()}else{"Required mod".into()};
+  let v=if let Some(id)=version_id {let v=download::json(b,endpoint(&["version",&id]).as_str()).await?;if project_id.as_ref().is_some_and(|p|v["project_id"].as_str()!=Some(p)){return Err(BackendError::new("dependency",format!("{named}: the selected version belongs to another project")));}if !compatible(&v,i,&kind){return Err(version_error(&named,&v,i));}v}else{versions(b,i,project_id.as_deref().ok_or_else(||BackendError::new("dependency","Dependency has no project or version"))?,&kind,beta).await?.into_iter().next().ok_or_else(||no_release_error(&named,i,beta))?};
   if kind=="shader"&&!shader_supported(&v,&state){return Err(BackendError::new("shader_support","This shader does not support the installed shader loader"));}
   let pid=v["project_id"].as_str().ok_or_else(||BackendError::new("metadata","Project ID missing"))?.to_owned();
   let vid=v["id"].as_str().ok_or_else(||BackendError::new("metadata","Version ID missing"))?.to_owned();
-  if let Some(previous)=seen.insert(pid.clone(),vid.clone()){if previous!=vid{return Err(BackendError::new("dependency","Conflicting required dependency versions"));}continue;}
+  if let Some(previous)=seen.insert(pid.clone(),vid.clone()){if previous!=vid{let prior=items.iter().find(|p|p.project==pid);let mut issue=super::content_compatibility::Issue::new("dependency_version",&named,v["version_number"].as_str().unwrap_or(&vid),prior.map(|p|p.number.as_str()).unwrap_or(&previous));issue.dependency=named.clone();issue.other=named.clone();return Err(content::compatibility_error("dependency",issue));}continue;}
   let detail=if let Some(cached)=known.remove(&pid){cached}else{project(b,&pid).await?};
-  if kind=="mod"&&detail["client_side"]=="unsupported"{return Err(BackendError::new("content_incompatible","Server-only mod cannot be installed in a client instance"));}
+  if kind=="mod"&&detail["client_side"]=="unsupported"{return Err(content::compatibility_error("content_incompatible",super::content_compatibility::Issue::new("server_only",detail["title"].as_str().unwrap_or(&named),"client","server")));}
   if (kind=="mod"&&detail["project_type"]!="mod")||(kind=="shader"&&detail["project_type"]!="shader")||(kind=="resourcepack"&&detail["project_type"]!="resourcepack"){return Err(BackendError::new("content_type","Project content type does not match"));}
   let mut deps=vec![];
-  if let Some(list)=v["dependencies"].as_array(){for d in list {let dp=d["project_id"].as_str().map(str::to_owned);let dv=d["version_id"].as_str().map(str::to_owned);match d["dependency_type"].as_str(){Some("required")=>{let dp=if dp.is_some(){dp}else if let Some(v)=&dv{download::json(b,endpoint(&["version",v]).as_str()).await?["project_id"].as_str().map(str::to_owned)}else{None};let dp=dp.ok_or_else(||BackendError::new("dependency","Required dependency has no provider project"))?;deps.push(dp.clone());let dep=project(b,&dp).await?;let dep_kind=match dep["project_type"].as_str(){Some("mod") if dep["loaders"].as_array().is_some_and(|l|l.iter().any(|x|x=="datapack"))&&kind=="datapack"=>"datapack",Some("mod")=>"mod",Some("resourcepack")=>"resourcepack",Some("shader")=>"shader",_=>return Err(BackendError::new("dependency","Unsupported dependency content type"))};pending.push((Some(dp.clone()),dv,dep_kind.into(),true));known.insert(dp,dep);},Some("optional")=>optional.push(dp.or(dv).unwrap_or_else(||d["file_name"].as_str().unwrap_or("Dependency").into())),Some("incompatible")=>{if state.items.iter().any(|x|x.enabled&&(dp.as_ref().is_some_and(|p|x.project.as_ref()==Some(p))||dv.as_ref().is_some_and(|v|x.provider_version.as_ref()==Some(v)))){return Err(BackendError::new("dependency","An installed project is declared incompatible"));}},_=>{}}}}
+  if let Some(list)=v["dependencies"].as_array(){for d in list {let dp=d["project_id"].as_str().map(str::to_owned);let dv=d["version_id"].as_str().map(str::to_owned);match d["dependency_type"].as_str(){Some("required")=>{let dp=if dp.is_some(){dp}else if let Some(v)=&dv{download::json(b,endpoint(&["version",v]).as_str()).await?["project_id"].as_str().map(str::to_owned)}else{None};let dp=dp.ok_or_else(||BackendError::new("dependency","Required dependency has no provider project"))?;deps.push(dp.clone());let dep=project(b,&dp).await?;let dep_kind=match dep["project_type"].as_str(){Some("mod") if dep["loaders"].as_array().is_some_and(|l|l.iter().any(|x|x=="datapack"))&&kind=="datapack"=>"datapack",Some("mod")=>"mod",Some("resourcepack")=>"resourcepack",Some("shader")=>"shader",_=>return Err(BackendError::new("dependency","Unsupported dependency content type"))};pending.push((Some(dp.clone()),dv,dep_kind.into(),true));known.insert(dp,dep);},Some("optional")=>optional.push(dp.or(dv).unwrap_or_else(||d["file_name"].as_str().unwrap_or("Dependency").into())),Some("incompatible")=>{let other=state.items.iter().find(|x|x.enabled&&!x.missing&&x.provider=="modrinth"&&(dp.is_some()||dv.is_some())&&dp.as_ref().is_none_or(|p|x.project.as_ref()==Some(p))&&dv.as_ref().is_none_or(|v|x.provider_version.as_ref()==Some(v)));if let Some(other)=other{return Err(project_conflict(detail["title"].as_str().unwrap_or(&named),&other.name,&other.version));}},_=>{}}}}
   let files=v["files"].as_array().ok_or_else(||BackendError::new("metadata","Version has no files"))?;let f=files.iter().find(|f|f["primary"]==true).or_else(||files.first()).ok_or_else(||BackendError::new("metadata","Version file missing"))?.clone();
   if f["hashes"]["sha512"].as_str().is_none(){return Err(BackendError::new("checksum","Provider SHA-512 missing"));}
-  items.push(Planned{provider:"modrinth".into(),project:pid,version:vid,name:detail["title"].as_str().unwrap_or("Project").into(),number:v["version_number"].as_str().unwrap_or("").into(),kind,icon:detail["icon_url"].as_str().map(str::to_owned),file:f,required,dependencies:deps});
+  items.push(Planned{provider:"modrinth".into(),project:pid,version:vid,name:detail["title"].as_str().unwrap_or("Project").into(),number:v["version_number"].as_str().unwrap_or("").into(),kind,icon:detail["icon_url"].as_str().map(str::to_owned),file:f,required,dependencies:deps,conflicts:v["dependencies"].as_array().into_iter().flatten().filter(|d|d["dependency_type"]=="incompatible").cloned().collect()});
  }
  let bytes=serde_json::to_vec(&json!({"items":items,"world":world,"minecraft":i.minecraft,"loader":i.loader}))?;use sha2::Digest;let fingerprint=crate::backend::download::hex(sha2::Sha256::digest(bytes));Ok(Plan{items,optional,world,fingerprint})
 }
 // A single transaction applies files only after every download and verification succeeded.
 pub fn apply(b:&Backend,id:&str,state:State,files:Vec<(Item,std::path::PathBuf)>)->Result<State>{apply_transaction(b,id,state,files,&[],None)}
 pub fn apply_transaction(b:&Backend,id:&str,mut state:State,files:Vec<(Item,std::path::PathBuf)>,retired:&[String],pack:Option<super::content::PackSnapshot>)->Result<State>{
- for (item,_) in &files{if item.kind=="mod"&&state.items.iter().any(|old|old.enabled&&!old.missing&&!retired.contains(&old.id)&&old.provider!=item.provider&&old.mod_ids.iter().any(|id|item.mod_ids.contains(id))){return Err(BackendError::new("content_duplicate","This mod is already installed from another provider. Remove it explicitly before switching providers."));}}
+ for (item,_) in &files{if item.kind=="mod"{if let Some(old)=state.items.iter().find(|old|old.enabled&&!old.missing&&!retired.contains(&old.id)&&old.provider!=item.provider&&old.mod_ids.iter().any(|id|item.mod_ids.contains(id))){let mut issue=super::content_compatibility::Issue::new("duplicate",&item.name,"",&old.version);issue.other=old.name.clone();issue.dependency=old.mod_ids.iter().find(|id|item.mod_ids.contains(id)).cloned().unwrap_or_default();return Err(content::compatibility_error("content_duplicate",issue));}}}
  let pack_update=pack.is_some();let root=b.instance_path(id)?;let mut next=state.items.iter().filter(|item|!retired.contains(&item.id)).cloned().collect::<Vec<_>>();let mut changed=vec![];
  for (item,_) in &files {let old=next.iter().find(|x|x.path==item.path||item.project.is_some()&&x.provider==item.provider&&x.project==item.project&&x.kind==item.kind&&Path::new(&x.path).parent()==Path::new(&item.path).parent()).or_else(||state.items.iter().find(|x|retired.contains(&x.id)&&(x.path==item.path||item.project.is_some()&&x.provider==item.provider&&x.project==item.project&&x.kind==item.kind&&Path::new(&x.path).parent()==Path::new(&item.path).parent()))).cloned();
   let target=storage::safe_join(&root,&content::location(item))?;
-  if target.exists()&&old.as_ref().is_none_or(|x|content::location(x)!=content::location(item)){return Err(BackendError::new("content_conflict","A different file already occupies the destination"));}
-  if let Some(old)=old {if old.hash!=item.hash&&(old.provider!=item.provider||old.source=="local"&&old.project.is_none()||old.source!="pack"&&old.project!=item.project){return Err(BackendError::new("content_conflict","Unknown local file would be replaced; remove it explicitly first"));}next.retain(|x|x.id!=old.id);}
+  if target.exists()&&old.as_ref().is_none_or(|x|content::location(x)!=content::location(item)){return Err(BackendError::new("content_conflict",format!("{}: a different file already occupies {}",item.name,item.path)));}
+  if let Some(old)=old {if old.hash!=item.hash&&(old.provider!=item.provider||old.source=="local"&&old.project.is_none()||old.source!="pack"&&old.project!=item.project){return Err(BackendError::new("content_conflict",format!("{} would replace the local file for {} ({}); remove it explicitly first",item.name,old.name,old.path)));}next.retain(|x|x.id!=old.id);}
   if next.iter().any(|x|x.path==item.path){return Err(BackendError::new("content_conflict","Duplicate destination"));}next.push(item.clone());changed.push(item.clone());
  }
+ if !pack_update{validate_transaction(b,id,&state,&next,&files)?;}
  if changed.is_empty()&&retired.is_empty()&&pack.is_none(){return Ok(state);}
  content::checkpoint(&root,&mut state,if pack.is_some(){"pack_update"}else{"install"})?;if let Some(pack)=pack{state.snapshots.last_mut().unwrap().pack=Some(pack);content::save(&root,&state)?;}
  // Persist all touched paths before applying; rollback can remove newly added files too.
@@ -77,7 +143,7 @@ pub fn apply_transaction(b:&Backend,id:&str,mut state:State,files:Vec<(Item,std:
 }
 pub async fn install(b:Arc<Backend>,id:&str,plan:Plan,job:Arc<Job>)->Result<State>{install_many(b,id,vec![plan],job).await}
 pub async fn install_many(b:Arc<Backend>,id:&str,plans:Vec<Plan>,job:Arc<Job>)->Result<State>{
- let i=b.instance(id)?;let state=content::scan(&b,id)?;let root=b.instance_path(id)?;let staging=storage::Staging(root.join(".canary-content/staging").join(uuid::Uuid::new_v4().to_string()));crate::backend::protected_fs::create_dir_all(&staging.0)?;
+ let i=b.instance(id)?;let state=content::scan(&b,id)?;validate_plans(&plans,&state)?;let root=b.instance_path(id)?;let staging=storage::Staging(root.join(".canary-content/staging").join(uuid::Uuid::new_v4().to_string()));crate::backend::protected_fs::create_dir_all(&staging.0)?;
  let mut artifacts=vec![];let mut files=vec![];
  let mut seen=std::collections::HashMap::new();
  for plan in plans {for p in plan.items {
@@ -93,7 +159,7 @@ pub async fn install_many(b:Arc<Backend>,id:&str,plans:Vec<Plan>,job:Arc<Job>)->
  }
  }
  download::batch(b.clone(),artifacts,job.clone(),"content").await?;
- for (item,path) in &mut files{item.hash=download::hash_cancellable(path,"sha512",Some(&job.cancel))?;let info=content::inspect(path,&i)?;if info.kind!=item.kind||info.compatibility=="incompatible"{return Err(BackendError::new("content_incompatible","Downloaded archive is incompatible with this instance"));}item.mod_ids=info.mod_ids;item.loader=info.loader;}
+ for (item,path) in &mut files{item.hash=download::hash_cancellable(path,"sha512",Some(&job.cancel))?;let info=content::inspect(path,&i)?;if let Some(issue)=info.issue{return Err(content::compatibility_error("content_incompatible",issue));}if info.kind!=item.kind{return Err(BackendError::new("content_type",format!("{}: downloaded content is {}, expected {}",item.name,info.kind,item.kind)));}item.mod_ids=info.mod_ids;item.loader=info.loader;}
  job.critical()?;job.emit("content_apply","running",&i.name);let result=apply(&b,id,state,files)?;job.emit("content","success",&i.name);Ok(result)
 }
 pub fn import(b:&Backend,id:&str,paths:Vec<String>,world:Option<String>)->Result<State>{import_with_job(b,id,paths,world,None)}
@@ -101,7 +167,7 @@ pub fn import_with_job(b:&Backend,id:&str,paths:Vec<String>,world:Option<String>
  use std::io::{Read,Write};use std::sync::atomic::Ordering;
  if let Some(job)=job{job.check()?;job.files.store(paths.len() as u64,Ordering::Relaxed);job.total.store(paths.iter().map(|p|std::fs::metadata(p).map(|m|m.len()).unwrap_or(0)).sum(),Ordering::Relaxed);job.emit("content_import","running","");}
  let i=b.instance(id)?;let root=b.instance_path(id)?;let state=content::scan(b,id)?;let staging=storage::Staging(root.join(".canary-content/staging").join(uuid::Uuid::new_v4().to_string()));crate::backend::protected_fs::create_dir_all(&staging.0)?;let mut files=vec![];
- for path in paths {if let Some(job)=job{job.check()?;}let source=Path::new(&path);let info=content::inspect(source,&i)?;if info.compatibility=="incompatible"{return Err(BackendError::new("content_incompatible","Local content is incompatible with this loader or Minecraft version"));}
+ for path in paths {if let Some(job)=job{job.check()?;}let source=Path::new(&path);let info=content::inspect(source,&i)?;if let Some(issue)=info.issue.clone(){return Err(content::compatibility_error("content_incompatible",issue));}
   if info.kind=="shader"&&!state.items.iter().any(|x|x.enabled&&!x.missing&&x.kind=="mod"&&x.mod_ids.iter().any(|id|matches!(id.as_str(),"iris"|"oculus"|"optifine"|"canvas"))){return Err(BackendError::new("shader_support","Install compatible shader support before importing a shader pack"));}
   let folder=content::folder(&info.kind,world.as_deref())?;if info.kind=="datapack"&&!storage::safe_join(&root,&folder)?.parent().unwrap().join("level.dat").is_file(){return Err(BackendError::new("world_required","Select an existing world"));}
   let hash=download::hash_cancellable(source,"sha512",job.map(|j|j.cancel.as_ref()))?;if state.items.iter().any(|x|x.hash==hash&&!x.missing&&(info.kind!="datapack"||Path::new(&x.path).parent()==Some(Path::new(&folder))))||files.iter().any(|(x,_) : &(Item,std::path::PathBuf)|x.hash==hash&&Path::new(&x.path).parent()==Some(Path::new(&folder))){return Err(BackendError::new("content_duplicate","This file is already installed"));}
@@ -119,3 +185,22 @@ pub async fn updates_for_providers(b:&Backend,id:&str,beta:bool,allowed:Option<&
 
 pub async fn provider_versions(b:&Backend,provider:&str,i:&Instance,p:&str,kind:&str,beta:bool)->Result<Vec<Value>>{match provider{"modrinth"=>versions(b,i,p,kind,beta).await,"curseforge"=>super::curseforge_content::versions(b,p,kind,&i.minecraft,&i.loader,beta).await,_=>Err(BackendError::new("provider","Unknown content provider"))}}
 pub async fn provider_preview(b:&Backend,provider:&str,i:&Instance,p:&str,version:Option<&str>,kind:&str,world:Option<String>,beta:bool)->Result<Plan>{match provider{"modrinth"=>preview(b,i,p,version,kind,world,beta).await,"curseforge"=>super::curseforge_content::preview(b,i,p,version,kind,world,beta).await,_=>Err(BackendError::new("provider","Unknown content provider"))}}
+
+#[cfg(test)]
+mod compatibility_plan_tests {
+ use super::*;
+ fn plan(project:&str,version:&str,kind:&str,world:Option<&str>,conflicts:Value)->Plan{
+  serde_json::from_value(json!({"items":[{"provider":"modrinth","project":project,"version":version,"name":project,"number":version,"kind":kind,"file":{},"required":false,"dependencies":[],"conflicts":conflicts}],"optional":[],"world":world,"fingerprint":"fixture"})).unwrap()
+ }
+ #[test]fn conflicting_selections_are_rejected_before_any_download(){
+  let plans=vec![plan("A","v1","mod",None,json!([{"project_id":"B","version_id":null}])),plan("B","v2","mod",None,json!([]))];
+  let error=validate_plans(&plans,&State::default()).unwrap_err();assert_eq!(error.context.unwrap()["other"],"B");
+ }
+ #[test]fn version_scoped_conflicts_do_not_block_other_versions(){
+  let plans=vec![plan("A","v1","mod",None,json!([{"project_id":"B","version_id":"old"}])),plan("B","new","mod",None,json!([]))];assert!(validate_plans(&plans,&State::default()).is_ok());
+ }
+ #[test]fn datapack_versions_can_differ_between_worlds(){
+  assert!(validate_plans(&[plan("data","one","datapack",Some("World A"),json!([])),plan("data","two","datapack",Some("World B"),json!([]))],&State::default()).is_ok());
+  assert!(validate_plans(&[plan("data","one","datapack",Some("World A"),json!([])),plan("data","two","datapack",Some("World A"),json!([]))],&State::default()).is_err());
+ }
+}

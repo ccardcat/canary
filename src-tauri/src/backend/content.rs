@@ -17,7 +17,7 @@ pub struct Snapshot {#[serde(default)]pub pack:Option<PackSnapshot>,pub id:Strin
 #[derive(Clone,Serialize,Deserialize)]
 pub struct PackSnapshot {pub version_id:Option<String>,pub version_name:String,pub loader_version:Option<String>,pub metadata:std::collections::HashMap<String,Option<String>>,pub additions:Vec<(String,String)>}
 #[derive(Clone,Serialize)]
-pub struct Inspection {pub name:String,pub version:String,pub kind:String,pub loader:Option<String>,pub minecraft:Option<String>,pub compatibility:String,pub mod_ids:Vec<String>,pub file:String}
+pub struct Inspection {pub name:String,pub version:String,pub kind:String,pub loader:Option<String>,pub minecraft:Option<String>,pub compatibility:String,pub mod_ids:Vec<String>,pub file:String,pub issue:Option<super::content_compatibility::Issue>,#[serde(skip)]pub metadata:Vec<super::content_compatibility::Metadata>}
 pub fn load(root:&Path)->Result<State>{let p=root.join("content.json");if p.is_file(){Ok(serde_json::from_slice(&crate::backend::protected_fs::read(p)?)?)}else{Ok(State::default())}}
 pub fn save(root:&Path,state:&State)->Result<()>{storage::write_json(&root.join("content.json"),state)}
 pub fn location(item:&Item)->String{if item.enabled{item.path.clone()}else{format!(".canary-content/disabled/{}/{}",item.id,Path::new(&item.path).file_name().unwrap_or_default().to_string_lossy())}}
@@ -34,18 +34,81 @@ pub fn inspect(path:&Path,instance:&Instance)->Result<Inspection>{
     let fabric=entry_json(&mut zip,"fabric.mod.json");let quilt=entry_json(&mut zip,"quilt.mod.json");
     let pack=entry_json(&mut zip,"pack.mcmeta");
     let (kind,loader)=if fabric.is_some(){("mod",Some("fabric".into()))}else if quilt.is_some(){("mod",Some("quilt".into()))}else if names.iter().any(|s|s=="META-INF/neoforge.mods.toml"){("mod",Some("neoforge".into()))}else if names.iter().any(|s|s=="META-INF/mods.toml"||s=="mcmod.info"){("mod",Some("forge".into()))}else if names.iter().any(|s|s.starts_with("shaders/")){("shader",None)}else if pack.is_some()&&names.iter().any(|s|s.starts_with("data/")){("datapack",None)}else if pack.is_some()&&names.iter().any(|s|s.starts_with("assets/")){("resourcepack",None)}else{return Err(BackendError::new("content_archive","No supported mod, shader or pack metadata found"));};
-    let metadata=fabric.as_ref().or_else(||quilt.as_ref().map(|q|&q["quilt_loader"]));
-    let name=metadata.and_then(|v|v["name"].as_str().or(v["metadata"]["name"].as_str()).or(v["id"].as_str())).map(str::to_owned).unwrap_or_else(||path.file_stem().unwrap_or_default().to_string_lossy().into());
-    let version=metadata.and_then(|v|v["version"].as_str()).unwrap_or("").to_owned();
-    let mut mod_ids=metadata.and_then(|m|m["id"].as_str()).map(|id|vec![id.to_owned()]).unwrap_or_default();
-    if mod_ids.is_empty()&&kind=="mod" {for name in ["META-INF/mods.toml","META-INF/neoforge.mods.toml"]{if let Ok(entry)=zip.by_name(name){if entry.size()<=1024*1024{let mut text=String::new();entry.take(1024*1024).read_to_string(&mut text).ok();let pattern=regex::Regex::new(r#"modId\s*=\s*"([^"]+)""#).unwrap();mod_ids.extend(pattern.captures_iter(&text).map(|c|c[1].to_owned()));}}}}
-    let mc=fabric.as_ref().and_then(|v|v["depends"]["minecraft"].as_str()).map(str::to_owned);
-    let loader_ok=loader.as_deref().is_none_or(|l|l==instance.loader||(l=="fabric"&&instance.loader=="quilt"));
-    let exact_mc=mc.as_ref().filter(|s|s.chars().all(|c|c.is_ascii_digit()||c=='.'));
-    let server_only=fabric.as_ref().is_some_and(|v|v["environment"]=="server");
-    let compatibility=if !loader_ok||server_only||exact_mc.is_some_and(|v|v!=&instance.minecraft){"incompatible"}else{"possible"};
-    Ok(Inspection{name,version,kind:kind.into(),loader,minecraft:mc,compatibility:compatibility.into(),mod_ids,file:path.to_string_lossy().into()})
+    let fallback=path.file_stem().unwrap_or_default().to_string_lossy().into_owned();
+    let mut budget=64*1024*1024u64;
+    let mut metadata=archive_metadata(&mut zip,instance,0,&mut budget)?;
+    let name=metadata.first().map(|m|m.name.clone()).filter(|s|!s.is_empty()).unwrap_or(fallback);
+    let version=metadata.first().map(|m|m.version.clone()).unwrap_or_default();
+    let mod_ids=metadata.iter().filter(|m|!m.id.is_empty()).map(|m|m.id.clone()).collect();
+    let mc=metadata.iter().flat_map(|m|&m.rules).find(|r|r.id=="minecraft").map(|r|r.versions.as_str().map(str::to_owned).unwrap_or_else(||r.versions.to_string()));
+    let loader=if kind=="mod" {
+        let candidates=available_loaders(&names,&metadata);
+        Some(candidates.iter().find(|l|**l==instance.loader||(instance.loader=="quilt"&&**l=="fabric")).copied().unwrap_or(candidates[0]).to_owned())
+    }else{loader};
+    let mut issue=loader.as_deref().filter(|l|*l!=instance.loader&&!(*l=="fabric"&&instance.loader=="quilt")).map(|l|super::content_compatibility::Issue::new("loader",&name,l,&instance.loader));
+    if issue.is_none(){issue=metadata.iter().find_map(|m|super::content_compatibility::environment(m,&instance.minecraft,&instance.loader,instance.loader_version.as_deref()));}
+    let compatibility=if issue.is_some(){"incompatible"}else{"possible"};
+    // Nested mods satisfy dependencies, but are not independent top-level
+    // duplicates: loaders can choose between multiple bundled candidates.
+    let mut nested=vec![];collect_nested(&mut zip,instance,0,&mut budget,&mut nested)?;metadata.extend(nested);
+    Ok(Inspection{name,version,kind:kind.into(),loader,minecraft:mc,compatibility:compatibility.into(),mod_ids,file:path.to_string_lossy().into(),issue,metadata})
 }
+pub fn compatibility_error(code:&str,issue:super::content_compatibility::Issue)->BackendError{
+    let mut error=BackendError::new(code,issue.message());error.context=Some(serde_json::to_value(issue).unwrap_or(Value::Null));error
+}
+fn available_loaders(names:&[String],metadata:&[super::content_compatibility::Metadata])->Vec<&'static str>{
+    let mut out=vec![];
+    if names.iter().any(|n|n=="fabric.mod.json"){out.push("fabric");}
+    if names.iter().any(|n|n=="quilt.mod.json"){out.push("quilt");}
+    if names.iter().any(|n|n=="META-INF/neoforge.mods.toml"){out.push("neoforge");}
+    if names.iter().any(|n|n=="META-INF/mods.toml"||n=="mcmod.info"){
+        out.push(if metadata.iter().any(|m|m.rules.iter().any(|r|r.id=="neoforge")){"neoforge"}else{"forge"});
+    }
+    if out.is_empty(){out.push("unknown");}out
+}
+fn metadata_bytes<R:Read+std::io::Seek>(zip:&mut zip::ZipArchive<R>,name:&str,limit:u64)->Result<Option<Vec<u8>>>{
+    let entry=match zip.by_name(name){Ok(entry)=>entry,Err(zip::result::ZipError::FileNotFound)=>return Ok(None),Err(_)=>return Err(BackendError::new("content_archive","Cannot read mod metadata"))};
+    if entry.size()>limit{return Err(BackendError::new("content_archive",format!("Mod metadata exceeds its size limit: {name}")));}
+    let mut bytes=vec![];entry.take(limit+1).read_to_end(&mut bytes)?;if bytes.len() as u64>limit{return Err(BackendError::new("content_archive","Mod metadata exceeds its size limit"));}Ok(Some(bytes))
+}
+fn archive_metadata<R:Read+std::io::Seek>(zip:&mut zip::ZipArchive<R>,instance:&Instance,_depth:usize,_budget:&mut u64)->Result<Vec<super::content_compatibility::Metadata>>{
+    use super::content_compatibility as policy;
+    let fabric=metadata_bytes(zip,"fabric.mod.json",1024*1024)?;
+    let quilt=metadata_bytes(zip,"quilt.mod.json",1024*1024)?;
+    let forge=metadata_bytes(zip,"META-INF/mods.toml",1024*1024)?;
+    let neo=metadata_bytes(zip,"META-INF/neoforge.mods.toml",1024*1024)?;
+    let chosen=match instance.loader.as_str(){"fabric"=>fabric.as_ref().map(|b|("fabric",b)),"quilt"=>quilt.as_ref().map(|b|("quilt",b)).or_else(||fabric.as_ref().map(|b|("fabric",b))),"neoforge"=>neo.as_ref().or(forge.as_ref()).map(|b|("forge",b)),"forge"=>forge.as_ref().map(|b|("forge",b)),_=>None}.or_else(||fabric.as_ref().map(|b|("fabric",b))).or_else(||quilt.as_ref().map(|b|("quilt",b))).or_else(||neo.as_ref().or(forge.as_ref()).map(|b|("forge",b)));
+    let Some((kind,bytes))=chosen else{return Ok(vec![]);};
+    if kind=="forge"{
+        let text=std::str::from_utf8(bytes).map_err(|_|BackendError::new("content_archive","Mod metadata is not UTF-8"))?;
+        let parsed=toml::from_str::<toml::Value>(text).map_err(|_|BackendError::new("content_archive","Invalid Forge/NeoForge mod metadata"))?;
+        let manifest=metadata_bytes(zip,"META-INF/MANIFEST.MF",1024*1024)?.and_then(|b|String::from_utf8(b).ok()).unwrap_or_default();
+        let version=manifest.lines().find_map(|line|line.strip_prefix("Implementation-Version:").map(str::trim)).unwrap_or("");
+        Ok(policy::forge(&serde_json::to_value(parsed)?,version))
+    }else{
+        let parsed:Value=serde_json::from_slice(bytes).map_err(|_|BackendError::new("content_archive","Invalid Fabric/Quilt mod metadata"))?;
+        Ok(vec![if kind=="fabric"{policy::fabric(&parsed)}else{policy::quilt(&parsed)}])
+    }
+}
+fn collect_nested<R:Read+std::io::Seek>(zip:&mut zip::ZipArchive<R>,instance:&Instance,depth:usize,budget:&mut u64,out:&mut Vec<super::content_compatibility::Metadata>)->Result<()>{
+    let mut paths=vec![];
+    for name in ["fabric.mod.json","quilt.mod.json","META-INF/jarjar/metadata.json"]{
+        if let Some(bytes)=metadata_bytes(zip,name,1024*1024)?{if let Ok(v)=serde_json::from_slice::<Value>(&bytes){
+            for jar in v["jars"].as_array().into_iter().flatten(){if let Some(path)=jar.as_str().or_else(||jar["file"].as_str()).or_else(||jar["path"].as_str()){paths.push(path.to_owned());}}
+            for jar in v["quilt_loader"]["jars"].as_array().into_iter().flatten(){if let Some(path)=jar.as_str(){paths.push(path.to_owned());}}
+        }}
+    }
+    paths.sort();paths.dedup();
+    if !paths.is_empty()&&(depth>=8||out.len()+paths.len()>512){return Err(BackendError::new("content_archive","Too many nested mod archives"));}
+    for path in paths{storage::safe_join(Path::new("validation"),&path)?;
+        let bytes=metadata_bytes(zip,&path,(*budget).min(32*1024*1024))?.ok_or_else(||BackendError::new("content_archive",format!("Declared bundled mod is missing: {path}")))?;
+        *budget=budget.checked_sub(bytes.len() as u64).ok_or_else(||BackendError::new("content_archive","Nested mod inspection limit exceeded"))?;
+        let mut nested=zip::ZipArchive::new(std::io::Cursor::new(bytes)).map_err(|_|BackendError::new("content_archive","Invalid bundled mod archive"))?;
+        if nested.len()>100_000{return Err(BackendError::new("content_archive","Bundled archive has too many entries"));}
+        out.extend(archive_metadata(&mut nested,instance,depth+1,budget)?);collect_nested(&mut nested,instance,depth+1,budget,out)?;
+    }Ok(())
+}
+
 pub fn scan(backend:&Backend,id:&str)->Result<State>{
     let instance=backend.instance(id)?;let root=backend.instance_path(id)?;let mut state=load(&root)?;
     let index:Value=crate::backend::protected_fs::read(root.join("modrinth.index.json")).ok().and_then(|v|serde_json::from_slice(&v).ok()).unwrap_or(Value::Null);
@@ -56,7 +119,7 @@ pub fn scan(backend:&Backend,id:&str)->Result<State>{
     for (kind,rel) in dirs {let dir=storage::safe_join(&root,&rel)?;if let Ok(entries)=std::fs::read_dir(&dir){for entry in entries.flatten(){if !entry.file_type()?.is_file(){continue;}let path=entry.path();let ext=path.extension().unwrap_or_default().to_string_lossy().to_ascii_lowercase();if !matches!(ext.as_str(),"jar"|"zip"){continue;}
         let relative=format!("{rel}/{}",entry.file_name().to_string_lossy());storage::safe_join(&root,&relative)?;
         let metadata=entry.metadata()?;
-        if let Some(item)=state.items.iter_mut().find(|i|i.path==relative&&i.enabled){let actual=download::hash(&path,"sha512")?;if item.hash!=actual{item.hash=actual;item.size=metadata.len();item.project=None;item.provider_version=None;item.source="local".into();item.canary_managed=false;}if item.mod_ids.is_empty(){if let Ok(info)=inspect(&path,&instance){item.mod_ids=info.mod_ids;item.loader=info.loader;}}continue;}
+        if let Some(item)=state.items.iter_mut().find(|i|i.path==relative&&i.enabled){let actual=download::hash(&path,"sha512")?;if item.hash!=actual{item.hash=actual;item.size=metadata.len();item.project=None;item.provider_version=None;item.source="local".into();item.canary_managed=false;item.mod_ids.clear();item.loader=None;}if item.mod_ids.is_empty(){if let Ok(info)=inspect(&path,&instance){item.mod_ids=info.mod_ids;item.loader=info.loader;item.compatibility=info.compatibility;if !info.version.is_empty(){item.version=info.version;}if !info.name.is_empty(){item.name=info.name;}}}continue;}
         let info=inspect(&path,&instance).ok();let hash=download::hash(&path,"sha512")?;
         let pack_entry=index["files"].as_array().and_then(|files|files.iter().find(|f|f["path"].as_str()==Some(&relative)&&f["hashes"]["sha512"].as_str().is_some_and(|expected|expected.eq_ignore_ascii_case(&hash))));
         let cf_receipt=if instance.provider=="curseforge"{pack_receipt.iter().find(|entry|entry["path"].as_str()==Some(&relative)&&entry["hash"].as_str()==Some(&hash))}else{None};
@@ -85,6 +148,11 @@ pub fn mutate(backend:&Backend,id:&str,ids:&[String],action:&str)->Result<State>
     for item in &items {if item.missing&&action!="remove"{return Err(BackendError::new("content_missing","Content file is missing"));}
       if action!="remove"&&item.enabled!=(action=="enable") {let mut next=item.clone();next.enabled=action=="enable";if storage::safe_join(&root,&location(&next))?.exists(){return Err(BackendError::new("content_conflict","Target already exists"));}}}
     let items=items.into_iter().filter(|i|action=="remove"||i.enabled!=(action=="enable")).collect::<Vec<_>>();if items.is_empty(){return Ok(state);}
+    if action=="enable"{
+        let mut next=state.items.clone();let mut enabled=vec![];
+        for item in &items{let mut new=item.clone();new.enabled=true;if let Some(x)=next.iter_mut().find(|x|x.id==new.id){*x=new.clone();}enabled.push((new,storage::safe_join(&root,&location(item))?));}
+        super::content_provider::validate_transaction(backend,id,&state,&next,&enabled)?;
+    }
     checkpoint(&root,&mut state,action)?;
     let mut moved:Vec<(PathBuf,PathBuf)>=vec![];
     let result:Result<()>= (||{

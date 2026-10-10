@@ -1,4 +1,5 @@
 import {redactDiagnostic,sanitizeDetails} from "./privacy";
+import {contentErrorCopy} from "./contentErrors";
 export interface ErrorDetail {code:string;message?:string;stage?:string;retryable?:boolean;instance_id?:string;task_id?:string;command?:string;retry_available?:boolean;[key:string]:unknown}
 export function normalizeError(error:unknown):ErrorDetail {
  if(typeof error==="string"){try{return normalizeError(JSON.parse(error));}catch{return {code:"unknown",message:redactDiagnostic(error)};}}
@@ -35,6 +36,9 @@ const copies:Record<string,{ru:Copy;en:Copy}>={
 export function errorCopy(error:unknown,russian:boolean){
  const detail=normalizeError(error),code=detail.code;
  const family=code==="unsafe_path"?"unsafePath":code==="unsafe_url"?"unsafeSource":/^(download_limit|metadata_limit|archive_limit)$/.test(code)?"resourceLimit":code==="java_consent"?"javaConsent":code==="loader_incompatible"||code==="loader_unsupported"?"loaderCompatibility":code==="loader_catalog"?"loaderCatalog":code==="memory_adjusted"?"memoryAdjusted":code==="account_in_use_by_game"?"accountGame":code==="account_in_use_by_launch"?"accountLaunch":/memory/.test(code)?"memory":/in_use|busy|active|tasks_running|game_running|finalizing|account_removing/.test(code)?"resource":/checksum|hash|verification/.test(code)?"verification":code==="cancelled"?"cancelled":/java/.test(code)?"java":/network|timeout|http_/.test(code)?"network":code==="auth_two_factor"?"authTwoFactor":code==="auth_invalid"?"authInvalid":/auth|credential_scope|account_required|relogin|xbox|xsts|microsoft|minecraft_ownership|minecraft_profile|identity|secure_storage/.test(code)?"auth":/permission|filesystem|storage|disk_space|open_folder|open_file/.test(code)?"filesystem":/provider|curseforge/.test(code)?"provider":/content|dependency|shader|world|pack_no_update/.test(code)?"content":/launch|process_exit/.test(code)?"launch":/install|download|modpack|mrpack|archive|loader|task_interrupted/.test(code)?"install":"unknown";
- const [title,message,hint]=copies[family][russian?"ru":"en"];return {title,message,hint,detail,family};
+ const [title,message,hint]=copies[family][russian?"ru":"en"];
+ const specific=detail.code==="content_runtime_conflict"&&detail.message?{title:russian?"Моды не могут загрузиться":"Mods could not load",message:(russian?"Загрузчик сообщил о несовместимости модов:\n":"The loader reported incompatible mods:\n")+detail.message,hint:russian?"Установите версии модов и зависимостей, указанные загрузчиком, или отключите конфликтующий мод.":"Install the mod and dependency versions reported by the loader, or disable the conflicting mod."}:family==="content"?contentErrorCopy(detail.context,russian):null;
+ const readable=family==="content"&&detail.message&&detail.message!==detail.code?detail.message:message;
+ return {title:specific?.title??title,message:specific?.message??readable,hint:specific?.hint??hint,detail,family};
 }
 export const technicalDetails=(error:unknown)=>redactDiagnostic(JSON.stringify(normalizeError(error),null,2));

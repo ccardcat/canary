@@ -3,6 +3,17 @@ import {nativeFixture} from "./helpers/nativeFixture";
 import {mkdirSync} from "node:fs";
 const nav=(p:Page,name:string)=>p.locator(".sidebar nav").getByRole("button",{name,exact:true});
 const choose=async(p:Page,name:string,value:string)=>{await p.getByRole("combobox",{name,exact:true}).click();await p.getByRole("option",{name:value,exact:true}).click();};
+
+test("Incompatible catalog entries stay blocked and missing releases explain the project and instance",async({page})=>{
+ await start(page);await page.evaluate(()=>{const q=(globalThis as any).__materialQA;q.state.instances[0].minecraft="26.2";q.overrides.content_versions=()=>[];q.overrides.content_project=()=>({id:"mod-0",title:"Wrong MC mod",description:"Fixture",body:"",game_versions:["1.21.1"],loaders:["forge"]});});
+ await content(page);const card=page.locator(".compact-project-card").first();await expect(card.getByRole("checkbox")).toBeDisabled();await expect(card.locator(".install-action")).toBeDisabled();
+ await card.locator(".card-title").click();await expect(page.locator(".content-detail .inline-error>p").first()).toContainText("Wrong MC mod");await expect(page.locator(".content-detail .inline-error>p").first()).toContainText("Minecraft 26.2 / Fabric");await expect(page.locator(".content-detail .compact-action")).toBeDisabled();
+ expect(await page.evaluate(()=>(globalThis as any).__materialQA.calls.some((c:any)=>c.command==="install_content"||c.command==="bulk_install_content"))).toBe(false);
+});
+test("File import shows the missing dependency before allowing Add",async({page})=>{
+ await start(page);await page.evaluate(()=>{const q=(globalThis as any).__materialQA;q.overrides.choose_content_files=()=>["fixture.jar"];q.overrides.inspect_content_files=()=>[{name:"User mod",kind:"mod",version:"1",file:"fixture.jar",compatibility:"incompatible",issue:{reason:"dependency_missing",name:"User mod",dependency:"library",required:">=2",actual:""}}];});
+ await content(page);await page.locator(".content-actions").getByRole("button",{name:"Add from file",exact:true}).click();const dialog=page.getByRole("dialog",{name:"Add from file",exact:true});await expect(dialog.locator(".inline-error>p").first()).toContainText("User mod requires library >=2");await expect(dialog.locator(".compact-action")).toBeDisabled();expect(await page.evaluate(()=>(globalThis as any).__materialQA.calls.some((c:any)=>c.command==="import_content_files"))).toBe(false);
+});
 async function start(page:Page){
  await nativeFixture(page);await page.emulateMedia({reducedMotion:"reduce"});
  await page.route("https://api.modrinth.com/v2/search*",r=>r.fulfill({json:{hits:Array.from({length:8},(_,i)=>({project_id:"project-"+i,title:"Compact project "+i,description:"A small project description with readable details.",project_type:"modpack",downloads:1000+i,versions:["1.21.1"],categories:["fabric"],icon_url:"/branding/canary-bird-white.png"})),total_hits:8}}));

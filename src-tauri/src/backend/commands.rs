@@ -244,7 +244,7 @@ pub async fn choose_content_files(app:AppHandle)->Result<Vec<String>>{
  tokio::task::spawn_blocking(move||{use tauri_plugin_dialog::DialogExt;Ok(app.dialog().file().add_filter("Minecraft content",&["jar","zip"]).blocking_pick_files().unwrap_or_default().into_iter().filter_map(|p|p.into_path().ok().map(|p|p.to_string_lossy().into_owned())).collect())}).await.map_err(|e|BackendError::new("content_file",e.to_string()))?
 }
 #[tauri::command]
-pub async fn inspect_content_files(backend:State<'_,B>,id:String,paths:Vec<String>)->Result<Vec<super::content::Inspection>>{let b=backend.inner().clone();tokio::task::spawn_blocking(move||{let i=b.instance(&id)?;paths.iter().map(|p|super::content::inspect(std::path::Path::new(p),&i)).collect()}).await.map_err(|e|BackendError::new("content_file",e.to_string()))?}
+pub async fn inspect_content_files(backend:State<'_,B>,id:String,paths:Vec<String>)->Result<Vec<super::content::Inspection>>{let b=backend.inner().clone();tokio::task::spawn_blocking(move||{let _lease=b.lease(&id)?;super::content_provider::inspect_batch(&b,&id,&paths)}).await.map_err(|e|BackendError::new("content_file",e.to_string()))?}
 #[tauri::command]
 pub async fn import_content_files(backend:State<'_,B>,app:AppHandle,id:String,paths:Vec<String>,world:Option<String>,task_id:Option<String>)->Result<super::content::State>{let b=backend.inner().clone();let lease=b.lease(&id)?;let job=Job::tracked(backend.inner().clone(),&id,"install",&backend.instance(&id)?.name,Some(&id),Some(app.clone()),lease.cancel.clone(),task_id)?;job.content_history.store(true,Ordering::Relaxed);let worker_job=job.clone();let event_id=id.clone();let result=tokio::task::spawn_blocking(move||{let _lease=lease;super::content_provider::import_with_job(&b,&id,paths,world,Some(&worker_job))}).await.unwrap_or_else(|e|Err(BackendError::new("content_file",e.to_string())));job.finish(&result);let _=app.emit("content-changed",serde_json::json!({"id":event_id}));result}
 
@@ -255,7 +255,7 @@ pub async fn bulk_content_preview(backend:State<'_,B>,id:String,requests:Vec<Con
  if requests.is_empty()||requests.len()>100{return Err(BackendError::new("dependency","Select between 1 and 100 projects"));}
  let _lease=backend.inner().lease(&id)?;super::content_provider::identify(&backend,&id).await?;let instance=backend.instance(&id)?;let mut plans=Vec::new();
  for r in requests{plans.push(super::content_provider::provider_preview(&backend,&r.provider,&instance,&r.project,r.version.as_deref(),&r.kind,r.world,r.beta).await?);}
- Ok(plans)
+ super::content_provider::validate_plans(&plans,&super::content::scan(&backend,&id)?)?;Ok(plans)
 }
 #[tauri::command]
 pub async fn bulk_install_content(backend:State<'_,B>,app:AppHandle,id:String,requests:Vec<ContentRequest>,task_id:Option<String>)->Result<super::content::State>{

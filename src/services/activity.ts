@@ -35,7 +35,7 @@ export interface ActivityTask {
   percent: number;
   speed: number;
   currentFile: string;
-  error?: { code?: string; message: string };
+  error?: { code?: string; message: string; context?:unknown };
 }
 export const isTerminal = (task: ActivityTask) =>
   ["completed", "cancelled", "failed"].includes(task.status);

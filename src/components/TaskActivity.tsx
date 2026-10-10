@@ -1,3 +1,4 @@
+import {errorCopy} from "../services/errors";
 import {useLiveTasks} from "../services/taskStore";
 import {EmptyState} from "./EmptyState";
 import { useState } from "react";
@@ -131,7 +132,7 @@ export function TaskRow({
           </button>
           {expanded && (
             <p className="activity-error selectable">
-              {task.error?.message || text.failed}
+              {task.error&&/content|dependency/.test(task.error.code||"")?errorCopy(task.error,russian).message:task.error?.message || text.failed}
             </p>
           )}
         </>

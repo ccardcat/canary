@@ -284,7 +284,7 @@ export function BackendProvider({ children }: { children: ReactNode }) {
         if (isTerminal(current)) return;
         const detail =
           typeof error === "object" && error !== null
-            ? (error as { code?: string; stage?: string; message: string })
+            ? (error as { code?: string; stage?: string; message: string; context?:unknown })
             : undefined;
         updateTask({
           ...current,
@@ -298,7 +298,7 @@ export function BackendProvider({ children }: { children: ReactNode }) {
           currentFile: "",
           speed: 0,
           error: error
-            ? { code: detail?.code, message: detail?.message ?? String(error) }
+            ? { code: detail?.code, message: detail?.message ?? String(error), context:detail?.context }
             : undefined,
         });
       };

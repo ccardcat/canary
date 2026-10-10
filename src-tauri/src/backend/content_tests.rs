@@ -1,6 +1,71 @@
 use super::{Backend,content,content_provider,download,model::*,storage};
 use std::{path::{Path,PathBuf},io::Write,sync::{Arc,atomic::AtomicBool}};
 use serde_json::json;
+
+#[test]
+fn declared_minecraft_ranges_and_loader_versions_are_checked() {
+ let (b,_cleanup,mut i)=setup();i.loader_version=Some("0.16.10".into());
+ let path=b.root.join("ranges.jar");
+ archive(&path,&[("fabric.mod.json",br#"{"id":"ranges","name":"Range Test","version":"1","depends":{"minecraft":">=1.21 <1.22","fabricloader":">=0.16"}}"#)]);
+ assert!(content::inspect(&path,&i).unwrap().issue.is_none());
+ i.minecraft="26.2".into();let issue=content::inspect(&path,&i).unwrap().issue.unwrap();assert_eq!(issue.reason,"minecraft");assert_eq!(issue.name,"Range Test");
+ i.minecraft="1.21.1".into();i.loader_version=Some("0.15.0".into());assert_eq!(content::inspect(&path,&i).unwrap().issue.unwrap().reason,"loader_version");
+}
+#[test]
+fn forge_and_neoforge_metadata_use_declared_maven_ranges() {
+ let (b,_cleanup,mut i)=setup();i.loader="neoforge".into();i.loader_version=Some("21.1.10".into());
+ let path=b.root.join("neo.jar");archive(&path,&[("META-INF/neoforge.mods.toml",b"modLoader=\"javafml\"\n[[mods]]\nmodId=\"neo_test\"\ndisplayName=\"Neo Test\"\nversion=\"1\"\n[[dependencies.neo_test]]\nmodId=\"minecraft\"\ntype=\"required\"\nversionRange=\"[1.21,1.22)\"\n[[dependencies.neo_test]]\nmodId=\"neoforge\"\ntype=\"required\"\nversionRange=\"[21.1,)\"")]);
+ let info=content::inspect(&path,&i).unwrap();assert_eq!(info.name,"Neo Test");assert!(info.issue.is_none());
+ i.minecraft="26.2".into();assert_eq!(content::inspect(&path,&i).unwrap().issue.unwrap().reason,"minecraft");
+}
+#[test]
+fn multi_loader_archive_uses_the_metadata_for_this_instance() {
+ let (b,_cleanup,mut i)=setup();i.loader="forge".into();let path=b.root.join("multi.jar");
+ archive(&path,&[("fabric.mod.json",br#"{"id":"multi","name":"Fabric variant","depends":{"minecraft":"1.20.1"}}"#),("META-INF/mods.toml",b"modLoader=\"javafml\"\n[[mods]]\nmodId=\"multi\"\ndisplayName=\"Forge variant\"\nversion=\"1\"")]);
+ let info=content::inspect(&path,&i).unwrap();assert_eq!(info.loader.as_deref(),Some("forge"));assert_eq!(info.name,"Forge variant");assert!(info.issue.is_none());
+}
+#[test]
+fn bundled_fabric_mods_satisfy_dependencies_without_becoming_top_level_duplicates() {
+ let (b,_cleanup,i)=setup();let bundled=b.root.join("bundled.jar");archive(&bundled,&[("fabric.mod.json",br#"{"id":"library","name":"Bundled Library","version":"2"}"#)]);
+ let bytes=crate::backend::protected_fs::read(&bundled).unwrap();let path=b.root.join("container.jar");
+ archive(&path,&[("fabric.mod.json",br#"{"id":"container","name":"Container","version":"1","depends":{"library":">=2"},"jars":[{"file":"META-INF/jars/library.jar"}]}"#),("META-INF/jars/library.jar",&bytes)]);
+ let info=content::inspect(&path,&i).unwrap();assert_eq!(info.mod_ids,vec!["container"]);assert_eq!(info.metadata.len(),2);
+ assert!(super::content_compatibility::relationships(&info.metadata,&["container".into()],&[],&[]).is_none());
+}
+#[test]
+fn import_preview_checks_dependencies_as_one_selection() {
+ let (b,_cleanup,i)=setup();let user=b.root.join("preview-user.jar");let library=b.root.join("preview-library.jar");
+ archive(&user,&[("fabric.mod.json",br#"{"id":"user","name":"User mod","version":"1","depends":{"library":">=2"}}"#)]);
+ archive(&library,&[("fabric.mod.json",br#"{"id":"library","name":"Library","version":"2"}"#)]);
+ let one=content_provider::inspect_batch(&b,&i.id,&[user.to_string_lossy().into()]).unwrap();assert_eq!(one[0].issue.as_ref().unwrap().reason,"dependency_missing");
+ let both=content_provider::inspect_batch(&b,&i.id,&[user.to_string_lossy().into(),library.to_string_lossy().into()]).unwrap();assert!(both.iter().all(|i|i.issue.is_none()));
+ let root=b.instance_path(&i.id).unwrap();assert!(!root.join("mods/preview-user.jar").exists());assert!(!root.join("mods/preview-library.jar").exists());
+}
+#[test]
+fn rejected_local_import_does_not_change_installed_mods_or_snapshots() {
+ let (b,_cleanup,i)=setup();let source=b.root.join("wrong.jar");archive(&source,&[("fabric.mod.json",br#"{"id":"wrong","name":"Wrong MC","version":"1","depends":{"minecraft":">=1.22"}}"#)]);
+ let root=b.instance_path(&i.id).unwrap();let error=content_provider::import(&b,&i.id,vec![source.to_string_lossy().into()],None).err().unwrap();assert_eq!(error.code,"content_incompatible");assert_eq!(error.context.unwrap()["name"],"Wrong MC");
+ assert!(!root.join("mods/wrong.jar").exists());let state=content::load(&root).unwrap();assert!(state.items.is_empty());assert!(state.snapshots.is_empty());assert!(source.is_file());
+}
+#[test]
+fn import_validates_a_whole_dependency_batch_before_commit() {
+ let (b,_cleanup,i)=setup();let user=b.root.join("user.jar");let library=b.root.join("library.jar");
+ archive(&user,&[("fabric.mod.json",br#"{"id":"user","name":"User mod","version":"1","depends":{"library":">=2"}}"#)]);
+ archive(&library,&[("fabric.mod.json",br#"{"id":"library","name":"Library","version":"2"}"#)]);
+ let root=b.instance_path(&i.id).unwrap();let error=content_provider::import(&b,&i.id,vec![user.to_string_lossy().into()],None).err().unwrap();assert_eq!(error.code,"dependency");assert_eq!(error.context.unwrap()["dependency"],"library");assert!(!root.join("mods/user.jar").exists());
+ let state=content_provider::import(&b,&i.id,vec![user.to_string_lossy().into(),library.to_string_lossy().into()],None).unwrap();assert_eq!(state.items.len(),2);
+}
+#[test]
+fn installed_reverse_conflicts_and_duplicate_mod_ids_are_rejected() {
+ let (b,_cleanup,i)=setup();let old=b.root.join("old.jar");let new=b.root.join("new.jar");
+ archive(&old,&[("fabric.mod.json",br#"{"id":"old","name":"Old mod","version":"1","breaks":{"new":"*"}}"#)]);
+ archive(&new,&[("fabric.mod.json",br#"{"id":"new","name":"New mod","version":"1"}"#)]);
+ content_provider::import(&b,&i.id,vec![old.to_string_lossy().into()],None).unwrap();
+ let root=b.instance_path(&i.id).unwrap();let hash=download::hash(&root.join("mods/old.jar"),"sha512").unwrap();
+ let error=content_provider::import(&b,&i.id,vec![new.to_string_lossy().into()],None).err().unwrap();let context=error.context.unwrap();assert_eq!(context["name"],"Old mod");assert_eq!(context["other"],"New mod");assert!(!root.join("mods/new.jar").exists());assert_eq!(download::hash(&root.join("mods/old.jar"),"sha512").unwrap(),hash);
+ archive(&new,&[("fabric.mod.json",br#"{"id":"old","name":"Duplicate mod","version":"2"}"#)]);
+ assert_eq!(content_provider::import(&b,&i.id,vec![new.to_string_lossy().into()],None).err().unwrap().code,"content_duplicate");
+}
 #[test]
 fn curseforge_pack_update_preserves_provenance_user_files_and_rollback() {
     let (b, _cleanup, mut i) = setup();
@@ -68,7 +133,7 @@ fn switching_provider_cannot_duplicate_a_mod_or_overwrite_its_file() {
 fn setup()->(Arc<Backend>,storage::Staging,Instance){let root=std::env::temp_dir().join(format!("canary-content-test-{}",uuid::Uuid::new_v4()));let cleanup=storage::Staging(root.clone());let b=Arc::new(Backend::with_root(root).unwrap());let i=Instance{id:"isolated".into(),name:"Content validation".into(),minecraft:"1.21.1".into(),loader:"fabric".into(),..Instance::default()};crate::backend::protected_fs::create_dir_all(storage::instance_dir(&b.root,&i.id).unwrap()).unwrap();b.save_instance(&i).unwrap();(b,cleanup,i)}
 fn archive(path:&Path,entries:&[(&str,&[u8])]) {crate::backend::protected_fs::create_dir_all(path.parent().unwrap()).unwrap();let mut zip=zip::ZipWriter::new(crate::backend::protected_fs::create(path).unwrap());for (name,data) in entries {zip.start_file(*name,zip::write::SimpleFileOptions::default()).unwrap();zip.write_all(data).unwrap();}zip.finish().unwrap();}
 fn fabric(path:&Path){archive(path,&[("fabric.mod.json",br#"{"id":"sample","name":"Sample mod","version":"1.0","environment":"client","depends":{"minecraft":"1.21.1"}}"#)]);}
-#[test]fn archive_types_and_loader_safety(){let (b,_cleanup,i)=setup();let jar=b.root.join("sample.jar");fabric(&jar);assert_eq!(content::inspect(&jar,&i).unwrap().kind,"mod");let forge=b.root.join("forge.jar");archive(&forge,&[("META-INF/mods.toml",b"modLoader=javafml")]);assert_eq!(content::inspect(&forge,&i).unwrap().compatibility,"incompatible");let pack=b.root.join("pack.zip");archive(&pack,&[("pack.mcmeta",br#"{"pack":{"pack_format":34,"description":"Pack"}}"#),("assets/minecraft/a.txt",b"pack")]);assert_eq!(content::inspect(&pack,&i).unwrap().kind,"resourcepack");let shader=b.root.join("shader.zip");archive(&shader,&[("shaders/a.fsh",b"shader")]);assert_eq!(content::inspect(&shader,&i).unwrap().kind,"shader");crate::backend::protected_fs::write(&pack,b"not zip").unwrap();assert!(content::inspect(&pack,&i).is_err());archive(&pack,&[("../escape",b"bad")]);assert!(content::inspect(&pack,&i).is_err());}
+#[test]fn archive_types_and_loader_safety(){let (b,_cleanup,i)=setup();let jar=b.root.join("sample.jar");fabric(&jar);assert_eq!(content::inspect(&jar,&i).unwrap().kind,"mod");let forge=b.root.join("forge.jar");archive(&forge,&[("META-INF/mods.toml",b"modLoader=\"javafml\"\n[[mods]]\nmodId=\"forge_test\"\nversion=\"1\"")]);assert_eq!(content::inspect(&forge,&i).unwrap().compatibility,"incompatible");let pack=b.root.join("pack.zip");archive(&pack,&[("pack.mcmeta",br#"{"pack":{"pack_format":34,"description":"Pack"}}"#),("assets/minecraft/a.txt",b"pack")]);assert_eq!(content::inspect(&pack,&i).unwrap().kind,"resourcepack");let shader=b.root.join("shader.zip");archive(&shader,&[("shaders/a.fsh",b"shader")]);assert_eq!(content::inspect(&shader,&i).unwrap().kind,"shader");crate::backend::protected_fs::write(&pack,b"not zip").unwrap();assert!(content::inspect(&pack,&i).is_err());archive(&pack,&[("../escape",b"bad")]);assert!(content::inspect(&pack,&i).is_err());}
 #[test]fn datapack_requires_world_and_preserves_save(){let (b,_cleanup,i)=setup();let pack=b.root.join("datapack.zip");archive(&pack,&[("pack.mcmeta",br#"{"pack":{"pack_format":48}}"#),("data/sample/function/test.mcfunction",b"say test")]);assert!(content_provider::import(&b,&i.id,vec![pack.to_string_lossy().into()],None).is_err());assert!(content_provider::import(&b,&i.id,vec![pack.to_string_lossy().into()],Some("Missing".into())).is_err());let root=storage::instance_dir(&b.root,&i.id).unwrap();crate::backend::protected_fs::create_dir_all(root.join("saves/World")).unwrap();crate::backend::protected_fs::write(root.join("saves/World/level.dat"),b"world fixture").unwrap();let s=content_provider::import(&b,&i.id,vec![pack.to_string_lossy().into()],Some("World".into())).unwrap();assert!(s.items[0].path.starts_with("saves/World/datapacks/"));assert_eq!(content::worlds(&root).unwrap().len(),1);content::mutate(&b,&i.id,&[s.items[0].id.clone()],"remove").unwrap();content::rollback(&b,&i.id).unwrap();assert_eq!(crate::backend::protected_fs::read(root.join("saves/World/level.dat")).unwrap(),b"world fixture");assert!(root.join("saves/World/datapacks/datapack.zip").is_file());}
 #[test]fn local_import_toggle_duplicate_and_rollback(){let (b,_cleanup,i)=setup();let jar=b.root.join("sample.jar");fabric(&jar);let state=content_provider::import(&b,&i.id,vec![jar.to_string_lossy().into()],None).unwrap();let item=&state.items[0];assert!(content_provider::import(&b,&i.id,vec![jar.to_string_lossy().into()],None).is_err());let root=storage::instance_dir(&b.root,&i.id).unwrap();let state=content::mutate(&b,&i.id,&[item.id.clone()],"disable").unwrap();assert!(!root.join("mods/sample.jar").exists());assert!(root.join(content::location(&state.items[0])).is_file());let restored=Backend::with_root(b.root.clone()).unwrap();assert!(!content::load(&root).unwrap().items[0].enabled);let state=content::mutate(&restored,&i.id,&[item.id.clone()],"enable").unwrap();assert!(state.items[0].enabled);content::mutate(&b,&i.id,&[item.id.clone()],"remove").unwrap();assert!(!root.join("mods/sample.jar").exists());let restored=content::rollback(&b,&i.id).unwrap();assert_eq!(restored.items[0].hash,download::hash(&root.join("mods/sample.jar"),"sha512").unwrap());assert!(jar.is_file());}
 #[test]fn rollback_never_overwrites_unknown_files(){let(b,_cleanup,i)=setup();let jar=b.root.join("sample.jar");fabric(&jar);let state=content_provider::import(&b,&i.id,vec![jar.to_string_lossy().into()],None).unwrap();let root=storage::instance_dir(&b.root,&i.id).unwrap();content::mutate(&b,&i.id,&[state.items[0].id.clone()],"remove").unwrap();crate::backend::protected_fs::write(root.join("mods/sample.jar"),b"manually added replacement").unwrap();assert!(content::rollback(&b,&i.id).is_err());assert_eq!(crate::backend::protected_fs::read(root.join("mods/sample.jar")).unwrap(),b"manually added replacement");}
