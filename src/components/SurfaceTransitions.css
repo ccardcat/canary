@@ -1,0 +1,39 @@
+/* Animate navigation surfaces on mount, never the live search/progress updates.
+   No fill-mode: the transform releases after entry so popovers keep their geometry. */
+:root {
+  --view-enter-duration: 280ms;
+  --view-enter-ease: cubic-bezier(.2,.8,.2,1);
+}
+:root :is(.library-overview,.content-view,.settings-results,.mrpack-preview,.content-review) {
+  animation: canary-view-in var(--view-enter-duration) var(--view-enter-ease);
+}
+:root .instance-surface:not(.closing) {
+  animation: canary-view-in var(--view-enter-duration) var(--view-enter-ease);
+}
+:root .instance-surface-body {
+  animation: canary-view-in 240ms var(--view-enter-ease);
+}
+/* The outer panel already moves; avoid doubling the movement of its editor. */
+:root .instance-surface-body > .runtime-panel { animation: none; }
+:root :is(.content-detail,.game-logs) {
+  animation: canary-view-in 240ms var(--view-enter-ease);
+}
+:root :is(.content-project-grid,.content-dropzone) {
+  animation: canary-view-fade 180ms ease-out;
+}
+:root :is(.polish-disclosure,.material-disclosure,.version-list details,.content-detail details)[open] > :not(summary) {
+  animation: canary-view-fade 180ms ease-out;
+}
+@keyframes canary-view-in {
+  from { opacity: 0; transform: translateY(8px); }
+  to { opacity: 1; transform: none; }
+}
+@keyframes canary-view-fade { from { opacity: 0; } to { opacity: 1; } }
+:root[data-motion="reduced"] :is(.library-overview,.content-view,.settings-results,.mrpack-preview,.content-review,.instance-surface,.instance-surface-body,.content-detail,.game-logs,.content-project-grid,.content-dropzone),
+:root[data-motion="reduced"] :is(.polish-disclosure,.material-disclosure,.version-list details,.content-detail details)[open] > :not(summary) {
+  animation: none !important;
+}
+@media (prefers-reduced-motion: reduce) {
+  :root :is(.library-overview,.content-view,.settings-results,.mrpack-preview,.content-review,.instance-surface,.instance-surface-body,.content-detail,.game-logs,.content-project-grid,.content-dropzone),
+  :root :is(.polish-disclosure,.material-disclosure,.version-list details,.content-detail details)[open] > :not(summary) { animation: none !important; }
+}

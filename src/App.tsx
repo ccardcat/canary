@@ -520,9 +520,10 @@ function App() {
             <motion.div
               className="page-transition"
               key={detail ? `project-${detail.provider || "modrinth"}-${detail.id}` : page}
-              initial={{ opacity: 0 }}
-              animate={{ opacity: 1 }}
-              exit={{ opacity: 0 }}
+              initial={{ opacity: 0, y: 8 }}
+              animate={{ opacity: 1, y: 0 }}
+              exit={{ opacity: 0, transition: { duration: 0.1 } }}
+              transition={{ duration: 0.24 }}
             >
               {modProject&&<DiscoverModInstall project={modProject} russian={lang==="ru"} onClose={()=>setModProject(null)} onQueued={()=>navigation("Downloads")}/>}
               {detail ? (
@@ -1579,10 +1580,10 @@ function SettingsModal({
             <AnimatePresence mode="wait" initial={false}>
               <motion.div
                 key={tab}
-                initial={{ opacity: 0 }}
-                animate={{ opacity: 1 }}
-                exit={{ opacity: 0 }}
-                transition={{duration:.12}}
+                initial={{ opacity: 0, y: 6 }}
+                animate={{ opacity: 1, y: 0 }}
+                exit={{ opacity: 0, transition: { duration: 0.1 } }}
+                transition={{duration:.22}}
               >
                 {!search.trim()&&selected&&<div className="settings-breadcrumb"><span>{selected.group}<ChevronRight size={12}/>{selected.label}</span><p>{selected.description}</p></div>}
                 {search.trim()?<div className="settings-results">{results.length?results.map(section=>{const Icon=section.icon;return <button key={section.id} data-settings-result={section.id} onClick={()=>{setTab(section.id);setSearch("");}}><Icon size={17}/><span><b>{section.label}</b><small>{section.group} · {section.description}</small></span></button>;}):<p>{russian?"Настройки не найдены":"No settings found"}</p>}</div>:tab === "discord" ? <DiscordSettings russian={russian} status={discordStatus}/> :tab === "window" ? <WindowPreferencesPanel russian={russian}/> :tab === "background" ? <><VisualPreferences russian={russian} group="background"/><HeroSettings russian={russian}/></> :tab === "effects" ? <EffectsPreferences russian={russian}><MotionPreference t={t} reduceMotion={reduceMotion} setReduceMotion={setReduceMotion}/></EffectsPreferences> :tab === "typography" ? <VisualPreferences russian={russian} group="typography"/> :tab === "materials" ? <MaterialPreferencesPanel russian={russian}/> :tab === "sidebar" ? <SidebarSettings russian={russian} compact={compact} setCompact={setCompact}/> :tab === "layout" ? <><VisualPreferences russian={russian} group="layout"/><InterfaceVisibilityPanel russian={russian}/></> :tab === "quality" ? <VisualQuality russian={russian}/> :tab === "storage" ? <StorageSettings russian={russian}/> :tab === "minecraft"?<RuntimeSettingsPanel russian={russian} section="minecraft"/> :tab === "downloads"?<RuntimeSettingsPanel russian={russian} section="downloads"/> :tab === "appearance" ? (
