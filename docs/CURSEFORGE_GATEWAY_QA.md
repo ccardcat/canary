@@ -1,5 +1,8 @@
 # Canary CurseForge gateway: preparation and verification
 
+The October 8 report below is historical. The October 10 activation section
+records the later owner-confirmed approval and current validation.
+
 Date: 2026-10-08 (Europe/Moscow). Starting main: `0217de9`.
 
 ## Real deployed endpoint
@@ -34,3 +37,30 @@ The owner explicitly confirmed that gateway/file streaming had not been separate
 Live publisher API access, a real permitted mod download/installation, and a real modpack installation are not verified. No gateway approval was assumed from an API key. The ignored real_gateway_mod_install test is prepared to create a disposable instance, install a compatible permitted Fabric API release through the actual gateway, verify the publisher SHA-1 and inventory, then clean up. It requires explicit live verification opt-in and successful deployed API health.
 
 The browser-only deployment guide provides source-paste/Deploy instructions, GitHub Builds configuration for rate bindings, safe health links and a ready-to-send publisher confirmation request. Until the owner completes deployment/confirmation and real-file validation passes, this is a prepared integration, not an activated/verified production service.
+
+
+## October 10: owner-confirmed approval and activation
+
+The owner reported that CurseForge permission was granted and requested enabling
+it. `services/curseforge-gateway/wrangler.jsonc` now sets
+`CURSEFORGE_GATEWAY_APPROVED` to `"true"`. This changes the approval flag only:
+existing API/day/byte/concurrency budgets, rate bindings, Durable Object migration,
+request validation, author distribution restrictions and the server-secret model
+are unchanged. No publisher key was requested, read, printed or committed.
+
+Before this change the actual deployed `/health` returned HTTP 200 JSON with
+`configured: true`, `rateLimiting: true`, `gatewayApproved: false`, `ready: false`
+and `reason: "terms_approval_required"`. The integration was deployed and
+configured; its approval flag was the blocking prerequisite.
+
+Validation: all 20 gateway/budget tests passed with synthetic credentials. A
+separate check using the actual Wrangler variables/binding names returned
+protocol-2 `gatewayApproved: true`, `ready: true`, `api: "reachable"` against a
+synthetic upstream and confirmed missing secrets or budget bindings still block
+upstream calls. The full configuration compared equal to the baseline after
+excluding the approval flag. Client/backend source and dependencies are unchanged.
+Wrangler dry-run was not repeated: its CLI is unavailable in this workspace.
+
+Deployment follows the existing Cloudflare Builds connection to `main`. The
+commit is configuration activation, not proof of deployed API access. Live health,
+search and download results are recorded separately once observed.
