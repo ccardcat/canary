@@ -65,7 +65,7 @@ test("Particle drag previews without persistence or IPC per pixel",async({page})
 });
 test("Splash centers logo first and the final group, then unmounts permanently",async({page})=>{
  await nativeFixture(page);
- await page.addInitScript(()=>{localStorage.setItem("canary-visual",JSON.stringify({app:"green"}));(globalThis as any).__splash=[];const deadline=performance.now()+12000;function sample(){const group=document.querySelector(".startup-brand"),logo=document.querySelector(".startup-logo"),text=document.querySelector(".startup-wordmark");if(group&&logo&&text){const g=group.getBoundingClientRect(),l=logo.getBoundingClientRect();(globalThis as any).__splash.push({at:performance.now(),group:g.x+g.width/2,logo:l.x+l.width/2,text:Number(getComputedStyle(text).opacity),width:innerWidth});}if(performance.now()<deadline&&(!document.querySelector(".startup-app")||document.querySelector(".startup-splash")))requestAnimationFrame(sample);}requestAnimationFrame(sample);});
+ await page.addInitScript(()=>{localStorage.setItem("canary-visual",JSON.stringify({app:"meadow"}));(globalThis as any).__splash=[];const deadline=performance.now()+12000;function sample(){const group=document.querySelector(".startup-brand"),logo=document.querySelector(".startup-logo"),text=document.querySelector(".startup-wordmark");if(group&&logo&&text){const g=group.getBoundingClientRect(),l=logo.getBoundingClientRect();(globalThis as any).__splash.push({at:performance.now(),group:g.x+g.width/2,logo:l.x+l.width/2,text:Number(getComputedStyle(text).opacity),width:innerWidth});}if(performance.now()<deadline&&(!document.querySelector(".startup-app")||document.querySelector(".startup-splash")))requestAnimationFrame(sample);}requestAnimationFrame(sample);});
  await page.goto("/");await expect(page.locator(".startup-splash")).toHaveCount(0);
  const frames=await page.evaluate(()=>(globalThis as any).__splash);
  const solo=frames.find((f:any)=>f.text===0);expect(solo).toBeTruthy();expect(Math.abs(solo.logo-solo.width/2)).toBeLessThan(2);
@@ -90,7 +90,7 @@ test("Long lines wrap within a bounded buffer; crash summary, filters and copy u
  expect(await page.evaluate(()=>(globalThis as any).__materialQA.calls.some((c:any)=>c.command==="open_game_log"&&c.args.session==="canary-200.log"))).toBe(true);
 });
 test("Vibrancy is distinct, has no bright frame or nested blur, and fits three themes",async({page})=>{
- await page.addInitScript(()=>localStorage.setItem("canary-visual",JSON.stringify({materialStyle:"vibrancy",materialLinked:true,materialPreset:"vibrancy",surfaceOpacity:76,surfaceBlur:28,app:"sakura1",font:"Monocraft",minecraft:"headings"})));
+ await page.addInitScript(()=>localStorage.setItem("canary-visual",JSON.stringify({materialStyle:"vibrancy",materialLinked:true,materialPreset:"vibrancy",surfaceOpacity:76,surfaceBlur:28,app:"amethyst-cave",font:"Monocraft",minecraft:"headings"})));
  await setup(page);await nav(page,"Settings").click();await settingsSection(page,"materials");await page.getByText("Advanced materials",{exact:true}).click();
  await expect(page.locator("html")).toHaveAttribute("data-material-sidebar","vibrancy");
  await expect(page.locator(".sidebar")).toHaveCSS("border-top-color","rgba(0, 0, 0, 0)");

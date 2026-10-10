@@ -5,8 +5,14 @@
 :root[data-mode="light"] .wallpaper-veil { background: linear-gradient(120deg,#fff9,#f7f8faaf),radial-gradient(ellipse,transparent,#f7f8fa99); }
 :root[data-mode="amoled"] .wallpaper-veil { background: linear-gradient(120deg,#0009,#000c),radial-gradient(ellipse,transparent,#000); }
 .background-options { display: grid; grid-template-columns: repeat(4,minmax(0,1fr)); gap: 10px; }
+.background-gallery-scroll {position:relative;overflow-y:auto;overflow-x:hidden;height:236px;overscroll-behavior:contain;scrollbar-gutter:stable;padding:4px;transition:height .32s var(--ease,cubic-bezier(.2,.8,.2,1));}
+.background-gallery-toggle {display:flex;align-items:center;justify-content:center;gap:8px;margin:10px auto 0;}
+.background-gallery-toggle svg {transition:transform .28s var(--ease,cubic-bezier(.2,.8,.2,1));}
+.background-gallery[data-expanded="true"] .background-gallery-toggle svg {transform:rotate(180deg);}
+.background-gallery-scroll:focus-visible {outline:2px solid var(--focus-ring);outline-offset:2px;border-radius:13px;}
 .background-options button { padding: 6px; display: grid; min-width: 0; background: var(--surface-2); border: 1px solid var(--line); border-radius: 13px; }
 .background-preview { height: 65px; border-radius: 8px; background: linear-gradient(130deg,var(--surface-3),var(--bg)); background-size: cover; background-position: center; }
+.background-options button[aria-pressed="true"] .background-preview {outline:2px solid var(--accent);outline-offset:2px;}
 .font-options { display: flex; gap: 8px; flex-wrap: wrap; }
 .font-options button { border: 1px solid var(--line); border-radius: 12px; background: var(--surface-2); padding: 10px 14px; font-size:calc(13px * var(--ui-font-scale,1)); }
 .visual-preferences .selected { border-color: var(--accent); background: color-mix(in srgb,var(--accent) 8%,var(--surface-2)); color: var(--text); box-shadow: inset 0 1px var(--highlight); }

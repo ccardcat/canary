@@ -9,7 +9,7 @@ language and About.
 Search matches section names, descriptions and localized keywords. Results show
 their group and a short explanation; selecting one expands its navigation branch.
 Collapsed branches are inert and excluded from the modal focus trap. Expansion
-uses CSS grid transitions and respects both reduced-motion preferences.
+animates measured heights and a short slide and respects both reduced-motion preferences.
 
 Retained controls keep their preference fields, IPC commands and save behavior.
 The former combined Canary page was redundant; its controls remain available in
@@ -40,13 +40,13 @@ the launcher, so moving or deleting the original file does not remove the import
 
 Verification: frontend production build and TypeScript 6.0.3 compatibility check
 passed (the installed TypeScript 7 executable is unsupported by this environment).
-21 page-free tests passed, including four sidebar preference/ink/token tests.
-Ten DOM scenarios exercised actual settings/provider components, including
+24 page-free tests passed, including four sidebar preference/ink/token tests.
+Twelve DOM scenarios exercised actual settings/provider components, including
 branch expansion, search, independent solid color, picture restoration, compact
 mode, unchanged runtime Save payload, all nine visual pages in Russian, removal
 of legacy synchronization, caption-free galleries and separate import targets.
 Existing browser tests were updated for moved controls and collapsed groups;
 four new browser scenarios cover persistence, navigation, narrow layouts and
-reduced motion. All 216 tests were discovered successfully. Real Chromium and
+reduced motion. All 221 tests were discovered successfully. Real Chromium and
 native WebView visual execution remain unverified here: Chromium exits with
 SIGTRAP in this environment, and native desktop prerequisites are unavailable.

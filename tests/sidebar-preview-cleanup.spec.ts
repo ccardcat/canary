@@ -11,7 +11,7 @@ async function start(page:Page,mode="dark",side="left",layout="attached",compact
  await nativeFixture(page);await page.emulateMedia({reducedMotion:"reduce"});
  await page.addInitScript(({mode,side,layout,compact})=>{
   localStorage.setItem("canary-mode",mode);localStorage.setItem("canary-compact",String(compact));
-  localStorage.setItem("canary-visual",JSON.stringify({sidebarSide:side,sidebarMode:layout,app:"sakura1",ambient:"off",cursor:"system"}));
+  localStorage.setItem("canary-visual",JSON.stringify({sidebarSide:side,sidebarMode:layout,app:"amethyst-cave",ambient:"off",cursor:"system"}));
  },{mode,side,layout,compact});
  await page.goto("/");await expect(page.locator(".startup-splash")).toHaveCount(0);await page.evaluate(()=>document.fonts.ready);
 }

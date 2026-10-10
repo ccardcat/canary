@@ -210,7 +210,7 @@ test("Dock is absent and old Dock preferences migrate without losing appearance"
         sidebarMode: "floating",
         materialStyle: "liquid",
         materialLinked: true,
-        app: "sakura1",
+        app: "amethyst-cave",
         cursor: "system",
       }),
     );
@@ -243,7 +243,7 @@ test("Dock is absent and old Dock preferences migrate without losing appearance"
     sidebarSide: "right",
     sidebarMode: "floating",
     materialStyle: "liquid",
-    app: "sakura1",
+    app: "amethyst-cave",
     showCommunity: false,
   });
   await nav(page, "Settings").click();

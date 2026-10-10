@@ -2,7 +2,7 @@ import {test,expect} from "@playwright/test";
 import {normalizeSidebar,sidebarInk,sidebarDefaults,applySidebarTokens} from "../src/services/sidebarAppearance";
 
 test("Existing sidebar preferences retain picture behavior without applying a new preset",()=>{
-  expect(normalizeSidebar({sidebar:"sakura1",sidebarIntensity:37})).toEqual(sidebarDefaults);
+  expect(normalizeSidebar({sidebar:"amethyst-cave",sidebarIntensity:37})).toEqual(sidebarDefaults);
 });
 test("Invalid colors and source values cannot reach CSS, opacity is finite and bounded",()=>{
   expect(normalizeSidebar({sidebarBackgroundSource:"broken",sidebarColor:"url(secret)",sidebarColorOpacity:NaN})).toEqual(sidebarDefaults);

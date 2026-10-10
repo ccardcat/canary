@@ -1,4 +1,4 @@
-import {useEffect, useState} from "react";
+import {useEffect,useLayoutEffect,useRef,useState,type ReactNode} from "react";
 import {Activity, Boxes, ChevronDown, Download, Image, Info, Library, Monitor, Palette, PanelLeft, Settings, SlidersHorizontal, Sun, UserRound, type LucideIcon} from "lucide-react";
 import "./SettingsNavigation.css";
 
@@ -34,6 +34,12 @@ export function settingsGroups(russian:boolean):SettingsGroup[] {
   ];
 }
 
+function SettingsBranch({id,expanded,children}:{id:string;expanded:boolean;children:ReactNode}) {
+  const content=useRef<HTMLDivElement>(null),[height,setHeight]=useState(0);
+  useLayoutEffect(()=>{const element=content.current;if(!element)return;const measure=()=>setHeight(element.getBoundingClientRect().height);measure();const observer=new ResizeObserver(measure);observer.observe(element);return()=>observer.disconnect();},[]);
+  return <div id={id} className="settings-branch" data-expanded={expanded} style={{height:expanded?height:0}}><div className="settings-branch-clip" aria-hidden={!expanded} inert={!expanded}><div ref={content} className="settings-children">{children}</div></div></div>;
+}
+
 export function SettingsNavigation({groups,tab,onSelect}:{groups:SettingsGroup[];tab:string;onSelect:(id:string)=>void}) {
   const activeGroup=groups.find(group=>group.sections.some(section=>section.id===tab))?.id;
   const [open,setOpen]=useState<Set<string>>(()=>new Set(activeGroup?[activeGroup]:[]));
@@ -44,11 +50,7 @@ export function SettingsNavigation({groups,tab,onSelect}:{groups:SettingsGroup[]
       <button type="button" className={"settings-group-toggle"+(active?" current-group":"")} aria-expanded={expanded} aria-controls={"settings-branch-"+group.id} onClick={()=>setOpen(previous=>{const next=new Set(previous);if(next.has(group.id))next.delete(group.id);else next.add(group.id);return next;})}>
         <Icon size={17}/><span>{group.label}</span><ChevronDown size={14} className="settings-group-chevron"/>
       </button>
-      <div id={"settings-branch-"+group.id} className="settings-branch" data-expanded={expanded}>
-        <div className="settings-branch-clip" aria-hidden={!expanded} inert={!expanded}>
-          <div className="settings-children">{group.sections.map(section=><button type="button" key={section.id} data-settings-section={section.id} className={tab===section.id?"active":""} aria-current={tab===section.id?"page":undefined} onClick={()=>onSelect(section.id)}><span>{section.label}</span></button>)}</div>
-        </div>
-      </div>
+      <SettingsBranch id={"settings-branch-"+group.id} expanded={expanded}>{group.sections.map(section=><button type="button" key={section.id} data-settings-section={section.id} className={tab===section.id?"active":""} aria-current={tab===section.id?"page":undefined} onClick={()=>onSelect(section.id)}><span>{section.label}</span></button>)}</SettingsBranch>
     </div>;
   })}</>;
 }

@@ -38,11 +38,14 @@
 .window-material-settings label,.visual-preferences>label { display:grid; gap:8px; margin:15px 0; font-size:13px; }
 .material-check { display:flex!important; align-items:center; gap:9px; }
 .material-check input { width:auto; accent-color:var(--accent); }
-:root .ambient-particles { z-index:0; }
+:root .ambient-particles { z-index:2; }
 :root .ambient-particles i { width:7px; height:7px; box-shadow:0 0 4px #edf6ff30; animation:particle-fall-fluid linear infinite; }
+:root .ambient-particles.snow i {width:14px;height:14px;background:none;border-radius:0;box-shadow:none;color:#eef6ff;}
+:root[data-mode="light"] .ambient-particles.snow i {color:#6989a2;}
+.ambient-particles.snow svg {display:block;width:100%;height:100%;filter:drop-shadow(0 1px 1px #16263940);}
 :root .ambient-particles.sakura i { width:9px; height:13px; background:linear-gradient(145deg,#f3d9e6,#dcb2c8); border-radius:70% 15% 75% 25%; box-shadow:none; }
 :root .ambient-particles.autumn i { width:10px; height:14px; background:var(--leaf-color,#dca14a); border-radius:18% 75% 25% 70%; clip-path:polygon(48% 0,80% 20%,100% 48%,69% 83%,47% 100%,24% 76%,0 45%,18% 16%); box-shadow:none; }
-@keyframes particle-fall-fluid { 0%{transform:translate(0,-20px) rotate(-35deg) scale(var(--particle-scale,1));} 30%{transform:translate(calc(var(--drift) * .3 + var(--sway)),32vh) rotate(65deg) scale(var(--particle-scale,1));} 65%{transform:translate(calc(var(--drift) * .65 - var(--sway)),70vh) rotate(130deg) scale(var(--particle-scale,1));} 100%{transform:translate(var(--drift),110vh) rotate(230deg) scale(var(--particle-scale,1));} }
+@keyframes particle-fall-fluid { 0%{transform:translate(0,-20px) rotate(-35deg);} 30%{transform:translate(calc(var(--drift) * .3 + var(--sway)),32vh) rotate(65deg);} 65%{transform:translate(calc(var(--drift) * .65 - var(--sway)),70vh) rotate(130deg);} 100%{transform:translate(var(--drift),110vh) rotate(230deg);} }
 :root[data-window-fullscreen="true"] .ambient-particles { top:0; }
 :root[data-window-fullscreen="true"] .modal-backdrop { top:0; }
 .hero-carousel-controls { position:absolute; right:24px; bottom:20px; z-index:3; display:flex; align-items:center; gap:7px; }

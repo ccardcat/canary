@@ -8,8 +8,11 @@ test.beforeEach(async({page})=>{
 });
 test("Settings groups expand smoothly, hide collapsed controls and search opens the right branch",async({page})=>{
   const visual=page.locator('[data-settings-group="visual"] .settings-group-toggle');
+  const branch=page.locator('#settings-branch-visual');
+  expect(await branch.evaluate(element=>getComputedStyle(element).transitionProperty)).toContain("height");
   await expect(visual).toHaveAttribute("aria-expanded","true");await visual.click();await expect(visual).toHaveAttribute("aria-expanded","false");await expect(page.locator('[data-settings-section="sidebar"]')).toBeHidden();
   await visual.focus();await page.keyboard.press("Enter");await expect(visual).toHaveAttribute("aria-expanded","true");
+  await expect.poll(()=>branch.evaluate(element=>element.getBoundingClientRect().height)).toBeGreaterThan(100);
   await page.getByRole("searchbox",{name:"Search settings"}).fill("restore");const result=page.locator('[data-settings-result="advanced"]');await expect(result).toContainText("Game & files");await result.click();
   await expect(page.locator('[data-settings-group="game"] .settings-group-toggle')).toHaveAttribute("aria-expanded","true");await expect(page.locator('[data-settings-section="advanced"]')).toHaveAttribute("aria-current","page");await expect(page.getByRole("checkbox",{name:"Restore point before content changes"})).toBeVisible();
 });

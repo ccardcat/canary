@@ -77,9 +77,9 @@ test("advanced backgrounds reset, crossfade and effect budgets persist", async (
   await expect(page.locator("html")).toHaveCSS("--wallpaper-position","right");
   await page.getByRole("button",{name:"Reset background adjustments",exact:true}).click();
   await expect(brightness).toHaveValue("100");
-  await page.locator(".background-options").first().getByRole("button",{name:"Green",exact:true}).click();
-  await expect(page.locator(".global-wallpaper .artwork-current")).toHaveCSS("background-image",/green-bg.webp/);
-  await page.locator(".background-options").first().getByRole("button",{name:"Gray"}).click();
+  await page.locator(".background-options").first().getByRole("button",{name:"Sunny Meadow",exact:true}).click();
+  await expect(page.locator(".global-wallpaper .artwork-current")).toHaveCSS("background-image",/meadow.webp/);
+  await page.locator(".background-options").first().getByRole("button",{name:"Frozen Lake"}).click();
   await expect(page.locator(".global-wallpaper .artwork-current")).toHaveCSS("background-image",/gray-bg.png/);
   await settingsSection(page,"Effects");await page.getByRole("button",{name:"Snow",exact:true}).click();
   await settingsSection(page,"layout");

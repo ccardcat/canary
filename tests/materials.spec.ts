@@ -12,11 +12,11 @@ async function choose(page:Page,name:string,option:string){
 }
 async function settings(page:Page){await page.getByRole('button',{name:'Settings',exact:true}).first().click();await settingsSection(page,'materials');}
 test('legacy preferences migrate without losing artwork, typography, cursor or independent categories',async({page})=>{
- await page.addInitScript(()=>localStorage.setItem('canary-visual',JSON.stringify({app:'sakura1',sidebar:'green',font:'Monocraft',cursor:'system',surfaceBlur:12,materialCategories:{cards:'liquid',buttons:'bogus'},materialIntensity:Infinity})));
+ await page.addInitScript(()=>localStorage.setItem('canary-visual',JSON.stringify({app:'amethyst-cave',sidebar:'meadow',font:'Monocraft',cursor:'system',surfaceBlur:12,materialCategories:{cards:'liquid',buttons:'bogus'},materialIntensity:Infinity})));
  await page.route('https://api.modrinth.com/**',r=>r.fulfill({json:{hits:[],total_hits:0}}));await page.goto('/');
  await expect.poll(()=>page.evaluate(()=>JSON.parse(localStorage.getItem('canary-visual')!).materialCategories?.buttons)).toBe('soft');
  const saved=await page.evaluate(()=>JSON.parse(localStorage.getItem('canary-visual')!));
- expect(saved).toMatchObject({app:'sakura1',sidebar:'green',font:'Monocraft',cursor:'system',surfaceBlur:12,materialCategories:{cards:'liquid',buttons:'soft'},materialIntensity:50});
+ expect(saved).toMatchObject({app:'amethyst-cave',sidebar:'meadow',font:'Monocraft',cursor:'system',surfaceBlur:12,materialCategories:{cards:'liquid',buttons:'soft'},materialIntensity:50});
  await expect(page.locator('html')).toHaveAttribute('data-material-cards','liquid');
 });
 
@@ -86,7 +86,7 @@ test('account actions stay horizontal, destructive hover/focus resets, rename/de
 
 test('RU/EN Monocraft settings, both sidebar sides, themes and scaled viewports stay inside bounds',async({page})=>{
  test.setTimeout(120000);mkdirSync('.qa/materials',{recursive:true});await nativeFixture(page);
- await page.addInitScript(()=>{if(!localStorage.getItem('canary-visual'))localStorage.setItem('canary-visual',JSON.stringify({font:'Monocraft',minecraft:'full',app:'sakura1',sidebar:'default',sidebarMode:'floating',instanceLayout:'compact'}));});
+ await page.addInitScript(()=>{if(!localStorage.getItem('canary-visual'))localStorage.setItem('canary-visual',JSON.stringify({font:'Monocraft',minecraft:'full',app:'amethyst-cave',sidebar:'default',sidebarMode:'floating',instanceLayout:'compact'}));});
  await page.goto('/');await settings(page);await choose(page,'Material preset','Liquid Glass');
  for(const mode of ['Dark','Light','AMOLED','System']){
   await settingsSection(page,'appearance');
@@ -138,7 +138,7 @@ test('project description badge links keep intrinsic widths instead of empty act
 });
 
 test('long Library uses one backdrop per card and records scrolling frame samples',async({page},info)=>{
- await nativeFixture(page);await page.addInitScript(()=>{localStorage.setItem('canary-visual',JSON.stringify({materialLinked:true,materialStyle:'liquid',instanceLayout:'compact',buttonDensity:'compact',app:'sakura1'}));});await page.goto('/');
+ await nativeFixture(page);await page.addInitScript(()=>{localStorage.setItem('canary-visual',JSON.stringify({materialLinked:true,materialStyle:'liquid',instanceLayout:'compact',buttonDensity:'compact',app:'amethyst-cave'}));});await page.goto('/');
  await page.evaluate(()=>{const state=(globalThis as any).__materialQA.state;const sample=state.instances[0];state.instances=Array.from({length:60},(_,i)=>({...sample,id:'scroll-'+i,name:'World '+i}));});
  await page.getByRole('button',{name:'Library',exact:true}).first().click();await page.getByRole('button',{name:'Check updates',exact:true}).click();await expect(page.locator('.instance-card')).toHaveCount(60);
  const nested=await page.locator('.instance-card button').evaluateAll(nodes=>nodes.filter(node=>getComputedStyle(node).backdropFilter!=='none').length);expect(nested).toBe(0);

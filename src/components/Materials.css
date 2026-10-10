@@ -213,7 +213,7 @@
 .material-settings output { color:var(--muted); }
 .material-settings input[type=range] { width:100%; accent-color:var(--accent); }
 .material-controls { display:grid; grid-template-columns:repeat(auto-fit,minmax(min(100%,190px),1fr)); column-gap:16px; }
-.material-preview { display:flex; align-items:stretch; gap:12px; padding:20px; border-radius:20px; background:linear-gradient(color-mix(in srgb,var(--surface-primary) 88%,transparent),color-mix(in srgb,var(--surface-primary) 88%,transparent)),url('/backgrounds/sakura1-bg.jpg') center/cover; margin:16px 0; min-width:0; }
+.material-preview { display:flex; align-items:stretch; gap:12px; padding:20px; border-radius:20px; background:linear-gradient(color-mix(in srgb,var(--surface-primary) 88%,transparent),color-mix(in srgb,var(--surface-primary) 88%,transparent)),url('/backgrounds/meadow.webp') center/cover; margin:16px 0; min-width:0; }
 .material-preview-sidebar { display:flex; align-items:center; flex-direction:column; gap:12px; padding:16px 8px; min-width:56px; font-size:.7rem; border:1px solid var(--mat-sidebar-edge); }
 .material-preview-card { min-width:0; flex:1; padding:16px; border:1px solid var(--mat-cards-edge); }
 .material-preview-card p { font-size:.75rem; color:var(--muted); }

@@ -25,7 +25,7 @@ async function start(page: Page, russian = false) {
           font: "Monocraft",
           minecraft: "full",
           fontScale: 120,
-          app: "sakura1",
+          app: "amethyst-cave",
           cursor: "system",
           ambient: "off",
           sidebarMode: "attached",

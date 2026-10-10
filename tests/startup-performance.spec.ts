@@ -31,7 +31,7 @@ test("transparent splash crossfades the interface smoothly and keeps input locke
  mkdirSync(".qa/startup",{recursive:true});
  await page.emulateMedia({reducedMotion:"no-preference"});
  await page.addInitScript(()=>{
-  localStorage.setItem("canary-visual",JSON.stringify({backgroundSource:"canary",app:"sakura1",sidebar:"green",showCommunity:false}));
+  localStorage.setItem("canary-visual",JSON.stringify({backgroundSource:"canary",app:"amethyst-cave",sidebar:"meadow",showCommunity:false}));
   (globalThis as any).__startupQA={holdSnapshot:true};(globalThis as any).__revealFrames=[];
   window.addEventListener("canary-startup-ready",()=>{(globalThis as any).__revealFinishedAt=performance.now();});
   function sample(){
@@ -56,7 +56,7 @@ test("transparent splash crossfades the interface smoothly and keeps input locke
   requestAnimationFrame(sample);
  });
  await nativeFixture(page);await page.goto("/");await expect(page.locator(".startup-splash")).toBeVisible();
- await expect(page.locator(".global-wallpaper .artwork-current")).toHaveCSS("background-image",/sakura1/);
+ await expect(page.locator(".global-wallpaper .artwork-current")).toHaveCSS("background-image",/amethyst-cave/);
  await page.screenshot({path:".qa/startup/transparent-splash.png"});
  await page.waitForTimeout(3000);
  await page.evaluate(()=>{const qa=(globalThis as any).__startupQA;qa.holdSnapshot=false;qa.resolvers.forEach((release:()=>void)=>release());});
@@ -98,13 +98,13 @@ test("splash waits for delayed local data and defers remote maintenance",async({
 });
 
 test("startup preserves a saved light glass theme and background",async({page})=>{
- await page.addInitScript(()=>{localStorage.setItem("canary-mode","light");localStorage.setItem("canary-preset","warm");localStorage.setItem("canary-visual",JSON.stringify({backgroundSource:"canary",app:"sakura1",sidebar:"green",materialPreset:"glass",materialLinked:true,materialStyle:"glass",surfaceOpacity:42,fontScale:110,showCommunity:false}));});
+ await page.addInitScript(()=>{localStorage.setItem("canary-mode","light");localStorage.setItem("canary-preset","warm");localStorage.setItem("canary-visual",JSON.stringify({backgroundSource:"canary",app:"amethyst-cave",sidebar:"meadow",materialPreset:"glass",materialLinked:true,materialStyle:"glass",surfaceOpacity:42,fontScale:110,showCommunity:false}));});
  await nativeFixture(page);await page.goto("/");await expect(page.locator(".startup-splash")).toHaveCount(0);
  await expect(page.locator("html")).toHaveAttribute("data-mode","light");await expect(page.locator("html")).toHaveAttribute("data-preset","warm");
  await expect(page.locator("html")).toHaveAttribute("data-material-cards","glass");
  await expect(page.locator(".global-wallpaper .artwork-current")).toBeVisible();
  const saved=await page.evaluate(()=>JSON.parse(localStorage.getItem("canary-visual")!));
- expect(saved).toMatchObject({app:"sakura1",sidebar:"green",surfaceOpacity:42,fontScale:110});
+ expect(saved).toMatchObject({app:"amethyst-cave",sidebar:"meadow",surfaceOpacity:42,fontScale:110});
  const material=await page.evaluate(()=>(globalThis as any).__materialQA.calls.filter((c:any)=>c.command==="apply_window_material"));
  expect(material).toHaveLength(1);expect(material[0].args.theme).toBe("light");
  await page.screenshot({path:".qa/startup/saved-light.png"});
@@ -117,7 +117,7 @@ test("startup preserves a saved light glass theme and background",async({page})=
 });
 
 test("background animations pause while the document is hidden",async({page})=>{
- await page.addInitScript(()=>localStorage.setItem("canary-visual",JSON.stringify({backgroundSource:"canary",app:"green",ambient:"snow",showCommunity:false})));
+ await page.addInitScript(()=>localStorage.setItem("canary-visual",JSON.stringify({backgroundSource:"canary",app:"meadow",ambient:"snow",showCommunity:false})));
  await nativeFixture(page);await page.goto("/");await expect(page.locator(".startup-splash")).toHaveCount(0);
  await page.evaluate(()=>{Object.defineProperty(document,"hidden",{configurable:true,value:true});document.dispatchEvent(new Event("visibilitychange"));});
  await expect(page.locator("html")).toHaveAttribute("data-document-visible","false");
@@ -127,22 +127,22 @@ test("background animations pause while the document is hidden",async({page})=>{
 });
 
 test("wallpaper changes remain paired and settle to a single decoded layer",async({page})=>{
- await page.addInitScript(()=>{if(!localStorage.getItem("canary-visual"))localStorage.setItem("canary-visual",JSON.stringify({backgroundSource:"canary",app:"green",materialLinked:true,materialStyle:"glass",showCommunity:false}));});
+ await page.addInitScript(()=>{if(!localStorage.getItem("canary-visual"))localStorage.setItem("canary-visual",JSON.stringify({backgroundSource:"canary",app:"meadow",materialLinked:true,materialStyle:"glass",showCommunity:false}));});
  await nativeFixture(page);await page.goto("/");await expect(page.locator(".startup-splash")).toHaveCount(0);
  await page.getByRole("button",{name:"Settings",exact:true}).first().click();
  await settingsSection(page,"Background");
  for(const number of [1,2]){
   await settingsSection(page,"Background");
-  await page.locator(".background-options").getByRole("button",{name:`Sakura ${number}`,exact:true}).click();
-  await expect(page.locator(".global-wallpaper .artwork-current")).toHaveCSS("background-image",new RegExp(`sakura${number}-bg.jpg`));
-  await settingsSection(page,"sidebar");await page.locator(".background-options").getByRole("button",{name:`Sakura ${number}`,exact:true}).click();
-  await expect(page.locator(".sidebar-art .artwork-current")).toHaveCSS("background-image",new RegExp(`sakura${number}-sidebar.jpg`));
+  await page.locator(".background-options").getByRole("button",{name:number===1?"Amethyst Cave":"End Eclipse",exact:true}).click();
+  await expect(page.locator(".global-wallpaper .artwork-current")).toHaveCSS("background-image",new RegExp(number===1?"amethyst-cave.webp":"end-eclipse.webp"));
+  await settingsSection(page,"sidebar");await page.locator(".background-options").getByRole("button",{name:number===1?"Amethyst Cave":"End Eclipse",exact:true}).click();
+  await expect(page.locator(".sidebar-art .artwork-current")).toHaveCSS("background-image",new RegExp(number===1?"amethyst-cave.webp":"end-eclipse.webp"));
   await expect(page.locator(".global-wallpaper .artwork-layer")).toHaveCount(1);
  }
  // Decoding a later wallpaper must never re-show a minimized window.
  expect(await page.evaluate(()=>(globalThis as any).__materialQA.calls.filter((c:any)=>c.command==="show_main_window").length)).toBe(1);
  await page.reload();await expect(page.locator(".startup-splash")).toHaveCount(0);
- await expect(page.locator(".global-wallpaper .artwork-current")).toHaveCSS("background-image",/sakura2-bg.jpg/);
+ await expect(page.locator(".global-wallpaper .artwork-current")).toHaveCSS("background-image",/end-eclipse.webp/);
 });
 
 test("native material deduplication restores Solid after a delayed Desktop request",async({page})=>{

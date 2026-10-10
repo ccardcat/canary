@@ -4,6 +4,9 @@ import {BackgroundSettings} from "./BackgroundSettings";
 import {catalogDefaults, normalizeCatalog, type CatalogPreferences} from "../services/catalog";
 import {CatalogSettings} from "./CatalogControls";
 import {SmoothRange,previewParticle} from "./SmoothRange";
+import {Snowflake} from "lucide-react";
+import {defaultSidebarImage,migrateBackgroundId} from "../services/backgrounds";
+import {resolveAmbient} from "../services/ambient";
 import {discordDefaults,type DiscordPreferences} from "../services/discord";
 import GlassSelect from "./GlassSelect";
 import { createContext, useContext, useEffect, useLayoutEffect, useRef, useState, useCallback, type ReactNode } from "react";
@@ -25,7 +28,7 @@ import {useBackend} from "../services/backend";
 import {windowDefaults,useNativeMaterial,WindowMaterialSettings,WindowControlsSettings,type WindowPreferences} from "./WindowMaterial";
 const fonts = ["Nunito", "Manrope", "Plus Jakarta Sans", "Rubik", "Monocraft"];
 export type Preferences = SidebarPreferences & CatalogPreferences & DiscordPreferences & PolishPreferences & WindowPreferences & MaterialPreferences & LayoutPreferences & { app: string; sidebar: string; intensity: number; blur: number; sidebarBlur: number; font: string; fontScale: 90 | 100 | 110 | 120; minecraft: "headings" | "full"; showCommunity:boolean; backgroundVersion:number;compactCardsVersion:number; ambient: "off" | "automatic" | "sakura" | "snow" | "autumn" };
-const defaults: Preferences = { ...sidebarDefaults,...catalogDefaults,...discordDefaults, ...polishDefaults,...windowDefaults,...layoutDefaults,...materialDefaults, app: "green", sidebar: "default", intensity: 85, blur: 8, sidebarBlur: 12, font: "Nunito", fontScale:100, minecraft: "headings", showCommunity:true, backgroundVersion:1, compactCardsVersion:1, ambient: "off" };
+const defaults: Preferences = { ...sidebarDefaults,...catalogDefaults,...discordDefaults, ...polishDefaults,...windowDefaults,...layoutDefaults,...materialDefaults, app: "meadow", sidebar: "meadow", intensity: 85, blur: 8, sidebarBlur: 12, font: "Nunito", fontScale:100, minecraft: "headings", showCommunity:true, backgroundVersion:1, compactCardsVersion:1, ambient: "off" };
 const freshDefaults:Preferences={...defaults,...materialPresetPatch("solid"),backgroundSource:"solid",materialRadius:14,cursor:"system",showCommunity:false};
 export function normalizePreferences(input:unknown):Preferences {
  const saved=input&&typeof input==="object"?input as Record<string,unknown>:{};
@@ -40,7 +43,7 @@ export function normalizePreferences(input:unknown):Preferences {
  result.fontScale=[90,100,110,120].includes(result.fontScale)?result.fontScale:100;
  for(const key of ["globalTreatment","sidebarTreatment"] as const){const input=saved[key]&&typeof saved[key]==="object"?saved[key] as Record<string,unknown>:{};const treatment={...defaults[key]};for(const [name,[min,max]] of Object.entries({brightness:[50,130],saturation:[0,130],overlay:[0,100],vignette:[0,90],zoom:[100,140]})){if(typeof input[name]==="number"&&Number.isFinite(input[name]))(treatment as unknown as Record<string,unknown>)[name]=Math.min(max,Math.max(min,input[name] as number));}treatment.position=["center","top","bottom","left","right"].includes(String(input.position))?String(input.position):"center";result[key]=treatment;}
  if(Number(saved.backgroundVersion??0)<1){
-  if(result.app==="normal"&&result.backgroundSource==="canary")result.app="green";
+  if(result.app==="normal"&&result.backgroundSource==="canary")result.app="meadow";
   if(result.intensity===45)result.intensity=85;
   if(result.globalTreatment.overlay===65)result.globalTreatment.overlay=28;
   if(result.globalTreatment.vignette===55)result.globalTreatment.vignette=30;
@@ -49,9 +52,10 @@ export function normalizePreferences(input:unknown):Preferences {
  if(Number(saved.compactCardsVersion??0)<1&&result.instanceLayout==='comfortable')result.instanceLayout='compact';
  result.compactCardsVersion=1;
  result.backgroundVersion=1;
+ result.app=migrateBackgroundId(result.app,"app");result.sidebar=migrateBackgroundId(result.sidebar,"sidebar");
  return result;
 }
-const Context = createContext<{ registry:Background[];wallpapersReady:boolean;reload:()=>Promise<void>;value: Preferences; native:ReturnType<typeof useNativeMaterial>|null;update: (patch: Partial<Preferences>) => void;preview:(patch:Partial<Preferences>)=>void }>({registry:backgrounds,wallpapersReady:true,reload:async()=>{},value: defaults,native:null,update: () => {},preview:()=>{} });
+const Context = createContext<{ registry:Background[];effectsPaused:"focus"|"motion"|null;wallpapersReady:boolean;reload:()=>Promise<void>;value: Preferences; native:ReturnType<typeof useNativeMaterial>|null;update: (patch: Partial<Preferences>) => void;preview:(patch:Partial<Preferences>)=>void }>({registry:backgrounds,effectsPaused:null,wallpapersReady:true,reload:async()=>{},value: defaults,native:null,update: () => {},preview:()=>{} });
 export const useVisualAppearance=()=>useContext(Context);
 export function VisualAppearanceProvider({ children }: { children: ReactNode }) {
   const {run}=useBackend();const [custom,setCustom]=useState<Background[]>([]);const [wallpapersReady,setWallpapersReady]=useState(!isTauri());
@@ -82,7 +86,7 @@ export function VisualAppearanceProvider({ children }: { children: ReactNode }) 
   });
   const [reduced, setReduced] = useState(false);
   const native=useNativeMaterial(value);
-  useEffect(() => { const media = matchMedia("(prefers-reduced-motion: reduce)"); const sync = () => setReduced(media.matches); sync(); media.addEventListener("change", sync); return () => media.removeEventListener("change", sync); }, []);
+  useEffect(() => { const media=matchMedia("(prefers-reduced-motion: reduce)");const sync=()=>setReduced(media.matches||document.documentElement.dataset.motion==="reduced");const observer=new MutationObserver(sync);observer.observe(document.documentElement,{attributes:true,attributeFilter:["data-motion"]});sync();media.addEventListener("change",sync);return()=>{observer.disconnect();media.removeEventListener("change",sync);}; }, []);
   useLayoutEffect(() => {
 
     applySidebarTokens(document.documentElement,value);
@@ -102,7 +106,7 @@ export function VisualAppearanceProvider({ children }: { children: ReactNode }) 
     root.style.setProperty("--glass-opacity", (100-value.glass)+"%");
     root.style.setProperty("--ui-font", value.font === "Monocraft" && value.minecraft === "headings" ? "Nunito" : `"${value.font}"`);
     root.style.setProperty("--heading-font", `"${value.font}"`);
-    root.style.setProperty("--sidebar-art", `url("${registry.find(p => p.id === value.sidebar)?.sidebar || "/backgrounds/sidebar-bg.webp"}")`);
+    root.style.setProperty("--sidebar-art", `url("${registry.find(p => p.id === value.sidebar)?.sidebar || defaultSidebarImage}")`);
     root.style.setProperty("--sidebar-blur", `${value.sidebarBlur}px`);
   }, [value,custom]);
   const savedRef=useRef(value);savedRef.current=value;
@@ -123,18 +127,16 @@ export function VisualAppearanceProvider({ children }: { children: ReactNode }) 
   useLayoutEffect(()=>{for(const key of ["density","particleOpacity","particleSpeed","particleSize","particleWind"] as const)previewParticle(key,value[key]);},[value.density,value.particleOpacity,value.particleSpeed,value.particleSize,value.particleWind,value.ambient,value.quality,value.app,value.sidebar,value.focus,reduced]);
   const update=useCallback((patch:Partial<Preferences>)=>{cancelAnimationFrame(previewFrame.current);previewFrame.current=0;pendingPreview.current={};setValue(old=>({...old,...patch,...(!("materialPreset" in patch)&&Object.keys(patch).some(key=>key in materialDefaults||["surfaceOpacity","surfaceBlur","glassIntensity"].includes(key))?{materialPreset:"custom"}:{})}));},[]);
   useEffect(()=>{const pause=()=>{document.documentElement.dataset.documentVisible=String(!document.hidden);document.querySelectorAll<HTMLElement>(".ambient-particles,.global-wallpaper,.sidebar-art").forEach(layer=>layer.getAnimations({subtree:true}).forEach(animation=>document.hidden?animation.pause():animation.play()));};pause();document.addEventListener("visibilitychange",pause);return()=>document.removeEventListener("visibilitychange",pause);},[]);
-  const automaticSakura = value.sidebar === "default" ||
-    registry.some(p => (p.id === value.app || p.id === value.sidebar) && p.ambient === "sakura");
-  const effect = value.ambient === "automatic" ? (automaticSakura ? "sakura" : "off") : value.ambient;
+  const effect=resolveAmbient(value.ambient,value.backgroundSource==="canary"?registry.find(p=>p.id===value.app)?.ambient:"off",value.sidebarBackgroundSource==="picture"?registry.find(p=>p.id===value.sidebar)?.ambient:"off");
   const image = value.backgroundSource==="canary"?registry.find(p => p.id === value.app)?.app:undefined;
-  return <Context.Provider value={{registry,wallpapersReady,reload,value,native,update,preview }}>
+  return <Context.Provider value={{registry,effectsPaused:value.focus?"focus":reduced?"motion":null,wallpapersReady,reload,value,native,update,preview }}>
     <div className="visual-backdrop" aria-hidden="true">
       <ArtworkFade source={image} className="global-wallpaper" />
       <div className="wallpaper-veil" />
     </div>
     {value.backgroundSource!=="canary"&&<div className="native-window-veil" aria-hidden="true"/>}
     {children}
-    {!reduced && !value.focus && effect !== "off" && <div className={`ambient-particles ${effect}`} aria-hidden="true">{Array.from({ length: 24 }, (_, i) => <i key={i} style={{ left: `${(i * 37 + 9) % 100}%`, animationDelay: `${-i * 2.7}s`, animationDuration: `${(22 + i % 5 * 4)}s`, "--drift": `${(i % 2 ? 65 : -55)*value.particleWind/100}px`, "--sway":`${(i%3+1)*9}px`,"--leaf-color":["#dca14a","#e0b358","#c97938"][i%3],opacity: value.particleOpacity / 100 * (.75 + (i % 4) * .08), "--particle-scale": value.particleSize / 100*(.8+(i%5)*.15) } as CSSProperties} />)}</div>}
+    {!reduced && !value.focus && effect !== "off" && <div className={`ambient-particles ${effect}`} aria-hidden="true">{Array.from({ length: 24 }, (_, i) => <i key={i} style={{ left: `${(i * 37 + 9) % 100}%`, animationDelay: `${-i * 2.7}s`, animationDuration: `${(22 + i % 5 * 4)}s`, "--drift": `${(i % 2 ? 65 : -55)*value.particleWind/100}px`, "--sway":`${(i%3+1)*9}px`,"--leaf-color":["#dca14a","#e0b358","#c97938"][i%3],opacity: value.particleOpacity / 100 * (.75 + (i % 4) * .08), "--particle-scale": value.particleSize / 100*(.8+(i%5)*.15) } as CSSProperties}>{effect==="snow"&&<Snowflake aria-hidden="true" strokeWidth={1.65}/>}</i>)}</div>}
   <DesktopBehavior />
   </Context.Provider>;
 }
@@ -157,14 +159,16 @@ export function VisualPreferences({ russian,group="all",effectsControls }: { rus
 export function SidebarArtwork() {
   const { value,registry } = useContext(Context);
   if(value.sidebarBackgroundSource!=="picture"||(value.materialLinked?value.materialStyle:value.materialCategories.sidebar)==="solid")return null;
-  return <ArtworkFade source={registry.find(p => p.id === value.sidebar)?.sidebar || "/backgrounds/sidebar-bg.webp"} className="sidebar-art" />;
+  return <ArtworkFade source={registry.find(p => p.id === value.sidebar)?.sidebar || defaultSidebarImage} className="sidebar-art" />;
 }
 export function WindowPreferencesPanel({russian}:{russian:boolean}){const {value,update,preview,native}=useContext(Context);return <><WindowControlsSettings russian={russian} value={value} update={update}/>{native&&<WindowMaterialSettings russian={russian} value={value} update={update} preview={preview} nativeOnly {...native}/>}</>;}
 export function EffectsPreferences({russian,children}:{russian:boolean;children?:ReactNode}){
- const {value,update}=useContext(Context);const text=appearanceMessages[russian?"ru":"en"];
+ const {value,update,effectsPaused}=useContext(Context);const text=appearanceMessages[russian?"ru":"en"];
  const preset=(p:string)=>{const settings={off:{ambient:"off" as const},low:{density:6,particleOpacity:25,particleSize:85,particleSpeed:75},medium:{density:12,particleOpacity:35,particleSize:110,particleSpeed:100},high:{density:24,particleOpacity:45,particleSize:125,particleSpeed:115},custom:{}};update({...settings[p as keyof typeof settings],effectPreset:p,...p!=="off"&&value.ambient==="off"?{ambient:"snow" as const}:{}});};
  const range=(name:string,n:number,min:number,max:number,change:(v:number)=>void,previewKey?:string)=><SmoothRange label={name} value={n} min={min} max={max} onCommit={change} previewKey={previewKey}/>;
- return <section className="effects-preferences"><h3>{russian?"Эффекты":"Effects"}</h3><h4>{text["Ambient effects"]}</h4><div className="font-options">{(["off","automatic","sakura","snow","autumn"] as const).map(ambient=><button key={ambient} aria-pressed={value.ambient===ambient} className={value.ambient===ambient?"selected":""} onClick={()=>update({ambient,...value.particleOpacity<25?{particleOpacity:35}:{}})}>{ambient==="autumn"?(russian?"Осенние листья":"Autumn Leaves"):({off:text["Off"],automatic:text["Automatic"],sakura:text["Sakura"],snow:text["Snow"]})[ambient]}</button>)}</div>
+ return <section className="effects-preferences"><h3>{russian?"Эффекты":"Effects"}</h3><h4>{text["Ambient effects"]}</h4><div className="font-options">{(["off","automatic","sakura","snow","autumn"] as const).map(ambient=><button key={ambient} aria-pressed={value.ambient===ambient} className={value.ambient===ambient?"selected":""} onClick={()=>update({ambient,...ambient==="off"?{effectPreset:"off"}:value.effectPreset==="off"?{effectPreset:"custom"}:{},...value.particleOpacity<25?{particleOpacity:35}:{}})}>{ambient==="autumn"?(russian?"Осенние листья":"Autumn Leaves"):({off:text["Off"],automatic:text["Automatic"],sakura:text["Sakura"],snow:text["Snow"]})[ambient]}</button>)}</div>
+ <p className="settings-note">{russian?"Выбранный эффект сохраняется при смене фона, включая свои изображения. «Автоматически» подбирает эффект к фону; если эффект не задан, используется снег.":"The selected effect stays active when changing wallpapers, including custom images. Automatic follows the wallpaper and uses snow when no effect is assigned."}</p>
+ <p className="settings-note" role="status" hidden={!effectsPaused||value.ambient==="off"}>{effectsPaused==="focus"?(russian?"Частицы приостановлены режимом фокуса. Отключите его в разделе «Интерфейс и карточки», чтобы увидеть эффект.":"Focus mode pauses particles. Turn it off in Interface & cards to see the effect."):(russian?"Частицы приостановлены настройкой «Уменьшить анимацию» в лаунчере или системе. Выбранный эффект сохранён.":"Reduced motion in the launcher or system pauses particles. Your selected effect is saved.")}</p>
  <label>{russian?"Пресет частиц":"Effect preset"}<GlassSelect aria-label={russian?"Пресет частиц":"Effect preset"} value={value.effectPreset} onChange={e=>preset(e.target.value)}>{["off","low","medium","high","custom"].map(p=><option key={p} value={p}>{russian?({off:"Выключено",low:"Низкий",medium:"Средний",high:"Высокий",custom:"Свой"})[p as "off"]:p[0].toUpperCase()+p.slice(1)}</option>)}</GlassSelect></label>
  <div className="polish-range-grid">{range(russian?"Количество частиц":"Particle count",value.density,4,24,density=>update({density,effectPreset:"custom"}),"density")}{range(russian?"Размер частиц":"Particle size",value.particleSize,60,160,particleSize=>update({particleSize,effectPreset:"custom"}),"particleSize")}{range(russian?"Скорость частиц":"Particle speed",value.particleSpeed,50,150,particleSpeed=>update({particleSpeed,effectPreset:"custom"}),"particleSpeed")}{range(russian?"Непрозрачность частиц":"Particle opacity",value.particleOpacity,5,50,particleOpacity=>update({particleOpacity,effectPreset:"custom"}),"particleOpacity")}{range(russian?"Ветер":"Particle wind",value.particleWind,0,180,particleWind=>update({particleWind,effectPreset:"custom"}),"particleWind")}</div>
  <PolishControls russian={russian} value={value} update={update} group="effects"/>{children}</section>;

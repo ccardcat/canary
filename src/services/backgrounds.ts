@@ -1,18 +1,29 @@
-export interface Background {id:string;name:string;ambient:"sakura"|"off";app?:string;sidebar?:string;thumbnail?:string;custom?:boolean}
-// Deliberate pairs only. Pink and Green 2 are independent sidebar artwork.
+export type AmbientEffect="off"|"sakura"|"snow"|"autumn";
+export interface Background {id:string;name:string;ambient:AmbientEffect;app?:string;sidebar?:string;thumbnail?:string;custom?:boolean}
+export const defaultAppBackground="meadow";
+export const defaultSidebarImage="/backgrounds/meadow.webp";
 export const backgrounds:Background[]=[
- {id:"darkblue",name:"Dark Blue",ambient:"off",app:"/backgrounds/darkblue-bg.jpg",sidebar:"/backgrounds/darkblue-sidebar.png"},
- {id:"gray",name:"Gray",ambient:"off",app:"/backgrounds/gray-bg.png",sidebar:"/backgrounds/gray-sidebar.jpg"},
- {id:"green",name:"Green",ambient:"off",app:"/backgrounds/green-bg.webp",sidebar:"/backgrounds/green-sidebar.webp"},
- {id:"sakura1",name:"Sakura 1",ambient:"sakura",app:"/backgrounds/sakura1-bg.jpg",sidebar:"/backgrounds/sakura1-sidebar.jpg"},
- {id:"sakura2",name:"Sakura 2",ambient:"sakura",app:"/backgrounds/sakura2-bg.jpg",sidebar:"/backgrounds/sakura2-sidebar.jpg"},
- {id:"axolotl",name:"Axolotl Pink",ambient:"off",app:"/backgrounds/axolotl-pink-background.png"},
- {id:"bees",name:"Bees Green",ambient:"off",app:"/backgrounds/bees-green-background.png"},
- {id:"garden",name:"Garden Awakens",ambient:"off",app:"/backgrounds/gardenawakens-background.png"},
- {id:"newyear",name:"Minecraft New Year",ambient:"off",app:"/backgrounds/minecraftnewyear-background.png"},
- {id:"pink",name:"Pink",ambient:"off",sidebar:"/backgrounds/pink-sidebar.jpg"},
- {id:"green2",name:"Green 2",ambient:"off",sidebar:"/backgrounds/green2sidebar.jpg"},
+ {"id": "meadow", "name": "Sunny Meadow", "ambient": "off", "app": "/backgrounds/meadow.webp", "sidebar": "/backgrounds/meadow.webp", "thumbnail": "/backgrounds/thumbnails/meadow.webp"},
+ {"id": "winter-island", "name": "Winter Island", "ambient": "snow", "app": "/backgrounds/winter-island.webp", "sidebar": "/backgrounds/winter-island.webp", "thumbnail": "/backgrounds/thumbnails/winter-island.webp"},
+ {"id": "frozen-lake", "name": "Frozen Lake", "ambient": "snow", "app": "/backgrounds/frozen-lake.webp", "sidebar": "/backgrounds/frozen-lake.webp", "thumbnail": "/backgrounds/thumbnails/frozen-lake.webp"},
+ {"id": "night-island", "name": "Night Island", "ambient": "snow", "app": "/backgrounds/night-island.webp", "sidebar": "/backgrounds/night-island.webp", "thumbnail": "/backgrounds/thumbnails/night-island.webp"},
+ {"id": "amethyst-cave", "name": "Amethyst Cave", "ambient": "sakura", "app": "/backgrounds/amethyst-cave.webp", "sidebar": "/backgrounds/amethyst-cave.webp", "thumbnail": "/backgrounds/thumbnails/amethyst-cave.webp"},
+ {"id": "end-eclipse", "name": "End Eclipse", "ambient": "sakura", "app": "/backgrounds/end-eclipse.webp", "sidebar": "/backgrounds/end-eclipse.webp", "thumbnail": "/backgrounds/thumbnails/end-eclipse.webp"},
+ {"id": "golden-mines", "name": "Golden Mines", "ambient": "autumn", "app": "/backgrounds/golden-mines.webp", "sidebar": "/backgrounds/golden-mines.webp", "thumbnail": "/backgrounds/thumbnails/golden-mines.webp"},
+ {"id": "diamond-cave", "name": "Diamond Cave", "ambient": "off", "app": "/backgrounds/diamond-cave.webp", "sidebar": "/backgrounds/diamond-cave.webp", "thumbnail": "/backgrounds/thumbnails/diamond-cave.webp"},
+ {"id": "portal-hall", "name": "Portal Hall", "ambient": "sakura", "app": "/backgrounds/portal-hall.webp", "sidebar": "/backgrounds/portal-hall.webp", "thumbnail": "/backgrounds/thumbnails/portal-hall.webp"},
+ {"id": "lush-cave", "name": "Lush Cave", "ambient": "autumn", "app": "/backgrounds/lush-cave.webp", "sidebar": "/backgrounds/lush-cave.webp", "thumbnail": "/backgrounds/thumbnails/lush-cave.webp"},
+ {"id": "crimson-fortress", "name": "Crimson Fortress", "ambient": "autumn", "app": "/backgrounds/crimson-fortress.webp", "sidebar": "/backgrounds/crimson-fortress.webp", "thumbnail": "/backgrounds/thumbnails/crimson-fortress.webp"},
+ {"id": "deep-dungeon", "name": "Deep Dungeon", "ambient": "off", "app": "/backgrounds/deep-dungeon.webp", "sidebar": "/backgrounds/deep-dungeon.webp", "thumbnail": "/backgrounds/thumbnails/deep-dungeon.webp"},
+ {"id": "nether-depths", "name": "Nether Depths", "ambient": "autumn", "app": "/backgrounds/nether-depths.webp", "sidebar": "/backgrounds/nether-depths.webp", "thumbnail": "/backgrounds/thumbnails/nether-depths.webp"},
+ {"id": "ashen-horizon", "name": "Ashen Horizon", "ambient": "snow", "app": "/backgrounds/ashen-horizon.webp", "sidebar": "/backgrounds/ashen-horizon.webp", "thumbnail": "/backgrounds/thumbnails/ashen-horizon.webp"},
+ {"id": "crimson-horizon", "name": "Crimson Horizon", "ambient": "autumn", "app": "/backgrounds/crimson-horizon.webp", "sidebar": "/backgrounds/crimson-horizon.webp", "thumbnail": "/backgrounds/thumbnails/crimson-horizon.webp"},
+ {"id": "starlit-castle", "name": "Starlit Castle", "ambient": "snow", "app": "/backgrounds/starlit-castle.webp", "sidebar": "/backgrounds/starlit-castle.webp", "thumbnail": "/backgrounds/thumbnails/starlit-castle.webp"},
+ {id:"garden",name:"Garden Awakens",ambient:"autumn",app:"/backgrounds/gardenawakens-background.png",sidebar:"/backgrounds/gardenawakens-background.png"},
+ {id:"newyear",name:"Minecraft New Year",ambient:"snow",app:"/backgrounds/minecraftnewyear-background.png",sidebar:"/backgrounds/minecraftnewyear-background.png"},
 ];
-// New unpaired assets still appear. Adding one explicit entry defines any intended pairing.
-const known=new Set(backgrounds.flatMap(p=>[p.app,p.sidebar]).filter(Boolean));
-for(const file of Object.keys(import.meta.glob("/public/backgrounds/*.{png,jpg,jpeg,webp}"))){const path=file.replace("/public","");if(known.has(path)||path==="/backgrounds/sidebar-bg.webp")continue;const name=path.split("/").pop()!.replace(/\.[^.]+$/,"");backgrounds.push({id:`asset-${name}`,name:name.replace(/[-_]/g," "),ambient:"off",...(name.includes("sidebar")?{sidebar:path}:{app:path})});}
+// Retired built-in selections migrate once; imported IDs and retained backgrounds stay intact.
+const retired=new Set(["normal","darkblue","gray","green","sakura1","sakura2","axolotl","bees","pink","green2"]);
+export function migrateBackgroundId(id:string,target:"app"|"sidebar"):string {
+ return retired.has(id)||(target==="sidebar"&&id==="default")?defaultAppBackground:id;
+}

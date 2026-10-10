@@ -9,7 +9,7 @@ async function choose(page:Page,label:string,name:string){
  if(await page.locator(".settings-modal").isVisible()){if(["Material preset","Shared material","Button style","Card material"].includes(label))await settingsSection(page,"materials");if(label==="Sidebar layout")await settingsSection(page,"sidebar");}
 await page.getByRole('combobox',{name:label,exact:true}).evaluate(el=>{for(let details=el.closest('details');details;details=details.parentElement?.closest('details')??null)details.open=true;});await page.getByRole('combobox',{name:label,exact:true}).click();await page.getByRole('option',{name,exact:true}).click();}
 const palettes=[['light','white'],['light','softLight'],['light','frost'],['light','warm'],['dark','graphite'],['dark','black'],['dark','softDark'],['dark','midnight'],['amoled','graphite']];
-const accents=['monochrome','white','gray','mint','emerald','aqua','blue','purple','rose','orange'];
+const accents=['monochrome','white','winter-island','mint','emerald','aqua','blue','purple','rose','orange'];
 const materials=['Solid','Soft','Vibrancy','Glass','Clear Glass','Liquid Glass','Transparent'];
 test.beforeEach(async({page})=>{mkdirSync('.qa/theme-contrast',{recursive:true});await nativeFixture(page);await page.emulateMedia({reducedMotion:'reduce'});});
 
@@ -62,7 +62,7 @@ test('rendered foreground contrast across every palette, accent and material on 
 });
 
 test('Soft Light settings keep distinct navigation, selected, hover, pressed, disabled and single search focus',async({page})=>{
-  await page.addInitScript(()=>{localStorage.setItem('canary-mode','light');localStorage.setItem('canary-preset','softLight');localStorage.setItem('canary-language','ru');localStorage.setItem('canary-visual',JSON.stringify({materialLinked:true,materialStyle:'glass',app:'sakura1',intensity:100}));});
+  await page.addInitScript(()=>{localStorage.setItem('canary-mode','light');localStorage.setItem('canary-preset','softLight');localStorage.setItem('canary-language','ru');localStorage.setItem('canary-visual',JSON.stringify({materialLinked:true,materialStyle:'glass',app:'amethyst-cave',intensity:100}));});
   await page.goto('/');await nav(page,'Настройки').click();
   await expect(page.locator('.preset-grid button.selected')).toHaveText('Мягкий светлый');
   await expect(page.locator('.sidebar-bottom button')).toHaveCount(2);
@@ -84,7 +84,7 @@ test('Soft Light settings keep distinct navigation, selected, hover, pressed, di
 
 for(const [locale,font] of [['en','Nunito'],['ru','Monocraft']])test(`Soft Light screen flow at 760x540: ${locale}/${font}`,async({page})=>{
   test.setTimeout(60000);await page.setViewportSize({width:760,height:540});
-  await page.addInitScript(({locale,font})=>{localStorage.setItem('canary-mode','light');localStorage.setItem('canary-preset','softLight');localStorage.setItem('canary-language',locale);localStorage.setItem('canary-visual',JSON.stringify({font,minecraft:'full',fontScale:120,materialLinked:true,materialStyle:'liquid',app:'sakura1',intensity:100}));},{locale,font});
+  await page.addInitScript(({locale,font})=>{localStorage.setItem('canary-mode','light');localStorage.setItem('canary-preset','softLight');localStorage.setItem('canary-language',locale);localStorage.setItem('canary-visual',JSON.stringify({font,minecraft:'full',fontScale:120,materialLinked:true,materialStyle:'liquid',app:'amethyst-cave',intensity:100}));},{locale,font});
   const ru=locale==='ru';await page.goto('/');
   const shot=async(name:string)=>{await expect(page.locator('.page-transition')).toHaveCSS('opacity','1');for(const selector of ['.detail-content>div','.settings-content>div']){for(const node of await page.locator(selector).all())await expect(node).toHaveCSS('opacity','1');}if(await page.locator('.settings-modal').count())await expect(page.locator('.settings-modal')).toHaveCSS('opacity','1');expect(await page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth+1)).toBe(true);await page.screenshot({path:`.qa/theme-contrast/${locale}-${name}.png`});};
   await expect(page.locator('.home-greeting')).toBeVisible();await shot('home');
@@ -104,7 +104,7 @@ for(const [locale,font] of [['en','Nunito'],['ru','Monocraft']])test(`Soft Light
 });
 
 test('System follows OS light/dark and materials retain legible tint over bright/dark/colorful artwork',async({page})=>{
-  test.setTimeout(60000);await page.addInitScript(()=>{localStorage.setItem('canary-mode','system');localStorage.setItem('canary-preset','softLight');localStorage.setItem('canary-visual',JSON.stringify({materialLinked:true,materialStyle:'transparent',app:'sakura1',intensity:100,blur:0}));});
+  test.setTimeout(60000);await page.addInitScript(()=>{localStorage.setItem('canary-mode','system');localStorage.setItem('canary-preset','softLight');localStorage.setItem('canary-visual',JSON.stringify({materialLinked:true,materialStyle:'transparent',app:'amethyst-cave',intensity:100,blur:0}));});
   await page.emulateMedia({colorScheme:'light',reducedMotion:'reduce'});await page.goto('/');await nav(page,'Settings').click();await expect(page.locator('html')).toHaveAttribute('data-mode','light');
   for(const name of materials){
     await choose(page,'Shared material',name);
@@ -122,7 +122,7 @@ test('page headings keep the wallpaper visible across pages, themes and quality 
   test.setTimeout(90000);const metrics:any[]=[];
   await page.goto('/');
   for(const mode of ['light','dark','amoled']){
-    await reloadWithSeed(page,`localStorage.setItem('canary-mode',${JSON.stringify(mode)});localStorage.setItem('canary-preset',${JSON.stringify(mode==='light'?'softLight':'graphite')});localStorage.setItem('canary-visual',JSON.stringify({backgroundSource:'canary',app:'sakura1',intensity:100,blur:0,globalTreatment:{overlay:35,vignette:0},materialLinked:true,materialStyle:'glass'}));`);
+    await reloadWithSeed(page,`localStorage.setItem('canary-mode',${JSON.stringify(mode)});localStorage.setItem('canary-preset',${JSON.stringify(mode==='light'?'softLight':'graphite')});localStorage.setItem('canary-visual',JSON.stringify({backgroundSource:'canary',app:'amethyst-cave',intensity:100,blur:0,globalTreatment:{overlay:35,vignette:0},materialLinked:true,materialStyle:'glass'}));`);
     await expect(page.locator('html')).toHaveAttribute('data-mode',mode);
     // A uniform mauve scene makes any separate heading plate visible in pixels.
     await page.locator('.visual-backdrop').evaluate((element:HTMLElement)=>{

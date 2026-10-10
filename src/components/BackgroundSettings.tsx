@@ -7,6 +7,8 @@ import {WindowMaterialSettings} from "./WindowMaterial";
 import {polishDefaults} from "./PolishControls";
 import GlassSelect from "./GlassSelect";
 import {materialCategories} from "./MaterialSystem";
+import {BackgroundGallery} from "./BackgroundGallery";
+import {defaultSidebarImage} from "../services/backgrounds";
 export function BackgroundSettings({russian,target:fixedTarget}:{russian:boolean;target?:"app"|"sidebar"}){
  const {value,update,preview,registry,reload,native}=useVisualAppearance();const {run}=useBackend();
  const [selectedTarget,setTarget]=useState<"app"|"sidebar">("app"),[importing,setImporting]=useState(false);
@@ -16,7 +18,7 @@ export function BackgroundSettings({russian,target:fixedTarget}:{russian:boolean
  const sidebarOpaque=sidebar&&(value.reduceTransparency||value.focus||value.quality==="low");
  const patch=(key:string,n:number|string):Partial<Preferences>=>sidebar?{sidebarTreatment:{...treatment,[key]:n}}:{globalTreatment:{...treatment,[key]:n}};
  const range=(name:string,n:number,min:number,max:number,toPatch:(n:number)=>Partial<Preferences>,unit="%")=><SmoothRange key={target+name} label={name} value={n} min={min} max={max} unit={unit} disabled={sidebarOpaque} onPreview={n=>preview(toPatch(n))} onCommit={n=>update(toPatch(n))}/>;
- const chosen=registry.find(p=>p.id===(sidebar?value.sidebar:value.app));const art=sidebar?chosen?.sidebar??"/backgrounds/sidebar-bg.webp":chosen?.app;
+ const chosen=registry.find(p=>p.id===(sidebar?value.sidebar:value.app));const art=sidebar?chosen?.sidebar??defaultSidebarImage:chosen?.app;
  const desktopAvailable=!!native?.caps.supported.some(m=>m!=="solid");
  const sidebarStyle=value.materialLinked?value.materialStyle:value.materialCategories.sidebar;
  const picturePatch=():Partial<Preferences>=>({sidebarBackgroundSource:"picture",...sidebarStyle==="solid"?{materialLinked:false,materialCategories:{...(value.materialLinked?Object.fromEntries(materialCategories.map(key=>[key,value.materialStyle])) as typeof value.materialCategories:value.materialCategories),sidebar:"vibrancy"}}:{}});
@@ -30,7 +32,7 @@ export function BackgroundSettings({russian,target:fixedTarget}:{russian:boolean
   {sidebarOpaque&&<p className="settings-note" role="status">{label("Режим фокуса, уменьшение прозрачности или низкое качество делают фон панели непрозрачным. Отключите этот режим, чтобы настроить прозрачность и размытие.","Focus mode, Reduce transparency or Low quality make the sidebar opaque. Turn that mode off to adjust opacity and blur.")}</p>}
   {sidebar&&value.sidebarBackgroundSource==="picture"&&sidebarStyle==="solid"&&<p className="settings-note" role="status">{label("Материал «Сплошной» скрывает картинку. Нажмите «Изображение», чтобы включить её, или выберите другой материал панели ниже.","Solid material hides artwork. Press Picture to enable it, or choose another sidebar material below.")}</p>}
   {!sidebar&&<div className="background-source-options" role="group" aria-label={label("Источник фона","Background source")}>
-   <button aria-pressed={value.backgroundSource==="canary"} onClick={()=>update({backgroundSource:"canary",app:value.app==="normal"?"green":value.app})}><b>{label("Изображение","Picture")}</b><small>{label("Готовый фон или своё изображение","Built-in or custom wallpaper")}</small></button>
+   <button aria-pressed={value.backgroundSource==="canary"} onClick={()=>update({backgroundSource:"canary",app:value.app==="normal"?"meadow":value.app})}><b>{label("Изображение","Picture")}</b><small>{label("Готовый фон или своё изображение","Built-in or custom wallpaper")}</small></button>
    <button aria-pressed={value.backgroundSource==="solid"} onClick={()=>update({backgroundSource:"solid"})}><b>{label("Однотонный","Solid color")}</b><small>{label("Цвет текущей темы","Use the current theme color")}</small></button>
    <button disabled={!desktopAvailable} aria-pressed={value.backgroundSource==="desktop"} onClick={()=>update({backgroundSource:"desktop",material:native!.caps.supported.includes("acrylic")?"acrylic":native!.caps.supported.find(m=>m!=="solid")!})}><b>{label("Рабочий стол","Desktop")}</b><small>{desktopAvailable?label("Прозрачное окно Windows","Transparent Windows window"):label("Недоступно на этой системе","Unavailable on this system")}</small></button>
   </div>}
@@ -54,14 +56,14 @@ export function BackgroundSettings({russian,target:fixedTarget}:{russian:boolean
    </div>
    <p className="settings-note">{label("Больше видимости — ярче картинка. Размытие смягчает детали. Затемнение помогает читать текст.","More visibility reveals the picture. Blur softens details. Shading keeps text readable.")}</p>
    <h4>{label("Выбрать изображение","Choose wallpaper")}</h4>
-   <div className="background-options">{(sidebar?[{id:"default",name:label("По умолчанию","Default"),sidebar:"/backgrounds/sidebar-bg.webp"},...registry.filter(p=>p.sidebar)]:registry.filter(p=>p.app)).map(p=><button key={p.id} aria-label={p.name} data-tooltip={p.name} aria-pressed={(sidebar?value.sidebar:value.app)===p.id} onClick={()=>choose(p.id)}><span className="background-preview" style={{backgroundImage:'url("'+("thumbnail" in p&&p.thumbnail||("app" in p&&!sidebar?p.app:p.sidebar))+'")'}}/></button>)}</div>
+   <BackgroundGallery russian={russian} selected={sidebar?value.sidebar:value.app} onSelect={choose} images={sidebar?registry.filter(p=>p.sidebar).map(p=>({...p,app:undefined})):registry.filter(p=>p.app)}/>
    <details className="polish-disclosure"><summary>{label("Цвет и кадрирование","Color and framing")}</summary><div className="polish-range-grid">
     {range(label("Яркость","Brightness"),treatment.brightness,50,130,n=>patch("brightness",n))}
     {range(label("Насыщенность","Saturation"),treatment.saturation,0,130,n=>patch("saturation",n))}
     {range(label("Затемнение по краям","Vignette"),treatment.vignette,0,90,n=>patch("vignette",n))}
     {range(label("Масштаб","Zoom"),treatment.zoom,100,140,n=>patch("zoom",n))}
    </div><label>{label("Положение","Position")}<GlassSelect disabled={sidebarOpaque} aria-label={label("Положение фона","Wallpaper position")} value={treatment.position} onChange={e=>update(patch("position",e.target.value))}>{[["center","По центру","Center"],["left","Слева","Left"],["right","Справа","Right"],["top","Сверху","Top"],["bottom","Снизу","Bottom"]].map(([id,ru,en])=><option key={id} value={id}>{russian?ru:en}</option>)}</GlassSelect></label></details>
-   {isTauri()&&<div className="background-custom-actions"><button className="quiet-button" disabled={importing} onClick={()=>{setImporting(true);void run("import_wallpaper",{target}).then(reload).catch(()=>{}).finally(()=>setImporting(false));}}>{importing?label("Импорт…","Importing…"):label("Выбрать своё изображение","Choose custom image")}</button>{chosen?.custom&&<button className="quiet-button destructive" disabled={importing} onClick={()=>{setImporting(true);void run("remove_wallpaper",{id:chosen.id}).then(()=>{update({...value.app===chosen.id?{app:"green"}:{},...value.sidebar===chosen.id?{sidebar:"default"}:{}});return reload();}).catch(()=>{}).finally(()=>setImporting(false));}}>{label("Удалить изображение","Remove image")}</button>}</div>}
+   {isTauri()&&<div className="background-custom-actions"><button className="quiet-button" disabled={importing} onClick={()=>{setImporting(true);void run("import_wallpaper",{target}).then(reload).catch(()=>{}).finally(()=>setImporting(false));}}>{importing?label("Импорт…","Importing…"):label("Выбрать своё изображение","Choose custom image")}</button>{chosen?.custom&&<button className="quiet-button destructive" disabled={importing} onClick={()=>{setImporting(true);void run("remove_wallpaper",{id:chosen.id}).then(()=>{update({...value.app===chosen.id?{app:"meadow"}:{},...value.sidebar===chosen.id?{sidebar:"meadow"}:{}});return reload();}).catch(()=>{}).finally(()=>setImporting(false));}}>{label("Удалить изображение","Remove image")}</button>}</div>}
    <button className="quiet-button" onClick={()=>update(sidebar?{sidebarTreatment:{...polishDefaults.sidebarTreatment},sidebarIntensity:85,sidebarBlur:12}:{globalTreatment:{...polishDefaults.globalTreatment},intensity:85,blur:8})}>{label("Сбросить обработку фона","Reset background adjustments")}</button>
   </>}
   {(!sidebar&&native&&value.backgroundSource!=="desktop")&&<details className="polish-disclosure"><summary>{label("Материал окна Windows","Windows window material")}</summary><WindowMaterialSettings russian={russian} value={value} update={update} preview={preview} nativeOnly {...native}/></details>}

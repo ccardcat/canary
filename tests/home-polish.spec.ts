@@ -67,7 +67,7 @@ async function catalog(page: Page) {
         game_versions: ["1.20.1", "1.21.1"],
         gallery: [
           {
-            url: "http://127.0.0.1:1420/backgrounds/sakura1-bg.jpg",
+            url: "http://127.0.0.1:1420/backgrounds/amethyst-cave.webp",
             title: "World",
           },
         ],
@@ -215,7 +215,7 @@ test("community visibility is searchable, applies live, persists and preserves a
         JSON.stringify({
           font: "Monocraft",
           minecraft: "full",
-          app: "sakura1",
+          app: "amethyst-cave",
           cursor: "system",
           materialLinked: true,
           materialStyle: "liquid",
@@ -252,7 +252,7 @@ test("community visibility is searchable, applies live, persists and preserves a
     ),
   ).toMatchObject({
     font: "Monocraft",
-    app: "sakura1",
+    app: "amethyst-cave",
     cursor: "system",
     materialStyle: "liquid",
     showCommunity: false,

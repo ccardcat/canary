@@ -5,7 +5,7 @@ import {mkdirSync} from "node:fs";
 const nav=(page:Page,name:string)=>page.locator(".sidebar nav").getByRole("button",{name,exact:true});
 async function start(page:Page,saved:Record<string,unknown>={}){
  await nativeFixture(page);await page.emulateMedia({reducedMotion:"reduce"});
- await page.addInitScript(saved=>{if(!localStorage.getItem("canary-visual"))localStorage.setItem("canary-visual",JSON.stringify({app:"green",backgroundVersion:1,...saved}));},saved);
+ await page.addInitScript(saved=>{if(!localStorage.getItem("canary-visual"))localStorage.setItem("canary-visual",JSON.stringify({app:"meadow",backgroundVersion:1,...saved}));},saved);
  await page.goto("/");await expect(page.locator(".startup-splash")).toHaveCount(0);await page.evaluate(()=>document.fonts.ready);
  await nav(page,"Settings").click();await settingsSection(page,"materials");
 }
@@ -54,14 +54,14 @@ test("Surface opacity and blur are live; Solid explains its disabled sliders",as
  await page.getByRole("checkbox",{name:"Reduce transparency",exact:true}).check();await background(page);await settingsSection(page,"sidebar");await expect(page.getByRole("slider",{name:"Sidebar tint",exact:true})).toBeDisabled();await expect(page.locator(".background-settings [role=status]")).toContainText("make the sidebar opaque");
 });
 test("Wallpaper selection, custom import and background target survive reload; native fallback is honest",async({page})=>{
- await start(page,{linked:true,app:"green",sidebar:"gray",backgroundSource:"canary"});await background(page);await page.locator(".background-options").getByRole("button",{name:"Sakura 1",exact:true}).click();
- await expect(page.locator(".global-wallpaper .artwork-current")).toHaveCSS("background-image",/sakura1/);
+ await start(page,{linked:true,app:"meadow",sidebar:"winter-island",backgroundSource:"canary"});await background(page);await page.locator(".background-options").getByRole("button",{name:"Amethyst Cave",exact:true}).click();
+ await expect(page.locator(".global-wallpaper .artwork-current")).toHaveCSS("background-image",/amethyst-cave/);
  await page.getByRole("button",{name:"Choose custom image"}).click();
- await settingsSection(page,"sidebar");await expect(page.locator(".background-options").getByRole("button",{name:"Gray",exact:true})).toHaveAttribute("aria-pressed","true");
+ await settingsSection(page,"sidebar");await expect(page.locator(".background-options").getByRole("button",{name:"Winter Island",exact:true})).toHaveAttribute("aria-pressed","true");
  await page.getByRole("button",{name:"Choose custom image"}).click();
  expect(await page.evaluate(()=>(globalThis as any).__materialQA.calls.filter((c:any)=>c.command==="import_wallpaper").map((c:any)=>c.args.target))).toEqual(["app","sidebar"]);
  await page.reload();await nav(page,"Settings").click();await background(page);
- await expect(page.locator(".background-options").getByRole("button",{name:"Sakura 1",exact:true})).toHaveAttribute("aria-pressed","true");
+ await expect(page.locator(".background-options").getByRole("button",{name:"Amethyst Cave",exact:true})).toHaveAttribute("aria-pressed","true");
  await expect(page.getByRole("checkbox",{name:"Use one picture for launcher and sidebar"})).toHaveCount(0);
  expect(await page.evaluate(()=>JSON.parse(localStorage.getItem("canary-visual")!).linked)).toBeUndefined();
  await expect(page.getByRole("button",{name:"Desktop",exact:false})).toBeDisabled();

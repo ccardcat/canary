@@ -37,23 +37,23 @@ test("background selections are independent, caption-free and survive restart", 
   await background();const options=page.locator(".background-options");
   await expect(options).toHaveText("");
   await expect(page.getByRole("checkbox",{name:"Use one picture for launcher and sidebar"})).toHaveCount(0);
-  for(const name of ["Dark Blue","Gray","Green","Sakura 1","Sakura 2"]){
+  for(const name of ["Winter Island","Frozen Lake","Sunny Meadow","Amethyst Cave","End Eclipse"]){
     await options.getByRole("button",{name,exact:true}).click();
     await expect(options.getByRole("button",{name,exact:true})).toHaveAttribute("aria-pressed","true");
     await expect(page.locator(".global-wallpaper")).toHaveCount(1);
   }
   await target("Sidebar");
-  for(const name of ["Default","Dark Blue","Gray","Green","Sakura 1","Sakura 2"]){await options.getByRole("button",{name,exact:true}).click();await expect(options.getByRole("button",{name,exact:true})).toHaveAttribute("aria-pressed","true");}
-  await target("Launcher");await options.getByRole("button",{name:"Green",exact:true}).click();
-  await target("Sidebar");await expect(options.getByRole("button",{name:"Sakura 2",exact:true})).toHaveAttribute("aria-pressed","true");
-  await options.getByRole("button",{name:"Dark Blue",exact:true}).click();await target("Launcher");
-  await expect(options.getByRole("button",{name:"Green",exact:true})).toHaveAttribute("aria-pressed","true");
+  for(const name of ["Winter Island","Frozen Lake","Sunny Meadow","Amethyst Cave","End Eclipse"]){await options.getByRole("button",{name,exact:true}).click();await expect(options.getByRole("button",{name,exact:true})).toHaveAttribute("aria-pressed","true");}
+  await target("Launcher");await options.getByRole("button",{name:"Sunny Meadow",exact:true}).click();
+  await target("Sidebar");await expect(options.getByRole("button",{name:"End Eclipse",exact:true})).toHaveAttribute("aria-pressed","true");
+  await options.getByRole("button",{name:"Winter Island",exact:true}).click();await target("Launcher");
+  await expect(options.getByRole("button",{name:"Sunny Meadow",exact:true})).toHaveAttribute("aria-pressed","true");
   await page.getByRole("slider",{name:"Wallpaper visibility",exact:true}).fill("1");await page.keyboard.press("Tab");await page.reload();
   await page.getByRole("button",{name:"Settings",exact:true}).click();await background();
-  await expect(options.getByRole("button",{name:"Green",exact:true})).toHaveAttribute("aria-pressed","true");
+  await expect(options.getByRole("button",{name:"Sunny Meadow",exact:true})).toHaveAttribute("aria-pressed","true");
   await expect(page.getByRole("slider",{name:"Wallpaper visibility",exact:true})).toHaveValue("1");
-  await target("Sidebar");await expect(options.getByRole("button",{name:"Dark Blue",exact:true})).toHaveAttribute("aria-pressed","true");
-  await expect(page.locator(".global-wallpaper .artwork-current")).toHaveCSS("background-image",/green-bg.webp/);
+  await target("Sidebar");await expect(options.getByRole("button",{name:"Winter Island",exact:true})).toHaveAttribute("aria-pressed","true");
+  await expect(page.locator(".global-wallpaper .artwork-current")).toHaveCSS("background-image",/meadow.webp/);
 });
 
 test("fonts, Minecraft modes, ambient and reduced motion", async ({ page }) => {
@@ -99,25 +99,25 @@ test("theme-aware title bar, language and desktop geometry", async ({ page }) =>
   }
 });
 
-test("independent Sakura backgrounds crossfade, persist and preserve ambient preferences", async ({ page }) => {
+test("independent backgrounds crossfade, persist and preserve ambient preferences", async ({ page }) => {
   const section=(name:string)=>settingsSection(page,name);
   await section("Effects");await page.getByRole("button",{name:"Automatic",exact:true}).click();await section("Background");
   const options=page.locator(".background-options");
   for(const number of [1,2]){
     await section("Background");
-    await options.getByRole("button",{name:"Sakura "+number,exact:true}).click();
-    await expect(page.locator(".global-wallpaper .artwork-current")).toHaveCSS("background-image",new RegExp("sakura"+number+"-bg.jpg"));
-    await section("sidebar");await options.getByRole("button",{name:"Sakura "+number,exact:true}).click();
-    await expect(page.locator(".sidebar-art .artwork-current")).toHaveCSS("background-image",new RegExp("sakura"+number+"-sidebar.jpg"));
+    await options.getByRole("button",{name:number===1?"Amethyst Cave":"End Eclipse",exact:true}).click();
+    await expect(page.locator(".global-wallpaper .artwork-current")).toHaveCSS("background-image",new RegExp(number===1?"amethyst-cave.webp":"end-eclipse.webp"));
+    await section("sidebar");await options.getByRole("button",{name:number===1?"Amethyst Cave":"End Eclipse",exact:true}).click();
+    await expect(page.locator(".sidebar-art .artwork-current")).toHaveCSS("background-image",new RegExp(number===1?"amethyst-cave.webp":"end-eclipse.webp"));
     await expect(page.locator(".ambient-particles")).toHaveClass(/sakura/);
   }
   await page.reload();await page.getByRole("button",{name:"Settings",exact:true}).click();await section("Background");
-  await expect(options.getByRole("button",{name:"Sakura 2",exact:true})).toHaveAttribute("aria-pressed","true");
+  await expect(options.getByRole("button",{name:"End Eclipse",exact:true})).toHaveAttribute("aria-pressed","true");
   await section("Effects");await page.getByRole("button",{name:"Snow",exact:true}).click();await section("Background");
-  await options.getByRole("button",{name:"Sakura 1",exact:true}).click();await expect(page.locator(".ambient-particles")).toHaveClass(/snow/);
-  await settingsSection(page,"sidebar");await options.getByRole("button",{name:"Gray",exact:true}).click();
-  await page.reload();await expect(page.locator(".global-wallpaper .artwork-current")).toHaveCSS("background-image",/sakura1-bg.jpg/);
-  await expect(page.locator(".sidebar-art .artwork-current")).toHaveCSS("background-image",/gray-sidebar.jpg/);
+  await options.getByRole("button",{name:"Amethyst Cave",exact:true}).click();await expect(page.locator(".ambient-particles")).toHaveClass(/snow/);
+  await settingsSection(page,"sidebar");await options.getByRole("button",{name:"Winter Island",exact:true}).click();
+  await page.reload();await expect(page.locator(".global-wallpaper .artwork-current")).toHaveCSS("background-image",/amethyst-cave.webp/);
+  await expect(page.locator(".sidebar-art .artwork-current")).toHaveCSS("background-image",/winter-island.webp/);
 });
 
 test("settings search finds Window and Effects, and appearance preferences persist",async({page})=>{

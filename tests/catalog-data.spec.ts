@@ -6,7 +6,7 @@ import {en, ru, type T} from "../src/locales";
 
 const t: T = key => en[key];
 test("old visual preferences get catalog defaults and corrupted values are bounded", () => {
-  expect(normalizeCatalog({app: "green", fontScale: 120})).toEqual(catalogDefaults);
+  expect(normalizeCatalog({app: "meadow", fontScale: 120})).toEqual(catalogDefaults);
   expect(normalizeCatalog({catalogLayout: "broken", catalogDensity: null, catalogTagLimit: Infinity, catalogDescription: "false"})).toEqual(catalogDefaults);
   expect(normalizeCatalog({catalogLayout: "grid", catalogDensity: "compact", catalogTagLimit: 999, catalogDescription: false})).toMatchObject({catalogLayout: "grid", catalogDensity: "compact", catalogTagLimit: 12, catalogDescription: false});
   expect(normalizeCatalog({catalogTagLimit: -5}).catalogTagLimit).toBe(0);

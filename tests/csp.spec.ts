@@ -16,14 +16,14 @@ async function production(page:Page){
   (globalThis as any).__csp=[];
   document.addEventListener('securitypolicyviolation',e=>(globalThis as any).__csp.push({directive:e.effectiveDirective,blocked:e.blockedURI}));
   localStorage.setItem('canary-mode','light');
-  localStorage.setItem('canary-visual',JSON.stringify({backgroundSource:'canary',app:'sakura1',sidebar:'green',materialPreset:'glass',materialLinked:true,materialStyle:'glass',showHero:true,showCommunity:false,discordEnabled:false,cursor:'custom'}));
+  localStorage.setItem('canary-visual',JSON.stringify({backgroundSource:'canary',app:'amethyst-cave',sidebar:'meadow',materialPreset:'glass',materialLinked:true,materialStyle:'glass',showHero:true,showCommunity:false,discordEnabled:false,cursor:'custom'}));
  });
  const root=resolve('dist');
  await page.route('http://127.0.0.1:1420/**',async route=>{
   const name=decodeURIComponent(new URL(route.request().url()).pathname);
   const file=name==='/'?resolve(root,'index.html'):resolve(root,'.'+name);
   if(!file.startsWith(root+sep)||!existsSync(file))return route.fulfill({status:404,body:'Not found'});
-  const mime:Record<string,string>={'.html':'text/html','.js':'text/javascript','.css':'text/css','.png':'image/png','.jpg':'image/jpeg','.ttf':'font/ttf','.woff2':'font/woff2','.svg':'image/svg+xml','.cur':'image/x-icon'};
+  const mime:Record<string,string>={'.html':'text/html','.js':'text/javascript','.css':'text/css','.png':'image/png','.jpg':'image/jpeg','.webp':'image/webp','.ttf':'font/ttf','.woff2':'font/woff2','.svg':'image/svg+xml','.cur':'image/x-icon'};
   await route.fulfill({body:readFileSync(file),contentType:mime[extname(file)]||'application/octet-stream',headers:name==='/'?{'Content-Security-Policy':header}:{}});
  });
  await page.route('https://api.modrinth.com/v2/**',route=>{
@@ -39,7 +39,7 @@ async function production(page:Page){
 test('production CSP preserves startup, wallpaper, fonts, themes and live surfaces',async({page})=>{
  await production(page);
  await expect(page.locator('.home-hero')).toBeVisible();
- await expect(page.locator('.global-wallpaper .artwork-current')).toHaveCSS('background-image',/sakura1/);
+ await expect(page.locator('.global-wallpaper .artwork-current')).toHaveCSS('background-image',/amethyst-cave/);
  await expect.poll(()=>page.evaluate(()=>[...document.images].filter(i=>i.src.includes('/branding/')).every(i=>i.complete&&i.naturalWidth>0))).toBe(true);
  expect(await page.evaluate(async()=>{await document.fonts.ready;return document.fonts.check('16px Nunito');})).toBe(true);
  await page.locator('.sidebar').getByRole('button',{name:'Settings',exact:true}).click();

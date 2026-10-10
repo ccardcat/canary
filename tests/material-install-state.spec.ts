@@ -25,7 +25,7 @@ test('all seven presets and reset preserve every sidebar layout, unrelated setti
   const parameters=new URLSearchParams(location.search);if(!parameters.has('qaSidebarSide'))return;
   const side=parameters.get('qaSidebarSide'),mode=parameters.get('qaSidebarMode'),compact=parameters.get('qaCompact');
   const old=JSON.parse(localStorage.getItem('canary-visual')||'{}');
-  localStorage.setItem('canary-visual',JSON.stringify({...old,sidebarSide:side,sidebarMode:mode,app:'sakura1',sidebar:'green',font:'Monocraft',fontScale:110,materialRadius:23,instanceLayout:'compact',instanceArtwork:'ambient',buttonDensity:'compact'}));
+  localStorage.setItem('canary-visual',JSON.stringify({...old,sidebarSide:side,sidebarMode:mode,app:'amethyst-cave',sidebar:'meadow',font:'Monocraft',fontScale:110,materialRadius:23,instanceLayout:'compact',instanceArtwork:'ambient',buttonDensity:'compact'}));
   localStorage.setItem('canary-compact',compact!);localStorage.setItem('canary-mode','amoled');localStorage.setItem('canary-accent','purple');
  });
  for(const side of ['left','right'])for(const mode of ['attached','floating'])for(const compact of [false,true]){
@@ -51,14 +51,14 @@ test('all seven presets and reset preserve every sidebar layout, unrelated setti
 });
 
 test('legacy Clear Glass normalization preserves explicit layout and custom category choices',async({page})=>{
- await page.addInitScript(()=>localStorage.setItem('canary-visual',JSON.stringify({materialPreset:'clear',materialLinked:true,materialStyle:'glass',sidebarMode:'floating',sidebarSide:'right',app:'green',font:'Monocraft',materialCategories:{cards:'liquid',sidebar:'vibrancy'},materialRadius:25})));
+ await page.addInitScript(()=>localStorage.setItem('canary-visual',JSON.stringify({materialPreset:'clear',materialLinked:true,materialStyle:'glass',sidebarMode:'floating',sidebarSide:'right',app:'meadow',font:'Monocraft',materialCategories:{cards:'liquid',sidebar:'vibrancy'},materialRadius:25})));
  await page.goto('/');const saved=await page.evaluate(()=>JSON.parse(localStorage.getItem('canary-visual')!));
- expect(saved).toMatchObject({materialStyle:'clear',sidebarMode:'floating',sidebarSide:'right',app:'green',font:'Monocraft',materialRadius:25,materialCategories:{cards:'liquid',sidebar:'vibrancy'}});
+ expect(saved).toMatchObject({materialStyle:'clear',sidebarMode:'floating',sidebarSide:'right',app:'meadow',font:'Monocraft',materialRadius:25,materialCategories:{cards:'liquid',sidebar:'vibrancy'}});
 });
 
 test('material identity differs on five backgrounds in Light, Dark, AMOLED and live System transitions; resize is stable',async({page})=>{
  test.setTimeout(600000);const rows:any[]=[];await page.goto('/');await nav(page,'Settings').click();
- const backgrounds=[['dark','linear-gradient(#090e17,#090e17)'],['bright','linear-gradient(#fafcf9,#fafcf9)'],['colorful','linear-gradient(45deg,#b97183,#619d92,#577bc1)'],['photo','url(/backgrounds/sakura1-bg.jpg)'],['gradient','linear-gradient(135deg,#838f99,#a3a296)']];
+ const backgrounds=[['dark','linear-gradient(#090e17,#090e17)'],['bright','linear-gradient(#fafcf9,#fafcf9)'],['colorful','linear-gradient(45deg,#b97183,#619d92,#577bc1)'],['photo','url(/backgrounds/amethyst-cave.webp)'],['gradient','linear-gradient(135deg,#838f99,#a3a296)']];
  for(const theme of ['Light','Dark','AMOLED','System']){
   await settingsSection(page,"appearance");await page.locator('.mode-grid').getByRole('button',{name:theme,exact:true}).click();
   if(theme==='System')await page.emulateMedia({colorScheme:'light',reducedMotion:'reduce'});
@@ -135,7 +135,7 @@ test('restored task snapshots keep provider/project identity, multiple tasks rem
 });
 
 test('actual Discover card text retains contrast in all presets and themes over bright and colorful wallpapers',async({page})=>{
- test.setTimeout(180000);await page.addInitScript(()=>localStorage.setItem('canary-visual',JSON.stringify({app:'sakura1',intensity:100,blur:0,globalTreatment:{overlay:35,vignette:0}})));await discover(page);const results:any[]=[];
+ test.setTimeout(180000);await page.addInitScript(()=>localStorage.setItem('canary-visual',JSON.stringify({app:'amethyst-cave',intensity:100,blur:0,globalTreatment:{overlay:35,vignette:0}})));await discover(page);const results:any[]=[];
  for(const theme of ['Light','Dark','AMOLED'])for(let i=0;i<materials.length;i++){
   await nav(page,'Settings').click();await settingsSection(page,"appearance");await page.locator('.mode-grid').getByRole('button',{name:theme,exact:true}).click();await preset(page,i);await page.keyboard.press('Escape');await expect(page.locator('.settings-modal')).toHaveCount(0);
   for(const [background,image] of [['bright','linear-gradient(#fff,#fff)'],['colorful','linear-gradient(45deg,#d66a97,#5cc9a4,#4d75c7)']]){
