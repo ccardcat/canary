@@ -61,6 +61,26 @@ upstream calls. The full configuration compared equal to the baseline after
 excluding the approval flag. Client/backend source and dependencies are unchanged.
 Wrangler dry-run was not repeated: its CLI is unavailable in this workspace.
 
-Deployment follows the existing Cloudflare Builds connection to `main`. The
-commit is configuration activation, not proof of deployed API access. Live health,
-search and download results are recorded separately once observed.
+Live verification after activation commit `61487750f06b2feea0305c8633d3af79bccf530b`:
+
+- Cloudflare check `Workers Builds: canaryclientcurseforge` completed successfully
+  and created version `00d78a4f-aa2f-490b-ace3-0aafe27b0e53`.
+- Actual `/health?check=api`: HTTP 200, protocol 2, configured/rateLimiting/
+  gatewayApproved/ready all true and `api: "reachable"`.
+- Actual search with Minecraft 1.21.1, Fabric and mod-class filters returned the
+  permitted Fabric API project. Actual filtered file listing returned compatible
+  Fabric releases with signed URLs on the Canary gateway.
+- Downloaded a permitted Fabric API JAR through that signed gateway URL into
+  disposable QA storage. Its byte count matched API fileLength and calculated
+  SHA-1 matched the publisher hash. No publisher key/cookies were returned.
+
+These are real gateway/API/file checks, not mocked network responses. Native
+instance installation, inventory persistence, modpack installation and Minecraft
+launch were not run during this activation. Existing compatibility/dependency
+checks and transactional installers remain unchanged. Restart a current client to
+refresh provider availability; no end-user key is required.
+
+GitHub Actions verification jobs for activation run `38081578222` reported failure
+with empty step lists. This is not a successful application CI receipt and no
+cause is inferred. The separate Cloudflare build and live service checks above
+succeeded. Local gateway/budget test results are recorded separately above.
