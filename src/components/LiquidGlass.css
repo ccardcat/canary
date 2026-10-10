@@ -45,6 +45,10 @@
 .ambient-particles.snow svg {display:block;width:100%;height:100%;filter:drop-shadow(0 1px 1px #16263940);}
 :root .ambient-particles.sakura i { width:9px; height:13px; background:linear-gradient(145deg,#f3d9e6,#dcb2c8); border-radius:70% 15% 75% 25%; box-shadow:none; }
 :root .ambient-particles.autumn i { width:10px; height:14px; background:var(--leaf-color,#dca14a); border-radius:18% 75% 25% 70%; clip-path:polygon(48% 0,80% 20%,100% 48%,69% 83%,47% 100%,24% 76%,0 45%,18% 16%); box-shadow:none; }
+:root .ambient-particles.embers i {top:auto;bottom:-16px;width:3px;height:7px;border-radius:70% 40% 65% 40%;background:var(--ember-color,#ffad42);box-shadow:0 0 5px var(--ember-color,#ffad42),0 0 12px #ff6c2850;animation-name:particle-ember-rise;}
+:root .ambient-particles.embers i:nth-child(3n) {width:2px;height:4px;}
+:root .ambient-particles.embers i::after {content:"";position:absolute;inset:55% 0 -5px;border-radius:inherit;background:linear-gradient(var(--ember-color,#ffad42),transparent);opacity:.45;}
+@keyframes particle-ember-rise {0%{transform:translate(0,0) rotate(-12deg);}30%{transform:translate(calc(var(--drift) * .3 + var(--sway)),-32vh) rotate(10deg);}65%{transform:translate(calc(var(--drift) * .65 - var(--sway)),-70vh) rotate(-8deg);}100%{transform:translate(var(--drift),-110vh) rotate(18deg);}}
 @keyframes particle-fall-fluid { 0%{transform:translate(0,-20px) rotate(-35deg);} 30%{transform:translate(calc(var(--drift) * .3 + var(--sway)),32vh) rotate(65deg);} 65%{transform:translate(calc(var(--drift) * .65 - var(--sway)),70vh) rotate(130deg);} 100%{transform:translate(var(--drift),110vh) rotate(230deg);} }
 :root[data-window-fullscreen="true"] .ambient-particles { top:0; }
 :root[data-window-fullscreen="true"] .modal-backdrop { top:0; }

@@ -1,4 +1,4 @@
-export type AmbientEffect="off"|"sakura"|"snow"|"autumn";
+export type AmbientEffect="off"|"sakura"|"snow"|"autumn"|"embers";
 export interface Background {id:string;name:string;ambient:AmbientEffect;app?:string;sidebar?:string;thumbnail?:string;custom?:boolean}
 export const defaultAppBackground="meadow";
 export const defaultSidebarImage="/backgrounds/meadow.webp";
@@ -13,11 +13,11 @@ export const backgrounds:Background[]=[
  {"id": "diamond-cave", "name": "Diamond Cave", "ambient": "off", "app": "/backgrounds/diamond-cave.webp", "sidebar": "/backgrounds/diamond-cave.webp", "thumbnail": "/backgrounds/thumbnails/diamond-cave.webp"},
  {"id": "portal-hall", "name": "Portal Hall", "ambient": "sakura", "app": "/backgrounds/portal-hall.webp", "sidebar": "/backgrounds/portal-hall.webp", "thumbnail": "/backgrounds/thumbnails/portal-hall.webp"},
  {"id": "lush-cave", "name": "Lush Cave", "ambient": "autumn", "app": "/backgrounds/lush-cave.webp", "sidebar": "/backgrounds/lush-cave.webp", "thumbnail": "/backgrounds/thumbnails/lush-cave.webp"},
- {"id": "crimson-fortress", "name": "Crimson Fortress", "ambient": "autumn", "app": "/backgrounds/crimson-fortress.webp", "sidebar": "/backgrounds/crimson-fortress.webp", "thumbnail": "/backgrounds/thumbnails/crimson-fortress.webp"},
+ {"id": "crimson-fortress", "name": "Crimson Fortress", "ambient": "embers", "app": "/backgrounds/crimson-fortress.webp", "sidebar": "/backgrounds/crimson-fortress.webp", "thumbnail": "/backgrounds/thumbnails/crimson-fortress.webp"},
  {"id": "deep-dungeon", "name": "Deep Dungeon", "ambient": "off", "app": "/backgrounds/deep-dungeon.webp", "sidebar": "/backgrounds/deep-dungeon.webp", "thumbnail": "/backgrounds/thumbnails/deep-dungeon.webp"},
- {"id": "nether-depths", "name": "Nether Depths", "ambient": "autumn", "app": "/backgrounds/nether-depths.webp", "sidebar": "/backgrounds/nether-depths.webp", "thumbnail": "/backgrounds/thumbnails/nether-depths.webp"},
+ {"id": "nether-depths", "name": "Nether Depths", "ambient": "embers", "app": "/backgrounds/nether-depths.webp", "sidebar": "/backgrounds/nether-depths.webp", "thumbnail": "/backgrounds/thumbnails/nether-depths.webp"},
  {"id": "ashen-horizon", "name": "Ashen Horizon", "ambient": "snow", "app": "/backgrounds/ashen-horizon.webp", "sidebar": "/backgrounds/ashen-horizon.webp", "thumbnail": "/backgrounds/thumbnails/ashen-horizon.webp"},
- {"id": "crimson-horizon", "name": "Crimson Horizon", "ambient": "autumn", "app": "/backgrounds/crimson-horizon.webp", "sidebar": "/backgrounds/crimson-horizon.webp", "thumbnail": "/backgrounds/thumbnails/crimson-horizon.webp"},
+ {"id": "crimson-horizon", "name": "Crimson Horizon", "ambient": "embers", "app": "/backgrounds/crimson-horizon.webp", "sidebar": "/backgrounds/crimson-horizon.webp", "thumbnail": "/backgrounds/thumbnails/crimson-horizon.webp"},
  {"id": "starlit-castle", "name": "Starlit Castle", "ambient": "snow", "app": "/backgrounds/starlit-castle.webp", "sidebar": "/backgrounds/starlit-castle.webp", "thumbnail": "/backgrounds/thumbnails/starlit-castle.webp"},
  {id:"garden",name:"Garden Awakens",ambient:"autumn",app:"/backgrounds/gardenawakens-background.png",sidebar:"/backgrounds/gardenawakens-background.png"},
  {id:"newyear",name:"Minecraft New Year",ambient:"snow",app:"/backgrounds/minecraftnewyear-background.png",sidebar:"/backgrounds/minecraftnewyear-background.png"},

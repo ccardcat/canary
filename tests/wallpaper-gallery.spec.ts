@@ -21,7 +21,22 @@ test("Custom wallpapers preserve manual and automatic particles, and snow has fl
  await page.goto('/');await expect(page.locator('.ambient-particles.snow i svg')).toHaveCount(24);
  const z=await page.evaluate(()=>({particles:Number(getComputedStyle(document.querySelector('.ambient-particles')!).zIndex),app:Number(getComputedStyle(document.querySelector('.canary-app')!).zIndex)}));expect(z.particles).toBeGreaterThan(z.app);
  await page.locator('.sidebar nav').getByRole('button',{name:'Settings',exact:true}).click();await settingsSection(page,'effects');
- for(const name of ['Sakura','Autumn Leaves','Automatic']){await page.getByRole('button',{name,exact:true}).click();await expect(page.locator('.ambient-particles')).toHaveClass(new RegExp(name==='Sakura'?'sakura':name==='Autumn Leaves'?'autumn':'snow'));}
+ for(const [name,effect] of [['Sakura','sakura'],['Autumn Leaves','autumn'],['Fire Sparks','embers'],['Automatic','snow']]){await page.getByRole('button',{name,exact:true}).click();await expect(page.locator('.ambient-particles')).toHaveClass(new RegExp(effect));}
  await settingsSection(page,'background');await expect(page.locator('.background-options').getByRole('button',{name:'Custom fixture',exact:true})).toHaveAttribute('aria-pressed','true');
  await page.reload();await expect(page.locator('.ambient-particles.snow')).toHaveCount(1);await page.emulateMedia({reducedMotion:'reduce'});await expect(page.locator('.ambient-particles')).toHaveCount(0);
+});
+
+test("Fire sparks survive reload and rise on a new wallpaper",async({page})=>{
+ await nativeFixture(page);await page.addInitScript(()=>{if(!localStorage.getItem('canary-visual'))localStorage.setItem('canary-visual',JSON.stringify({app:'nether-depths',backgroundSource:'canary',ambient:'automatic',backgroundVersion:1}));});
+ await page.goto('/');await expect(page.locator('.startup-splash')).toHaveCount(0);
+ const particle=page.locator('.ambient-particles.embers i').first();
+ await expect(particle).toHaveCSS('animation-name','particle-ember-rise');await expect(particle).toHaveCSS('animation-play-state','running');
+ const y=()=>particle.evaluate(element=>element.getBoundingClientRect().y);
+ const initialY=await y();await expect.poll(y).toBeLessThan(initialY-1);
+ await page.locator('.sidebar nav').getByRole('button',{name:'Settings',exact:true}).click();await settingsSection(page,'effects');
+ await page.getByRole('button',{name:'Fire Sparks',exact:true}).click();await page.getByRole('slider',{name:'Particle speed',exact:true}).focus();await page.keyboard.press('End');
+ await expect.poll(()=>page.evaluate(()=>JSON.parse(localStorage.getItem('canary-visual')!).particleSpeed)).toBe(150);
+ await page.reload();await expect(page.locator('.startup-splash')).toHaveCount(0);
+ await expect(particle).toHaveCSS('animation-play-state','running');expect(await particle.evaluate(element=>parseFloat(element.style.animationDuration))).toBeCloseTo(10/1.5);
+ expect(await page.evaluate(()=>JSON.parse(localStorage.getItem('canary-visual')!).ambient)).toBe('embers');
 });

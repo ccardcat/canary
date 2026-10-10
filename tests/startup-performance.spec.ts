@@ -126,6 +126,24 @@ test("background animations pause while the document is hidden",async({page})=>{
  await expect(page.locator("html")).toHaveAttribute("data-document-visible","true");
 });
 
+test("particles resume after a hidden native window opens without visibilitychange",async({page})=>{
+ await page.addInitScript(()=>{
+  localStorage.setItem("canary-visual",JSON.stringify({backgroundSource:"canary",app:"frozen-lake",ambient:"snow",showCommunity:false}));
+  Object.defineProperty(document,"hidden",{configurable:true,get:()=>!(globalThis as any).__particleWindowVisible});
+ });
+ await nativeFixture(page);await page.goto("/");await expect(page.locator(".startup-splash")).toHaveCount(0);
+ const particle=page.locator(".ambient-particles.snow i").first();
+ await expect(particle).toHaveCSS("animation-play-state","paused");
+ for(const event of ["canary-startup-ready","focus","pageshow"]){
+  await page.evaluate(event=>{(globalThis as any).__particleWindowVisible=true;window.dispatchEvent(new Event(event));},event);
+  await expect(particle).toHaveCSS("animation-play-state","running");
+  const time=await particle.evaluate(element=>Number(element.getAnimations()[0].currentTime));
+  await expect.poll(()=>particle.evaluate(element=>Number(element.getAnimations()[0].currentTime))).toBeGreaterThan(time+20);
+  await page.evaluate(()=>{(globalThis as any).__particleWindowVisible=false;document.dispatchEvent(new Event("visibilitychange"));});
+  await expect(particle).toHaveCSS("animation-play-state","paused");
+ }
+});
+
 test("wallpaper changes remain paired and settle to a single decoded layer",async({page})=>{
  await page.addInitScript(()=>{if(!localStorage.getItem("canary-visual"))localStorage.setItem("canary-visual",JSON.stringify({backgroundSource:"canary",app:"meadow",materialLinked:true,materialStyle:"glass",showCommunity:false}));});
  await nativeFixture(page);await page.goto("/");await expect(page.locator(".startup-splash")).toHaveCount(0);

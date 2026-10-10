@@ -3,14 +3,14 @@ import {applyBackgroundTokens} from "./appearancePreview";
 import {BackgroundSettings} from "./BackgroundSettings";
 import {catalogDefaults, normalizeCatalog, type CatalogPreferences} from "../services/catalog";
 import {CatalogSettings} from "./CatalogControls";
-import {SmoothRange,previewParticle} from "./SmoothRange";
-import {Snowflake} from "lucide-react";
+import {SmoothRange} from "./SmoothRange";
+import {AmbientParticles} from "./AmbientParticles";
+import {startupReadyEvent} from "../services/startup";
 import {defaultSidebarImage,migrateBackgroundId} from "../services/backgrounds";
 import {resolveAmbient} from "../services/ambient";
 import {discordDefaults,type DiscordPreferences} from "../services/discord";
 import GlassSelect from "./GlassSelect";
 import { createContext, useContext, useEffect, useLayoutEffect, useRef, useState, useCallback, type ReactNode } from "react";
-import type { CSSProperties } from "react";
 import "./VisualAppearance.css";
 import "./CursorPack.css";
 import "./LiquidGlass.css";
@@ -27,7 +27,7 @@ import {isTauri,convertFileSrc} from "@tauri-apps/api/core";
 import {useBackend} from "../services/backend";
 import {windowDefaults,useNativeMaterial,WindowMaterialSettings,WindowControlsSettings,type WindowPreferences} from "./WindowMaterial";
 const fonts = ["Nunito", "Manrope", "Plus Jakarta Sans", "Rubik", "Monocraft"];
-export type Preferences = SidebarPreferences & CatalogPreferences & DiscordPreferences & PolishPreferences & WindowPreferences & MaterialPreferences & LayoutPreferences & { app: string; sidebar: string; intensity: number; blur: number; sidebarBlur: number; font: string; fontScale: 90 | 100 | 110 | 120; minecraft: "headings" | "full"; showCommunity:boolean; backgroundVersion:number;compactCardsVersion:number; ambient: "off" | "automatic" | "sakura" | "snow" | "autumn" };
+export type Preferences = SidebarPreferences & CatalogPreferences & DiscordPreferences & PolishPreferences & WindowPreferences & MaterialPreferences & LayoutPreferences & { app: string; sidebar: string; intensity: number; blur: number; sidebarBlur: number; font: string; fontScale: 90 | 100 | 110 | 120; minecraft: "headings" | "full"; showCommunity:boolean; backgroundVersion:number;compactCardsVersion:number; ambient: "off" | "automatic" | "sakura" | "snow" | "autumn" | "embers" };
 const defaults: Preferences = { ...sidebarDefaults,...catalogDefaults,...discordDefaults, ...polishDefaults,...windowDefaults,...layoutDefaults,...materialDefaults, app: "meadow", sidebar: "meadow", intensity: 85, blur: 8, sidebarBlur: 12, font: "Nunito", fontScale:100, minecraft: "headings", showCommunity:true, backgroundVersion:1, compactCardsVersion:1, ambient: "off" };
 const freshDefaults:Preferences={...defaults,...materialPresetPatch("solid"),backgroundSource:"solid",materialRadius:14,cursor:"system",showCommunity:false};
 export function normalizePreferences(input:unknown):Preferences {
@@ -36,7 +36,7 @@ export function normalizePreferences(input:unknown):Preferences {
  const result={...base,...normalizeSidebar(saved),...normalizeCatalog(saved),...normalizeMaterials(Object.keys(saved).length?saved:base),...normalizeLayout(Object.keys(saved).length?saved:base),globalTreatment:{...base.globalTreatment},sidebarTreatment:{...base.sidebarTreatment}};
  const fields=result as unknown as Record<string,unknown>;
  for(const key of Object.keys(defaults).filter(key=>!(key in materialDefaults)&&!(key in layoutDefaults)&&!(key in catalogDefaults)&&!(key in sidebarDefaults))){const value=saved[key];if(typeof value===typeof fields[key]&&(typeof value!=="number"||Number.isFinite(value)))fields[key]=value;}
- const enums:Record<string,string[]>={backgroundSource:["canary","desktop","solid"],material:["solid","transparent","acrylic","mica","mica-alt"],tint:["neutral","theme","strong"],vibrancyPreset:["off","subtle","balanced","glass","custom"],titlebarBranding:["icon","text","icon-text","hidden"],windowControls:["windows","minimal","compact","traffic-lights"],controlsPosition:["left","right"],effectPreset:["off","low","medium","high","custom"],ambient:["off","automatic","sakura","snow","autumn"],quality:["low","balanced","high"],sidebarSide:["left","right"],cursor:["system","custom"],minecraft:["headings","full"],font:fonts};
+ const enums:Record<string,string[]>={backgroundSource:["canary","desktop","solid"],material:["solid","transparent","acrylic","mica","mica-alt"],tint:["neutral","theme","strong"],vibrancyPreset:["off","subtle","balanced","glass","custom"],titlebarBranding:["icon","text","icon-text","hidden"],windowControls:["windows","minimal","compact","traffic-lights"],controlsPosition:["left","right"],effectPreset:["off","low","medium","high","custom"],ambient:["off","automatic","sakura","snow","autumn","embers"],quality:["low","balanced","high"],sidebarSide:["left","right"],cursor:["system","custom"],minecraft:["headings","full"],font:fonts};
  for(const [key,allowed] of Object.entries(enums))if(!allowed.includes(String(fields[key])))fields[key]=(defaults as unknown as Record<string,unknown>)[key];
  const ranges:Record<string,[number,number]>={windowTransparency:[0,100],surfaceOpacity:[20,100],surfaceBlur:[0,32],glassIntensity:[0,70],heroSpeed:[7,20],particleWind:[0,200],density:[4,24],particleSpeed:[40,180],particleOpacity:[5,70],particleSize:[50,160],glass:[5,35],intensity:[0,100],blur:[0,32],sidebarBlur:[0,20],sidebarIntensity:[0,100]};
  for(const [key,[min,max]] of Object.entries(ranges))fields[key]=Math.min(max,Math.max(min,Number(fields[key])));
@@ -124,9 +124,14 @@ export function VisualAppearanceProvider({ children }: { children: ReactNode }) 
   useEffect(()=>()=>cancelAnimationFrame(previewFrame.current),[]);
   useLayoutEffect(()=>{localStorage.setItem("canary-visual",JSON.stringify(value));},[value]);
   useEffect(()=>{const flush=()=>localStorage.setItem("canary-visual",JSON.stringify(savedRef.current));window.addEventListener("pagehide",flush);return()=>{window.removeEventListener("pagehide",flush);flush();};},[]);
-  useLayoutEffect(()=>{for(const key of ["density","particleOpacity","particleSpeed","particleSize","particleWind"] as const)previewParticle(key,value[key]);},[value.density,value.particleOpacity,value.particleSpeed,value.particleSize,value.particleWind,value.ambient,value.quality,value.app,value.sidebar,value.focus,reduced]);
   const update=useCallback((patch:Partial<Preferences>)=>{cancelAnimationFrame(previewFrame.current);previewFrame.current=0;pendingPreview.current={};setValue(old=>({...old,...patch,...(!("materialPreset" in patch)&&Object.keys(patch).some(key=>key in materialDefaults||["surfaceOpacity","surfaceBlur","glassIntensity"].includes(key))?{materialPreset:"custom"}:{})}));},[]);
-  useEffect(()=>{const pause=()=>{document.documentElement.dataset.documentVisible=String(!document.hidden);document.querySelectorAll<HTMLElement>(".ambient-particles,.global-wallpaper,.sidebar-art").forEach(layer=>layer.getAnimations({subtree:true}).forEach(animation=>document.hidden?animation.pause():animation.play()));};pause();document.addEventListener("visibilitychange",pause);return()=>document.removeEventListener("visibilitychange",pause);},[]);
+  useEffect(()=>{
+   // The native window starts hidden and may become visible without visibilitychange.
+   // CSS owns animation-play-state; imperative pause/play would override it permanently.
+   const sync=()=>{document.documentElement.dataset.documentVisible=String(!document.hidden);};sync();
+   document.addEventListener("visibilitychange",sync);window.addEventListener("focus",sync);window.addEventListener("pageshow",sync);window.addEventListener(startupReadyEvent,sync);
+   return()=>{document.removeEventListener("visibilitychange",sync);window.removeEventListener("focus",sync);window.removeEventListener("pageshow",sync);window.removeEventListener(startupReadyEvent,sync);};
+  },[]);
   const effect=resolveAmbient(value.ambient,value.backgroundSource==="canary"?registry.find(p=>p.id===value.app)?.ambient:"off",value.sidebarBackgroundSource==="picture"?registry.find(p=>p.id===value.sidebar)?.ambient:"off");
   const image = value.backgroundSource==="canary"?registry.find(p => p.id === value.app)?.app:undefined;
   return <Context.Provider value={{registry,effectsPaused:value.focus?"focus":reduced?"motion":null,wallpapersReady,reload,value,native,update,preview }}>
@@ -136,7 +141,7 @@ export function VisualAppearanceProvider({ children }: { children: ReactNode }) 
     </div>
     {value.backgroundSource!=="canary"&&<div className="native-window-veil" aria-hidden="true"/>}
     {children}
-    {!reduced && !value.focus && effect !== "off" && <div className={`ambient-particles ${effect}`} aria-hidden="true">{Array.from({ length: 24 }, (_, i) => <i key={i} style={{ left: `${(i * 37 + 9) % 100}%`, animationDelay: `${-i * 2.7}s`, animationDuration: `${(22 + i % 5 * 4)}s`, "--drift": `${(i % 2 ? 65 : -55)*value.particleWind/100}px`, "--sway":`${(i%3+1)*9}px`,"--leaf-color":["#dca14a","#e0b358","#c97938"][i%3],opacity: value.particleOpacity / 100 * (.75 + (i % 4) * .08), "--particle-scale": value.particleSize / 100*(.8+(i%5)*.15) } as CSSProperties}>{effect==="snow"&&<Snowflake aria-hidden="true" strokeWidth={1.65}/>}</i>)}</div>}
+    {!reduced && !value.focus && effect !== "off" && <AmbientParticles key={effect} effect={effect} density={value.density} speed={value.particleSpeed} opacity={value.particleOpacity} size={value.particleSize} wind={value.particleWind} quality={value.quality}/>}
   <DesktopBehavior />
   </Context.Provider>;
 }
@@ -166,7 +171,7 @@ export function EffectsPreferences({russian,children}:{russian:boolean;children?
  const {value,update,effectsPaused}=useContext(Context);const text=appearanceMessages[russian?"ru":"en"];
  const preset=(p:string)=>{const settings={off:{ambient:"off" as const},low:{density:6,particleOpacity:25,particleSize:85,particleSpeed:75},medium:{density:12,particleOpacity:35,particleSize:110,particleSpeed:100},high:{density:24,particleOpacity:45,particleSize:125,particleSpeed:115},custom:{}};update({...settings[p as keyof typeof settings],effectPreset:p,...p!=="off"&&value.ambient==="off"?{ambient:"snow" as const}:{}});};
  const range=(name:string,n:number,min:number,max:number,change:(v:number)=>void,previewKey?:string)=><SmoothRange label={name} value={n} min={min} max={max} onCommit={change} previewKey={previewKey}/>;
- return <section className="effects-preferences"><h3>{russian?"Эффекты":"Effects"}</h3><h4>{text["Ambient effects"]}</h4><div className="font-options">{(["off","automatic","sakura","snow","autumn"] as const).map(ambient=><button key={ambient} aria-pressed={value.ambient===ambient} className={value.ambient===ambient?"selected":""} onClick={()=>update({ambient,...ambient==="off"?{effectPreset:"off"}:value.effectPreset==="off"?{effectPreset:"custom"}:{},...value.particleOpacity<25?{particleOpacity:35}:{}})}>{ambient==="autumn"?(russian?"Осенние листья":"Autumn Leaves"):({off:text["Off"],automatic:text["Automatic"],sakura:text["Sakura"],snow:text["Snow"]})[ambient]}</button>)}</div>
+ return <section className="effects-preferences"><h3>{russian?"Эффекты":"Effects"}</h3><h4>{text["Ambient effects"]}</h4><div className="font-options">{(["off","automatic","sakura","snow","autumn","embers"] as const).map(ambient=><button key={ambient} aria-pressed={value.ambient===ambient} className={value.ambient===ambient?"selected":""} onClick={()=>update({ambient,...ambient==="off"?{effectPreset:"off"}:value.effectPreset==="off"?{effectPreset:"custom"}:{},...value.particleOpacity<25?{particleOpacity:35}:{}})}>{ambient==="autumn"?(russian?"Осенние листья":"Autumn Leaves"):({off:text["Off"],automatic:text["Automatic"],sakura:text["Sakura"],snow:text["Snow"],embers:text["Fire Sparks"]})[ambient]}</button>)}</div>
  <p className="settings-note">{russian?"Выбранный эффект сохраняется при смене фона, включая свои изображения. «Автоматически» подбирает эффект к фону; если эффект не задан, используется снег.":"The selected effect stays active when changing wallpapers, including custom images. Automatic follows the wallpaper and uses snow when no effect is assigned."}</p>
  <p className="settings-note" role="status" hidden={!effectsPaused||value.ambient==="off"}>{effectsPaused==="focus"?(russian?"Частицы приостановлены режимом фокуса. Отключите его в разделе «Интерфейс и карточки», чтобы увидеть эффект.":"Focus mode pauses particles. Turn it off in Interface & cards to see the effect."):(russian?"Частицы приостановлены настройкой «Уменьшить анимацию» в лаунчере или системе. Выбранный эффект сохранён.":"Reduced motion in the launcher or system pauses particles. Your selected effect is saved.")}</p>
  <label>{russian?"Пресет частиц":"Effect preset"}<GlassSelect aria-label={russian?"Пресет частиц":"Effect preset"} value={value.effectPreset} onChange={e=>preset(e.target.value)}>{["off","low","medium","high","custom"].map(p=><option key={p} value={p}>{russian?({off:"Выключено",low:"Низкий",medium:"Средний",high:"Высокий",custom:"Свой"})[p as "off"]:p[0].toUpperCase()+p.slice(1)}</option>)}</GlassSelect></label>

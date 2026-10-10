@@ -23,9 +23,29 @@ the visible wallpaper's effect and falls back to snow if none is assigned, inclu
 custom imports. Snow uses six-arm SVG snowflakes. Focus/reduced-motion settings
 still pause particles, with an explanation in Effects; the selection is retained.
 
-Validation: production build, TypeScript 6.0.3 compatibility check, 24 page-free
-tests and 12 actual component DOM scenarios passed. Image dimensions, decoding,
-unique hashes and asset references were checked. Browser regressions cover gallery
-scroll/expand/persistence, custom wallpaper effects, flake geometry and tree height.
-Real Chromium and native WebView visual execution remain unavailable in this
-environment; the browser suite was discovered, not executed.
+The follow-up particle fix reproduces a provider mounting while the native window
+is hidden, followed by an opening without visibilitychange. The old visibility
+attribute and imperative animation pause kept the effect frozen. CSS now owns
+play/pause; startup-ready, window focus, pageshow and visibilitychange synchronize
+visibility. Minimizing still pauses animation. Particle duration, density and
+negative phase offsets are declarative, so new wallpaper/effect layers start with
+their saved settings and visible particles. Live speed previews use the same timing
+calculation, and closing a slider cancels its pending preview.
+
+Fire Sparks is a selectable effect in Appearance → Effects. Small amber, orange and
+gold sparks glow and rise with gentle sideways drift. It uses the existing density,
+speed, opacity, size, wind and quality controls and persists through reloads.
+Automatic selects it for Crimson Fortress, Nether Depths and Crimson Horizon;
+explicit snow, sakura or leaves keep their selection on those backgrounds.
+
+Validation: production build, TypeScript 6.0.3 compatibility check, 26 page-free
+tests and the existing 12 actual settings component DOM scenarios passed. Targeted
+provider DOM checks cover missing visibilitychange recovery without WAAPI, all 18
+wallpapers with each manual effect and Automatic, import fallback, quality limits,
+live speed preview, preference reload, Russian fire-spark selection and focus/
+reduced-motion/Off behavior. Image dimensions, decoding, unique hashes and asset
+references were checked in the preceding collection change; this follow-up leaves
+the image files unchanged. Added browser regressions check actual resumed animation
+time, upward spark movement and speed persistence. All 225 browser-suite tests
+were discovered. Real Chromium and native WebView visual execution remain
+unavailable in this environment; browser scenarios were not executed.

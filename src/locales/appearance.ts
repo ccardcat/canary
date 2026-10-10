@@ -15,6 +15,7 @@ export const appearanceMessages = {
     "Automatic": "Automatic",
     "Sakura": "Sakura",
     "Snow": "Snow",
+    "Fire Sparks": "Fire Sparks",
     "Normal": "Normal",
     "Default": "Default"
   },
@@ -34,6 +35,7 @@ export const appearanceMessages = {
     "Automatic": "Автоматически",
     "Sakura": "Сакура",
     "Snow": "Снег",
+    "Fire Sparks": "Огненные искры",
     "Normal": "Обычный",
     "Default": "По умолчанию"
   }
