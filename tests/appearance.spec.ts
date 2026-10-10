@@ -31,10 +31,12 @@ test("interface scale updates centrally and persists independently of font famil
  expect(await page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth)).toBe(true);
 });
 
-test("background pairing, independent selections and restart persistence", async ({ page }) => {
+test("background selections are independent, caption-free and survive restart", async ({ page }) => {
   const background=()=>settingsSection(page,"Background");
   const target=(name:string)=>settingsSection(page,name==="Sidebar"?"sidebar":"background");
   await background();const options=page.locator(".background-options");
+  await expect(options).toHaveText("");
+  await expect(page.getByRole("checkbox",{name:"Use one picture for launcher and sidebar"})).toHaveCount(0);
   for(const name of ["Dark Blue","Gray","Green","Sakura 1","Sakura 2"]){
     await options.getByRole("button",{name,exact:true}).click();
     await expect(options.getByRole("button",{name,exact:true})).toHaveAttribute("aria-pressed","true");
@@ -43,11 +45,9 @@ test("background pairing, independent selections and restart persistence", async
   await target("Sidebar");
   for(const name of ["Default","Dark Blue","Gray","Green","Sakura 1","Sakura 2"]){await options.getByRole("button",{name,exact:true}).click();await expect(options.getByRole("button",{name,exact:true})).toHaveAttribute("aria-pressed","true");}
   await target("Launcher");await options.getByRole("button",{name:"Green",exact:true}).click();
-  const linked=page.getByRole("checkbox",{name:"Use one picture for launcher and sidebar"});await linked.check();
-  await target("Sidebar");await expect(options.getByRole("button",{name:"Green",exact:true})).toHaveAttribute("aria-pressed","true");
+  await target("Sidebar");await expect(options.getByRole("button",{name:"Sakura 2",exact:true})).toHaveAttribute("aria-pressed","true");
   await options.getByRole("button",{name:"Dark Blue",exact:true}).click();await target("Launcher");
-  await expect(options.getByRole("button",{name:"Dark Blue",exact:true})).toHaveAttribute("aria-pressed","true");
-  await linked.uncheck();await options.getByRole("button",{name:"Green",exact:true}).click();
+  await expect(options.getByRole("button",{name:"Green",exact:true})).toHaveAttribute("aria-pressed","true");
   await page.getByRole("slider",{name:"Wallpaper visibility",exact:true}).fill("1");await page.keyboard.press("Tab");await page.reload();
   await page.getByRole("button",{name:"Settings",exact:true}).click();await background();
   await expect(options.getByRole("button",{name:"Green",exact:true})).toHaveAttribute("aria-pressed","true");
@@ -99,14 +99,15 @@ test("theme-aware title bar, language and desktop geometry", async ({ page }) =>
   }
 });
 
-test("Sakura pairs crossfade, persist and select automatic ambient without overriding explicit effects", async ({ page }) => {
+test("independent Sakura backgrounds crossfade, persist and preserve ambient preferences", async ({ page }) => {
   const section=(name:string)=>settingsSection(page,name);
   await section("Effects");await page.getByRole("button",{name:"Automatic",exact:true}).click();await section("Background");
   const options=page.locator(".background-options");
-  await page.getByRole("checkbox",{name:"Use one picture for launcher and sidebar"}).check();
   for(const number of [1,2]){
+    await section("Background");
     await options.getByRole("button",{name:"Sakura "+number,exact:true}).click();
     await expect(page.locator(".global-wallpaper .artwork-current")).toHaveCSS("background-image",new RegExp("sakura"+number+"-bg.jpg"));
+    await section("sidebar");await options.getByRole("button",{name:"Sakura "+number,exact:true}).click();
     await expect(page.locator(".sidebar-art .artwork-current")).toHaveCSS("background-image",new RegExp("sakura"+number+"-sidebar.jpg"));
     await expect(page.locator(".ambient-particles")).toHaveClass(/sakura/);
   }
@@ -114,7 +115,6 @@ test("Sakura pairs crossfade, persist and select automatic ambient without overr
   await expect(options.getByRole("button",{name:"Sakura 2",exact:true})).toHaveAttribute("aria-pressed","true");
   await section("Effects");await page.getByRole("button",{name:"Snow",exact:true}).click();await section("Background");
   await options.getByRole("button",{name:"Sakura 1",exact:true}).click();await expect(page.locator(".ambient-particles")).toHaveClass(/snow/);
-  await page.getByRole("checkbox",{name:"Use one picture for launcher and sidebar"}).uncheck();
   await settingsSection(page,"sidebar");await options.getByRole("button",{name:"Gray",exact:true}).click();
   await page.reload();await expect(page.locator(".global-wallpaper .artwork-current")).toHaveCSS("background-image",/sakura1-bg.jpg/);
   await expect(page.locator(".sidebar-art .artwork-current")).toHaveCSS("background-image",/gray-sidebar.jpg/);

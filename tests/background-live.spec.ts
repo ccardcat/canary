@@ -54,13 +54,16 @@ test("Surface opacity and blur are live; Solid explains its disabled sliders",as
  await page.getByRole("checkbox",{name:"Reduce transparency",exact:true}).check();await background(page);await settingsSection(page,"sidebar");await expect(page.getByRole("slider",{name:"Sidebar tint",exact:true})).toBeDisabled();await expect(page.locator(".background-settings [role=status]")).toContainText("make the sidebar opaque");
 });
 test("Wallpaper selection, custom import and background target survive reload; native fallback is honest",async({page})=>{
- await start(page);await background(page);await page.locator(".background-options").getByRole("button",{name:"Sakura 1",exact:true}).click();
+ await start(page,{linked:true,app:"green",sidebar:"gray",backgroundSource:"canary"});await background(page);await page.locator(".background-options").getByRole("button",{name:"Sakura 1",exact:true}).click();
  await expect(page.locator(".global-wallpaper .artwork-current")).toHaveCSS("background-image",/sakura1/);
- await page.getByRole("checkbox",{name:"Use one picture for launcher and sidebar"}).check();
- await page.locator(".background-options").getByRole("button",{name:"Green",exact:true}).click();
  await page.getByRole("button",{name:"Choose custom image"}).click();
- expect(await page.evaluate(()=>(globalThis as any).__materialQA.calls.some((c:any)=>c.command==="import_wallpaper"&&c.args.target==="both"))).toBe(true);
- await page.reload();await nav(page,"Settings").click();await background(page);await expect(page.getByRole("checkbox",{name:"Use one picture for launcher and sidebar"})).toBeChecked();
+ await settingsSection(page,"sidebar");await expect(page.locator(".background-options").getByRole("button",{name:"Gray",exact:true})).toHaveAttribute("aria-pressed","true");
+ await page.getByRole("button",{name:"Choose custom image"}).click();
+ expect(await page.evaluate(()=>(globalThis as any).__materialQA.calls.filter((c:any)=>c.command==="import_wallpaper").map((c:any)=>c.args.target))).toEqual(["app","sidebar"]);
+ await page.reload();await nav(page,"Settings").click();await background(page);
+ await expect(page.locator(".background-options").getByRole("button",{name:"Sakura 1",exact:true})).toHaveAttribute("aria-pressed","true");
+ await expect(page.getByRole("checkbox",{name:"Use one picture for launcher and sidebar"})).toHaveCount(0);
+ expect(await page.evaluate(()=>JSON.parse(localStorage.getItem("canary-visual")!).linked)).toBeUndefined();
  await expect(page.getByRole("button",{name:"Desktop",exact:false})).toBeDisabled();
  await page.getByRole("button",{name:"Solid color",exact:false}).click();await expect(page.locator(".visual-backdrop")).toBeHidden();
  await page.getByRole("button",{name:"Picture",exact:false}).click();await expect(page.locator(".visual-backdrop")).toBeVisible();

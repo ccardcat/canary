@@ -131,10 +131,11 @@ test("wallpaper changes remain paired and settle to a single decoded layer",asyn
  await nativeFixture(page);await page.goto("/");await expect(page.locator(".startup-splash")).toHaveCount(0);
  await page.getByRole("button",{name:"Settings",exact:true}).first().click();
  await settingsSection(page,"Background");
- await page.getByRole("checkbox",{name:"Use one picture for launcher and sidebar"}).check();
  for(const number of [1,2]){
+  await settingsSection(page,"Background");
   await page.locator(".background-options").getByRole("button",{name:`Sakura ${number}`,exact:true}).click();
   await expect(page.locator(".global-wallpaper .artwork-current")).toHaveCSS("background-image",new RegExp(`sakura${number}-bg.jpg`));
+  await settingsSection(page,"sidebar");await page.locator(".background-options").getByRole("button",{name:`Sakura ${number}`,exact:true}).click();
   await expect(page.locator(".sidebar-art .artwork-current")).toHaveCSS("background-image",new RegExp(`sakura${number}-sidebar.jpg`));
   await expect(page.locator(".global-wallpaper .artwork-layer")).toHaveCount(1);
  }

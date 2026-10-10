@@ -2,8 +2,6 @@ export const appearanceMessages = {
   "en": {
     "Application background": "Application background",
     "Sidebar background": "Sidebar background",
-    "Link application and sidebar backgrounds": "Link application and sidebar backgrounds",
-    "Link backgrounds": "Link backgrounds",
     "Background intensity": "Background intensity",
     "Background blur": "Background blur",
     "Sidebar blur": "Sidebar blur",
@@ -23,8 +21,6 @@ export const appearanceMessages = {
   "ru": {
     "Application background": "Фон приложения",
     "Sidebar background": "Фон боковой панели",
-    "Link application and sidebar backgrounds": "Связывать фон приложения и панели",
-    "Link backgrounds": "Связать фоны",
     "Background intensity": "Интенсивность фона",
     "Background blur": "Размытие фона",
     "Sidebar blur": "Размытие панели",

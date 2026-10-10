@@ -5,7 +5,7 @@
 :root[data-mode="light"] .wallpaper-veil { background: linear-gradient(120deg,#fff9,#f7f8faaf),radial-gradient(ellipse,transparent,#f7f8fa99); }
 :root[data-mode="amoled"] .wallpaper-veil { background: linear-gradient(120deg,#0009,#000c),radial-gradient(ellipse,transparent,#000); }
 .background-options { display: grid; grid-template-columns: repeat(4,minmax(0,1fr)); gap: 10px; }
-.background-options button { padding: 6px 6px 10px; display: grid; gap: 8px; min-width: 0; font-size:calc(12px * var(--ui-font-scale,1)); background: var(--surface-2); border: 1px solid var(--line); border-radius: 13px; }
+.background-options button { padding: 6px; display: grid; min-width: 0; background: var(--surface-2); border: 1px solid var(--line); border-radius: 13px; }
 .background-preview { height: 65px; border-radius: 8px; background: linear-gradient(130deg,var(--surface-3),var(--bg)); background-size: cover; background-position: center; }
 .font-options { display: flex; gap: 8px; flex-wrap: wrap; }
 .font-options button { border: 1px solid var(--line); border-radius: 12px; background: var(--surface-2); padding: 10px 14px; font-size:calc(13px * var(--ui-font-scale,1)); }
