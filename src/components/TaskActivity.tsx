@@ -1,4 +1,4 @@
-import {errorCopy} from "../services/errors";
+import {InlineError} from "./InlineError";
 import {useLiveTasks} from "../services/taskStore";
 import {EmptyState} from "./EmptyState";
 import { useState } from "react";
@@ -44,6 +44,7 @@ export function TaskCancel({
       type="button"
       className="quiet-button activity-cancel"
       disabled={!task.cancellable || task.cancelRequested}
+      title={!task.cancellable?(russian?"Файлы уже сохраняются. Дождитесь завершения установки.":"Files are being saved. Wait for installation to finish."):undefined}
       onClick={() => void cancelTask(task.id).catch(() => {})}
     >
       {task.cancelRequested
@@ -131,14 +132,17 @@ export function TaskRow({
             {text.details}
           </button>
           {expanded && (
-            <p className="activity-error selectable">
-              {task.error&&/content|dependency/.test(task.error.code||"")?errorCopy(task.error,russian).message:task.error?.message || text.failed}
-            </p>
+            <InlineError error={task.error??{code:"task_interrupted"}} russian={russian}/>
           )}
         </>
       )}
     </article>
   );
+}
+export function PackDownloads({russian}:{russian:boolean}){
+ const tasks=useLiveTasks().filter(t=>t.kind==="install"&&t.projectId&&!isTerminal(t));
+ if(!tasks.length)return null;
+ return <section className="pack-downloads" aria-label={russian?"Текущая установка":"Current installation"}>{tasks.map(task=><TaskRow key={task.id} task={task} russian={russian}/>)}</section>;
 }
 export function ActivityTasks({ russian,showRecent=true }: { russian: boolean;showRecent?:boolean }) {
   const tasks=useLiveTasks();

@@ -21,8 +21,8 @@ for(const russian of [false,true])test("Human error, collapsed details, copy and
  await setup(page);const error={code:"account_in_use_by_game",message:"Internal account lock 1234",stage:"account_removal",instance_id:"opaque-instance-id",retryable:false};
  await emit(page,"backend-error",error);const dialog=page.getByRole("dialog",{name:russian?"Не удалось удалить аккаунт":"Could not remove account"});
  await expect(dialog).toBeVisible();await expect(dialog.locator(".error-description")).toContainText(russian?"используется Minecraft":"being used by Minecraft");
- await expect(dialog.locator(".error-technical-message")).not.toBeVisible();await expect(dialog.getByRole("button",{name:russian?"Повторить":"Retry",exact:true})).toHaveCount(0);
- await dialog.locator("summary").click();await expect(dialog.locator(".error-technical-message")).toContainText("Internal account lock");
+ await expect(dialog.locator(".error-technical-message")).toHaveCount(0);await expect(dialog.getByRole("button",{name:russian?"Повторить":"Retry",exact:true})).toHaveCount(0);
+ await dialog.locator("summary").click();await expect(dialog).not.toContainText("Internal account lock");await expect(dialog).not.toContainText("account_in_use_by_game");
  await dialog.getByRole("button",{name:russian?"Копировать сведения":"Copy details"}).click();expect(await page.evaluate(()=>JSON.parse((globalThis as any).__copied).code)).toBe(error.code);
  await page.keyboard.press("Escape");await expect(dialog).toHaveCount(0);
 });

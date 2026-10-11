@@ -3,6 +3,14 @@
 .error-description>svg{flex-shrink:0;margin-top:6px;color:var(--muted)}
 .error-description p{margin:0 0 10px;white-space:pre-line;overflow-wrap:anywhere}
 .error-description>div{min-width:0}
+.error-section-label{font-size:.8rem;color:var(--muted);font-weight:600;margin:14px 0 6px}
+.error-description .error-section-label:first-child{margin-top:0}
+.error-subject{display:grid;gap:4px;padding-bottom:10px;border-bottom:1px solid var(--line)}
+.error-subject>span,.error-subject>small{color:var(--muted);font-size:.78rem}
+.error-active-operations{display:grid;gap:10px;margin-block:16px}
+.error-active-operations h4,.error-running-games h4{margin:0;font-size:.85rem}
+.error-active-operations .activity-task{margin:0}
+.error-running-games ul{padding-left:20px;overflow-wrap:anywhere}
 .inline-error>p{white-space:pre-line;overflow-wrap:anywhere}
 .error-details{margin:16px 0;color:var(--muted);font-size:.84rem}
 .error-details summary{cursor:pointer;color:var(--text)}

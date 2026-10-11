@@ -383,7 +383,7 @@ export function BackendProvider({ children }: { children: ReactNode }) {
         else disposers.push(unlisten);
       }
       for (const [event, handler] of [
-        ["backend-error", (payload: unknown) => {retryRef.current=null;setError(normalizeError(payload));}],
+        ["backend-error", (payload: unknown) => {retryRef.current=null;setError(normalizeError(payload));void refresh().catch(()=>{});}],
         ["memory-adjusted",(payload:unknown)=>setError({code:"memory_adjusted",...(payload as object)})],
         [
           "activity-task",

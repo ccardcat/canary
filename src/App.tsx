@@ -3,6 +3,9 @@ import {SidebarSettings} from "./components/SidebarSettings";
 import {sidebarInk} from "./services/sidebarAppearance";
 import {EmptyState} from "./components/EmptyState";
 import {useAnchoredPopover} from "./hooks/useAnchoredPopover";
+import {PackDownloads} from "./components/TaskActivity";
+import {ErrorSupport} from "./components/ErrorSupport";
+import {errorCopy,normalizeError,technicalDetails} from "./services/errors";
 import {ProviderSelect,ProviderUnavailable} from "./components/ProviderUI";
 import {version as appVersion} from "../package.json";
 import GlassSelect from "./components/GlassSelect";
@@ -27,7 +30,7 @@ import {DiscoverModInstall} from "./components/DiscoverModInstall";
 import {providerAvailable,providerDetail,providerVersions,providerName,providerSite,type Provider} from "./services/providers";
 import { useDiscovery } from "./hooks/useDiscovery";
 import {useStartupReady} from "./services/startup";
-import { diagnostics, type Progress } from "./services/installation";
+import { type Progress } from "./services/installation";
 import { externalLink } from "./services/links";
 import RemoteImage from "./components/RemoteImage";
 const Markdown = lazy(() => import("./components/Markdown"));
@@ -120,7 +123,6 @@ const types: { id: ContentType; icon: typeof Boxes; key: Key }[] = [
   { id: "resourcepack", icon: Layers3, key: "resourcepack" },
   { id: "datapack", icon: Package, key: "datapack" },
   { id: "shader", icon: GalleryHorizontalEnd, key: "shader" },
-  { id: "server", icon: Server, key: "server" },
 ];
 const accentColors: Record<Accent, string> = {
   monochrome: "#e9efec",
@@ -166,6 +168,7 @@ function App() {
   const [error, setError] = useState<{
     message: string;
     details?: string;
+    problem?: unknown;
     retry?: () => void;
     title?: string;
   } | null>(null);
@@ -339,7 +342,7 @@ function App() {
       const result=await backend.run<string|{directory:string}>(command,{projectId:p.provider==='curseforge'?Number(p.project_id):p.project_id,versionId,name:p.title},{reportError:false,prepare:async signal=>{
         const list=await providerVersions(p,signal);
         version=versionId?list.find(v=>v.id===versionId):p.provider==='curseforge'?list.find(v=>v.files.some(f=>!!f.url)):list.find(v=>v.files.some(f=>f.filename.endsWith('.mrpack')));
-        if(!version)throw Error('No compatible modpack version');
+        if(!version)throw {code:'modpack_no_release',message:'No compatible modpack version'};
         return p.provider==='curseforge'?{fileId:Number(version.id)}:{versionId:version.id};
       }});
       const instancePath=typeof result==='string'?result:result.directory;
@@ -370,12 +373,8 @@ function App() {
         e,
       );
       if(["cancelled","operation_active"].includes((e as {code?:string})?.code||""))return;
-      setError({
-        title: t("installError"),
-        message: t("installErrorSub"),
-        details: diagnostics(e, stage),
-        retry: () => void install(p, versionId),
-      });
+      const problem={...normalizeError(e),subject:p.title};const copy=errorCopy(problem,lang==="ru");
+      setError({title:copy.title,message:copy.message,problem,details:technicalDetails(problem),retry:()=>void install(p,versionId)});
     }
   }
   const isInstalled = (id: string, provider: Provider = discovery.provider) => isProjectInstalled(id, provider, {
@@ -511,6 +510,7 @@ function App() {
               </AnimatePresence>
             </div>
           </header>
+          {page!=="Downloads"&&<PackDownloads russian={lang==="ru"}/>}
           {detailLoading && (
             <div className="loading-detail" role="status">
               {t("loading")}
@@ -1329,23 +1329,14 @@ function ErrorToast({
     title?: string;
     message: string;
     details?: string;
+    problem?: unknown;
     retry?: () => void;
   };
   t: T;
   onClose: () => void;
 }) {
-  const [showDetails, setShowDetails] = useState(false);
-  const [copied, setCopied] = useState(false);
-  const [copyError, setCopyError] = useState(false);
-  const copy = async () => {
-    try {
-      await navigator.clipboard.writeText(error.details || error.message);
-      setCopied(true);
-      setCopyError(false);
-    } catch {
-      setCopyError(true);
-    }
-  };
+  const russian=t("home")==="Главная";
+  const copy=error.problem?errorCopy(error.problem,russian):null;
   return (
     <motion.div
       className="toast error-toast"
@@ -1360,31 +1351,17 @@ function ErrorToast({
           <X size={17} />
         </button>
       </div>
-      <p>{error.message}</p>
+      {copy&&typeof copy.detail.subject==="string"&&<p className="error-subject"><b>{copy.detail.subject}</b></p>}
+      <p>{copy?.message??error.message}</p>
+      {copy&&<><h4 className="error-section-label">{russian?"Как исправить":"How to fix it"}</h4><p>{copy.hint}</p></>}
       <div className="toast-actions">
         {error.retry && (
           <button className="quiet-button" onClick={error.retry}>
             {t("retry")}
           </button>
         )}
-        {error.details && (
-          <button
-            className="quiet-button"
-            onClick={() => setShowDetails(!showDetails)}
-          >
-            {t(showDetails ? "hideDetails" : "details")}
-          </button>
-        )}
       </div>
-      {showDetails && (
-        <div className="toast-details">
-          <pre>{error.details}</pre>
-          <button className="quiet-button" onClick={copy}>
-            {t(copied ? "copied" : "copy")}
-          </button>
-          {copyError && <p>{t("copyFallback")}</p>}
-        </div>
-      )}
+      {error.details&&<ErrorSupport error={error.problem??error.details} russian={russian}/>}
     </motion.div>
   );
 }
@@ -1807,7 +1784,7 @@ function SettingsInfo({
         <h3>{title}</h3>
         <p>{text}</p>
       </div>
-      {about ? <div className="about-meta"><span>{t("version")} {appVersion}</span><span>Modrinth · {providerAvailable("curseforge")?"CurseForge":t("home")==="Главная"?"CurseForge недоступен":"CurseForge unavailable"}</span></div> : <span className="planned-badge">{t("planned")}</span>}
+      {about ? <div className="about-meta"><span>{t("version")} {appVersion}</span></div> : <span className="planned-badge">{t("planned")}</span>}
     </div>
   );
 }

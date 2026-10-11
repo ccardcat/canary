@@ -1,6 +1,6 @@
-import {useState} from "react";
-import {errorCopy,technicalDetails} from "../services/errors";
+import {errorCopy} from "../services/errors";
+import {ErrorSupport} from "./ErrorSupport";
 export function InlineError({error,russian}:{error:unknown;russian:boolean}){
- const {title,message,hint,detail}=errorCopy(error,russian);const [copied,setCopied]=useState(false);
- return <div className="inline-error" role="alert"><b>{title}</b><p>{message}</p><p className="settings-note">{hint}</p><details className="error-details"><summary>{russian?"Подробнее":"Details"}</summary><dl><div><dt>{russian?"Код":"Code"}</dt><dd>{detail.code}</dd></div>{detail.stage&&<div><dt>{russian?"Этап":"Stage"}</dt><dd>{detail.stage}</dd></div>}</dl>{detail.message&&<p className="error-technical-message selectable">{detail.message}</p>}<button type="button" className="quiet-button" onClick={()=>void navigator.clipboard.writeText(technicalDetails(error)).then(()=>setCopied(true)).catch(()=>setCopied(false))}>{copied?(russian?"Скопировано":"Copied"):(russian?"Копировать сведения":"Copy details")}</button></details></div>;
+ const {title,message,hint}=errorCopy(error,russian);
+ return <div className="inline-error" role="alert"><b>{title}</b><h4 className="error-section-label">{russian?"Почему возникла ошибка":"Why it happened"}</h4><p>{message}</p><h4 className="error-section-label">{russian?"Как исправить":"How to fix it"}</h4><p className="settings-note">{hint}</p><ErrorSupport error={error} russian={russian}/></div>;
 }
