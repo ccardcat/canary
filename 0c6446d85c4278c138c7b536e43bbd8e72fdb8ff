@@ -1,0 +1,7 @@
+{
+  "tag": "v0.1.8",
+  "commit": "0c6446d85c4278c138c7b536e43bbd8e72fdb8ff",
+  "status": "building",
+  "windows_only": true,
+  "run_url": "https://github.com/ccardcat/canary/actions/runs/38264403657"
+}
