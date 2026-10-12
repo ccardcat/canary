@@ -1,0 +1,86 @@
+name: Publish provided Canary 0.1.8 beta
+
+on:
+  push:
+    branches: [main]
+    paths: ['.github/workflows/publish-provided-beta-018.yml']
+  workflow_dispatch:
+
+permissions: {}
+
+concurrency:
+  group: publish-provided-beta-018
+  cancel-in-progress: false
+
+jobs:
+  publish:
+    if: github.repository == 'ccardcat/canary'
+    runs-on: ubuntu-22.04
+    timeout-minutes: 10
+    permissions:
+      contents: write
+    env:
+      GH_TOKEN: ${{ github.token }}
+      GH_REPO: ${{ github.repository }}
+      RELEASE_TAG: v0.1.8-beta
+      RELEASE_TARGET: 0c6446d85c4278c138c7b536e43bbd8e72fdb8ff
+      INSTALLER: Canary_0.1.8_x64-setup.exe
+      EXPECTED_SHA256: 0e1a90851f69fe8d2dc9373248babdeddc97b006aa1b05a5f8c02dad92735ecf
+      EXPECTED_SIZE: '12502142'
+    steps:
+      - name: Download the author-provided installer and verify its bytes
+        shell: bash
+        run: |
+          set -euo pipefail
+          curl --fail --location --retry 3 --max-time 180 --proto '=https' --tlsv1.2 \
+            'https://canary-launcher.proudtetra4.chatgpt.site/assets/Canary_0.1.8_x64-setup.exe' \
+            --output "$INSTALLER"
+          python3 - <<'PY'
+          import hashlib, os
+          from pathlib import Path
+          data = Path(os.environ['INSTALLER']).read_bytes()
+          assert len(data) == int(os.environ['EXPECTED_SIZE']), 'Unexpected installer size'
+          assert data[:2] == b'MZ', 'Not a Windows executable'
+          assert hashlib.sha256(data).hexdigest() == os.environ['EXPECTED_SHA256'], 'Installer checksum differs from the provided file'
+          Path('SHA256SUMS').write_text(f"{os.environ['EXPECTED_SHA256']}  {os.environ['INSTALLER']}\n")
+          PY
+      - name: Prepare release notes
+        shell: bash
+        run: |
+          cat > release-notes.md <<'NOTES'
+          Бета-версия Canary 0.1.8 для Windows x64.
+
+          Скачайте **Canary_0.1.8_x64-setup.exe** и запустите установщик.
+
+          Файл предоставлен автором проекта. Он опубликован без пересборки; соответствие установщика исходникам этого тега не проверялось.
+
+          Размер: **12 502 142 байта**.
+
+          SHA-256: `0e1a90851f69fe8d2dc9373248babdeddc97b006aa1b05a5f8c02dad92735ecf`
+
+          Сайт: https://canary-launcher.proudtetra4.chatgpt.site/
+          Помощь и обсуждение: https://discord.gg/bnQggZs8qZ
+          NOTES
+      - name: Create or resume the beta release
+        shell: bash
+        run: |
+          set -euo pipefail
+          if ! gh release view "$RELEASE_TAG" >/dev/null 2>&1; then
+            gh release create "$RELEASE_TAG" "$INSTALLER" SHA256SUMS \
+              --target "$RELEASE_TARGET" --draft --prerelease --latest=false \
+              --title 'Canary 0.1.8 Beta' --notes-file release-notes.md
+          fi
+          gh api "repos/$GH_REPO/releases/tags/$RELEASE_TAG" > release.json
+          python3 - <<'PY'
+          import json, os
+          release = json.load(open('release.json'))
+          assert release['prerelease'], 'Existing release is not a beta'
+          assets = {asset['name']: asset for asset in release['assets']}
+          installer = assets.get(os.environ['INSTALLER'])
+          assert installer is not None, 'Existing release lacks the installer; no files were overwritten'
+          assert installer['size'] == int(os.environ['EXPECTED_SIZE']), 'Existing asset size differs'
+          assert installer.get('digest') == 'sha256:' + os.environ['EXPECTED_SHA256'], 'Existing asset checksum differs'
+          assert 'SHA256SUMS' in assets, 'Checksum file is missing'
+          PY
+          gh release edit "$RELEASE_TAG" --draft=false --prerelease --latest=false
+          gh api "repos/$GH_REPO/releases/tags/$RELEASE_TAG" --jq '.html_url'
