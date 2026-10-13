@@ -6,6 +6,7 @@ import {GameLogs} from "./GameLogs";
 import {RuntimeDialog} from "./RuntimeDialog";
 import "./Stabilization.css";
 const labels:Record<string,[string,string]>={
+ instance_copied:["Создана копия экземпляра","Instance copied"],pack_exported:["Сборка экспортирована","Modpack exported"],worlds_backed_up:["Копия миров сохранена","World backup saved"],instance_imported:["Экземпляр перенесён","Instance imported"],
  instance_installed:["Экземпляр установлен","Instance installed"],instance_created:["Экземпляр создан","Instance created"],instance_removed:["Экземпляр удалён","Instance removed"],
  game_launched:["Игра запущена","Game launched"],game_exited:["Игра завершена","Game exited"],game_crashed:["Minecraft завершился с ошибкой","Minecraft crashed"],crashed:["Minecraft завершился с ошибкой","Minecraft crashed"],
  account_added:["Аккаунт добавлен","Account added"],account_removed:["Аккаунт удалён","Account removed"],java_installed:["Java установлена","Java installed"],

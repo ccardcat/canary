@@ -1,3 +1,7 @@
+Version **0.1.9** adds test copies, local .mrpack export, shared game settings, Prism/Modrinth/Minecraft transfer, a saved skin library with a rotating Classic/Slim preview, library groups, automatic world backups and a native system tray. It improves stop feedback, light-theme readability and disclosure animation, adds six floating sidebar placements with a Mini size, and permits adding new content files while Minecraft is running.
+
+Mods become active after restarting Minecraft. New resource packs and shaders can be selected in the running game's settings; Canary does not inject an in-game companion or select them automatically. Loaded files, pack updates, deletions and world changes remain protected until the game stops. Skin upload uses an explicitly selected Microsoft Minecraft Java account.
+
 Canary desktop launcher for Windows x64 and Linux x64.
 
 Version **0.1.8** includes native Windows Acrylic/Mica/Mica Alt with supported fallbacks, configurable glass materials, titlebar styles, improved snow/sakura/autumn effects, rotating Home artwork, keyboard-accessible glass dropdowns and local `.mrpack` preview/import. F11 restores normal window geometry or maximized state; instance creation closes after success and shows the new Library card. Microsoft authentication and CurseForge failures now identify the failed stage or key/service problem. Existing providers, content management, storage migration, Minecraft/Java preparation and graceful stopping are retained.

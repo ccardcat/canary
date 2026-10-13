@@ -1,3 +1,7 @@
+pub mod live_content;
+pub mod launcher_database;
+pub mod collection;
+pub mod skins;
 pub mod activity;
 pub mod game_logs;
 pub mod discord;
@@ -48,6 +52,7 @@ pub fn startup_phase(stage:&str) {
     }
 }
 pub struct Backend {
+    pub transfer_sources:Mutex<HashMap<String,collection::TransferSource>>,
     pub root: std::path::PathBuf,
     pub discord: Arc<discord::Manager>,
     pub tasks:activity::Registry,
@@ -86,7 +91,7 @@ impl Backend {
         if let Some(path)=&store.settings.instances_path{transaction::recover(std::path::Path::new(path))?;}
         for path in &store.instance_roots {transaction::recover(std::path::Path::new(path))?;}
         startup_phase("HTTP client initialization");
-        Ok(Self { root,server_history_checked:Mutex::new(std::collections::HashSet::new()),curseforge_health:tokio::sync::Mutex::new(None),discord:Arc::new(discord::Manager::default()),tasks:Mutex::new(HashMap::new()),staged:Mutex::new(HashMap::new()),wallpaper_lock:Mutex::new(()),maintenance:AtomicBool::new(false),auth:tokio::sync::Mutex::new(()),account_resources:Mutex::new(HashMap::new()), store: Mutex::new(store), jobs: Mutex::new(HashMap::new()), provider_requests:Mutex::new(HashMap::new()), processes: Mutex::new(HashMap::new()),
+        Ok(Self { transfer_sources:Mutex::new(HashMap::new()),root,server_history_checked:Mutex::new(std::collections::HashSet::new()),curseforge_health:tokio::sync::Mutex::new(None),discord:Arc::new(discord::Manager::default()),tasks:Mutex::new(HashMap::new()),staged:Mutex::new(HashMap::new()),wallpaper_lock:Mutex::new(()),maintenance:AtomicBool::new(false),auth:tokio::sync::Mutex::new(()),account_resources:Mutex::new(HashMap::new()), store: Mutex::new(store), jobs: Mutex::new(HashMap::new()), provider_requests:Mutex::new(HashMap::new()), processes: Mutex::new(HashMap::new()),
             private_api_client:network::client_builder().user_agent(concat!("Canary/",env!("CARGO_PKG_VERSION"))).redirect(reqwest::redirect::Policy::none()).timeout(std::time::Duration::from_secs(30)).build()?,
             private_download_client:network::client_builder().user_agent(concat!("Canary/",env!("CARGO_PKG_VERSION"))).redirect(reqwest::redirect::Policy::none()).connect_timeout(std::time::Duration::from_secs(20)).timeout(std::time::Duration::from_secs(300)).build()?,
             client: network::client_builder().user_agent(concat!("Canary/",env!("CARGO_PKG_VERSION")," (https://github.com/ccardcat/canary)"))
@@ -135,6 +140,7 @@ impl Backend {
         if jobs.contains_key(id) || self.processes.lock().unwrap().contains_key(id) { return Err(BackendError::new("instance_in_use", "This instance is already preparing or running")); }
         let cancel = Arc::new(AtomicBool::new(false)); jobs.insert(id.into(), cancel.clone()); Ok(cancel)
     }
+    pub fn content_lease(self:&Arc<Self>,id:&str)->Result<JobLease>{let mut jobs=self.jobs.lock().unwrap();if self.maintenance.load(std::sync::atomic::Ordering::Acquire)||jobs.contains_key(id){return Err(BackendError::new("instance_in_use","Another operation is using this instance"));}if self.processes.lock().unwrap().get(id).is_some_and(|p|p.stopping.load(std::sync::atomic::Ordering::Acquire)){return Err(BackendError::new("instance_in_use","Minecraft is closing"));}let cancel=Arc::new(AtomicBool::new(false));jobs.insert(id.into(),cancel.clone());Ok(JobLease{backend:self.clone(),id:id.into(),cancel})}
     pub fn lease(self:&Arc<Self>,id:&str)->Result<JobLease>{Ok(JobLease{backend:self.clone(),id:id.into(),cancel:self.begin(id)?})}
 }
 

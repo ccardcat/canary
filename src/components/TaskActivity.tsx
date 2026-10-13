@@ -1,3 +1,4 @@
+import {AnimatedDetails} from "./AnimatedDetails";
 import {InlineError} from "./InlineError";
 import {useLiveTasks} from "../services/taskStore";
 import {EmptyState} from "./EmptyState";
@@ -20,6 +21,7 @@ import {
 import { activityMessages, stageLabel } from "../locales/activity";
 import "./TaskActivity.css";
 const icons: Record<TaskKind, typeof Activity> = {
+  copy: Activity, export: ArrowDownToLine, backup: Wrench, import: ArrowDownToLine,
   download: ArrowDownToLine,
   install: ArrowDownToLine,
   update: RefreshCw,
@@ -159,12 +161,12 @@ export function ActivityTasks({ russian,showRecent=true }: { russian: boolean;sh
         ))}
       </div>
       {showRecent && recent.length > 0 && (
-        <details className="activity-recent">
+        <AnimatedDetails className="activity-recent">
           <summary>{text.recent}</summary>
           {recent.map((task) => (
             <TaskRow key={task.id} task={task} russian={russian} />
           ))}
-        </details>
+        </AnimatedDetails>
       )}
     </section>
   );

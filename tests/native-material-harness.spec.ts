@@ -13,8 +13,8 @@ test('Windows preset QA harness exercises actual renderer controls before native
   reloadWithPreferences:(source:string)=>reloadWithSeed(page,source),
   evaluate:(expression:string)=>page.evaluate(expression),
   choose:async(name:string,text:string)=>{await page.getByRole('combobox',{name,exact:true}).click();await page.getByRole('option',{name:text,exact:true}).click();},
-  click:(expression:string)=>page.evaluate(`${expression}.click()`),
-  textButton:(scope:string,text:string)=>`[...document.querySelectorAll(${JSON.stringify(scope)})].find(b=>b.textContent.trim()===${JSON.stringify(text)})`,
+  click:async(expression:string)=>{await expect.poll(()=>page.evaluate(`!!(${expression})`),{message:expression}).toBe(true);await page.evaluate(`${expression}.click()`);},
+  textButton:(scope:string,text:string)=>`[...document.querySelectorAll(${JSON.stringify(scope)})].find(b=>b.textContent.trim()===${JSON.stringify(text)}||b.getAttribute('aria-label')===${JSON.stringify(text)})`,
   call:async(method:string)=>{expect(method).toBe('Page.reload');await page.reload();},
   win:async(command:string,args:any)=>{expect(command).toBe('set_size');await page.setViewportSize(args.value.Physical);},
   until:async(fn:()=>Promise<boolean>)=>{await expect.poll(fn,{timeout:10000}).toBe(true);},
@@ -40,8 +40,8 @@ test('native live Discover QA harness validates scoped tasks and cancellation be
  await discoverInstallQA({
   evaluate:(expression:string)=>page.evaluate(expression),
   invoke:async(command:string)=>{expect(command).toBe('backend_snapshot');return page.evaluate(()=>{const qa=(globalThis as any).__materialQA;return {...qa.state,tasks:(qa.installs||[]).map((install:any)=>({...install.task,provider:'modrinth',projectId:install.args.projectId,versionId:install.args.versionId,status:document.querySelector(`.activity-task[data-task-id="${install.task.id}"]`)?.getAttribute('data-task-status')||install.task.status}))};});},
-  click:(expression:string)=>page.evaluate(`${expression}.click()`),
-  textButton:(scope:string,text:string)=>`[...document.querySelectorAll(${JSON.stringify(scope)})].find(b=>b.textContent.trim()===${JSON.stringify(text)})`,
+  click:async(expression:string)=>{await expect.poll(()=>page.evaluate(`!!(${expression})`),{message:expression}).toBe(true);await page.evaluate(`${expression}.click()`);},
+  textButton:(scope:string,text:string)=>`[...document.querySelectorAll(${JSON.stringify(scope)})].find(b=>b.textContent.trim()===${JSON.stringify(text)}||b.getAttribute('aria-label')===${JSON.stringify(text)})`,
   until:async(fn:()=>Promise<boolean>)=>{await expect.poll(fn,{timeout:10000}).toBe(true);},
   screenshot:async()=>{},report,
  });

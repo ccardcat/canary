@@ -141,6 +141,18 @@ jobs:
             qa/windows-csp-smoke/startup.log
             windows-csp-smoke.log
           if-no-files-found: warn
+      - name: Windows native collection and tray QA
+        if: runner.os == 'Windows'
+        run: node .github/scripts/collection-smoke.mjs qa/windows-window-smoke/canary-native-qa.exe
+      - name: Upload Windows collection QA
+        if: runner.os == 'Windows' && always()
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: canary-windows-collection-qa
+          path: |
+            qa/windows-collection-smoke/result.json
+            qa/windows-collection-smoke/native-collection.png
+          if-no-files-found: warn
       - name: Windows native window and material QA
         if: runner.os == 'Windows'
         shell: bash

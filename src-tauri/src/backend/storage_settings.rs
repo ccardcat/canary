@@ -19,8 +19,8 @@ fn folder_usage(root:&Path)->Result<u64>{
 pub fn usage(b:&Backend)->Result<serde_json::Value>{
     let root=b.instances_root();let free=fs2::available_space(&root).ok();let mut used=0;let mut instance_logs=0;
     for instance in b.instances()?{if instance.status!="unavailable" {let directory=Path::new(&instance.directory);used+=folder_usage(directory)?;instance_logs+=folder_usage(&directory.join("logs"))?;}}
-    let cache=folder_usage(&b.root.join("cache"))?;let java=folder_usage(&b.root.join("java"))?;let app_logs=folder_usage(&b.root.join("logs"))?;
-    Ok(serde_json::json!({"path":root,"available":root.is_dir(),"free":free,"used":used,"breakdown":{"instances":used.saturating_sub(instance_logs),"cache":cache,"java":java,"logs":app_logs+instance_logs,"total":used+cache+java+app_logs}}))
+    let world_backups=folder_usage(&b.root.join("world-backups"))?;let cache=folder_usage(&b.root.join("cache"))?;let java=folder_usage(&b.root.join("java"))?;let app_logs=folder_usage(&b.root.join("logs"))?;
+    Ok(serde_json::json!({"path":root,"available":root.is_dir(),"free":free,"used":used,"breakdown":{"instances":used.saturating_sub(instance_logs),"cache":cache,"java":java,"logs":app_logs+instance_logs,"world_backups":world_backups,"total":used+cache+java+app_logs+world_backups}}))
 }
 pub fn clear_cache(b:Arc<Backend>)->Result<()> {
     {let jobs=b.jobs.lock().unwrap();if !jobs.is_empty()||!b.processes.lock().unwrap().is_empty()||b.maintenance.swap(true,Ordering::AcqRel){return Err(BackendError::new("busy","Stop Minecraft and finish active operations before clearing cache"));}}
@@ -38,7 +38,7 @@ struct Maintenance(Arc<Backend>);impl Drop for Maintenance{fn drop(&mut self){se
 pub fn change(b:Arc<Backend>,app:Option<AppHandle>,path:String,migrate:bool)->Result<serde_json::Value>{
     {let jobs=b.jobs.lock().unwrap();if !jobs.is_empty()||!b.processes.lock().unwrap().is_empty()||b.maintenance.swap(true,Ordering::AcqRel){return Err(BackendError::new("busy","Stop Minecraft and finish active operations before changing storage"));}}
     let _guard=Maintenance(b.clone());let root=canonical_root(Path::new(&path))?;
-    for name in ["cache","java","logs","temp","wallpapers"]{let managed=b.root.join(name);let managed=dunce::canonicalize(&managed).unwrap_or(managed);if root.starts_with(&managed)||managed.starts_with(&root){return Err(BackendError::new("storage_path","Choose an instance folder outside Canary cache, Java, logs and internal storage"));}}
+    for name in ["cache","java","logs","temp","wallpapers","world-backups","skins"]{let managed=b.root.join(name);let managed=dunce::canonicalize(&managed).unwrap_or(managed);if root.starts_with(&managed)||managed.starts_with(&root){return Err(BackendError::new("storage_path","Choose an instance folder outside Canary cache, Java, logs and internal storage"));}}
     for registered in b.instance_roots(){let registered=dunce::canonicalize(&registered).unwrap_or(registered);if root!=registered&&(root.starts_with(&registered)||registered.starts_with(&root)){return Err(BackendError::new("storage_path","Storage folders must not overlap existing instance storage"));}}
     if root==dunce::canonicalize(b.instances_root()).unwrap_or_else(|_|b.instances_root()){return usage(&b);}
     let instances=b.instances()?;if migrate&&instances.iter().any(|i|i.status=="unavailable"){return Err(BackendError::new("storage_unavailable","Reconnect every instance drive before migration"));}

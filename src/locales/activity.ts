@@ -1,6 +1,6 @@
 export const activityMessages = {
   en: {
-    activity: "Activity",
+    activity: "Activity", copy:"Copying instance", export:"Exporting modpack", backup:"World backup", import:"Importing instance", copying:"Copying files",archiving:"Creating archive",
     download: "Download",
     install: "Installation",
     update: "Update",
@@ -25,7 +25,7 @@ export const activityMessages = {
     recent: "Recent activity",
   },
   ru: {
-    activity: "Активность",
+    activity: "Активность", copy:"Копирование экземпляра", export:"Экспорт сборки", backup:"Копия миров", import:"Перенос экземпляра", copying:"Копирование файлов",archiving:"Создание архива",
     download: "Загрузка",
     install: "Установка",
     update: "Обновление",
@@ -52,6 +52,8 @@ export const activityMessages = {
 };
 export type ActivityText = typeof activityMessages.en;
 export function stageLabel(stage: string, text: ActivityText): string {
+  if (stage === "copying") return text.copying;
+  if (stage === "archiving") return text.archiving;
   if (/finalize|metadata|content_apply/.test(stage)) return text.finalizing;
   if (/overrides/.test(stage)) return text.applying;
   if (/hash|verify/.test(stage)) return text.verifying;

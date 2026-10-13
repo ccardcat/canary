@@ -1,10 +1,11 @@
+import {AnimatedDetails} from "./AnimatedDetails";
 import {SmoothRange} from "./SmoothRange";
 import { useState } from "react";
 import { polishMessages } from "../locales/polish";
 
 export const treatmentDefaults = { brightness: 100, saturation: 90, overlay: 28, vignette: 30, zoom: 100, position: "center" };
 export const polishDefaults = {
-  sidebarSide: "left", cursor: "custom", focus: false, quality: "balanced", glass: 22,
+  sidebarSide: "left", sidebarMini:false, cursor: "custom", focus: false, quality: "balanced", glass: 22,
   globalTreatment: { ...treatmentDefaults }, sidebarTreatment: { ...treatmentDefaults, overlay: 38 },
   sidebarIntensity: 85, density: 12, particleSpeed: 100, particleOpacity: 20, particleSize: 100,
 };
@@ -26,7 +27,7 @@ export function PolishControls({ russian, value, update, group="all" }: Props & 
     <h4>{text.cursor}</h4><div className="font-options" role="group" aria-label={text.cursor}>{(["custom", "system"] as const).map(cursor => <button key={cursor} aria-pressed={value.cursor === cursor} className={value.cursor === cursor ? "selected" : ""} onClick={() => update({ cursor })}>{text[({ custom: "customCursor", system: "system" } as const)[cursor]]}</button>)}</div>
     <div className="toggle-setting"><div><b>{text.focus}</b><span>{text.focusSub}</span></div><button className={value.focus ? "toggle on" : "toggle"} role="switch" aria-label={text.focus} aria-checked={value.focus} onClick={() => update({ focus: !value.focus })}><i /></button></div>
     {range(text.glass, value.glass, 5, 35, glass => update({ glass }))}</>}
-    {(group==="all"||group==="background")&&<details className="polish-disclosure"><summary>{text.backgrounds}</summary><div className="font-options">{(["globalTreatment", "sidebarTreatment"] as const).map(key => <button key={key} className={target === key ? "selected" : ""} aria-pressed={target === key} onClick={() => setTarget(key)}>{key === "globalTreatment" ? text.global : text.panel}</button>)}</div>
+    {(group==="all"||group==="background")&&<AnimatedDetails className="polish-disclosure"><summary>{text.backgrounds}</summary><div className="font-options">{(["globalTreatment", "sidebarTreatment"] as const).map(key => <button key={key} className={target === key ? "selected" : ""} aria-pressed={target === key} onClick={() => setTarget(key)}>{key === "globalTreatment" ? text.global : text.panel}</button>)}</div>
       <div className="polish-range-grid">
         {range(text.intensity, target === "globalTreatment" ? value.intensity : value.sidebarIntensity, 0, 100, n => update(target === "globalTreatment" ? { intensity: n } : { sidebarIntensity: n }))}
         {range(text.blur, target === "globalTreatment" ? value.blur : value.sidebarBlur, 0, target === "globalTreatment" ? 10 : 20, n => update(target === "globalTreatment" ? { blur: n } : { sidebarBlur: n }), "px")}
@@ -37,12 +38,12 @@ export function PolishControls({ russian, value, update, group="all" }: Props & 
         {range(text.zoom, treatment.zoom, 100, 140, n => patch("zoom", n))}
       </div><h4>{text.position}</h4><div className="font-options" role="group" aria-label={text.position}>{(["center", "left", "right", "top", "bottom"] as const).map(position => <button key={position} className={treatment.position === position ? "selected" : ""} aria-pressed={treatment.position === position} onClick={() => patch("position", position)}>{text[position]}</button>)}</div>
       <button className="quiet-button polish-reset" onClick={() => update(target === "globalTreatment" ? { globalTreatment: { ...polishDefaults.globalTreatment }, intensity: 45, blur: 5 } : { sidebarTreatment: { ...polishDefaults.sidebarTreatment }, sidebarIntensity: 85, sidebarBlur: 12 })}>{text.reset}</button>
-    </details>}
-    {(group==="all"||group==="effects")&&<details className="polish-disclosure"><summary>{text.particles}</summary><div className="polish-range-grid">
+    </AnimatedDetails>}
+    {(group==="all"||group==="effects")&&<AnimatedDetails className="polish-disclosure"><summary>{text.particles}</summary><div className="polish-range-grid">
       {range(text.density, value.density, 4, 24, density => update({ density }), "")}
       {range(text.speed, value.particleSpeed, 50, 150, particleSpeed => update({ particleSpeed }))}
       {range(text.opacity, value.particleOpacity, 5, 35, particleOpacity => update({ particleOpacity }))}
       {range(text.size, value.particleSize, 60, 140, particleSize => update({ particleSize }))}
-    </div><button className="quiet-button polish-reset" onClick={() => update({ density: 12, particleSpeed: 100, particleOpacity: 20, particleSize: 100 })}>{text.reset}</button></details>}
+    </div><button className="quiet-button polish-reset" onClick={() => update({ density: 12, particleSpeed: 100, particleOpacity: 20, particleSize: 100 })}>{text.reset}</button></AnimatedDetails>}
   </>;
 }

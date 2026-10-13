@@ -8,7 +8,8 @@ export async function materialPresetQA({evaluate,choose,click,textButton,call,wi
  const ids=['solid','soft','vibrancy','glass','clear','liquid','transparent'];
  const geometry=()=>evaluate(`['.sidebar','.settings-modal','.window-titlebar','.home-hero'].map(selector=>{const r=document.querySelector(selector).getBoundingClientRect();return {x:r.x,y:r.y,width:r.width,height:r.height};})`);
  const unrelated=()=>evaluate(`(()=>{const value=JSON.parse(localStorage.getItem('canary-visual'));return Object.fromEntries(['sidebarSide','sidebarMode','materialRadius','instanceLayout','instanceArtwork','buttonDensity','app','sidebar','font','fontScale','backgroundSource','material','tint','windowTransparency'].map(key=>[key,value[key]]));})()`);
- const settings=async()=>{await until(()=>evaluate(`!!document.querySelector('.home-hero')&&getComputedStyle(document.querySelector('.page-transition')).opacity==='1'`),'material QA Home');await click(textButton('.sidebar button','Settings'));await until(()=>evaluate(`!!document.querySelector('.material-settings')&&getComputedStyle(document.querySelector('.settings-modal')).opacity==='1'`),'material QA Settings');};
+ const section=async id=>{await until(()=>evaluate(`!!document.querySelector('[data-settings-section="${id}"]')`),'settings navigation');await evaluate(`(()=>{const button=document.querySelector('[data-settings-section="${id}"]');const group=button.closest('[data-settings-group]');const toggle=group?.querySelector('.settings-group-toggle');if(toggle?.getAttribute('aria-expanded')==='false')toggle.click();button.click();})()`);await until(()=>evaluate(`document.querySelector('[data-settings-section="${id}"]')?.getAttribute('aria-current')==='page'`),'active settings section');};
+ const settings=async()=>{await until(()=>evaluate(`!!document.querySelector('.home-hero')&&getComputedStyle(document.querySelector('.page-transition')).opacity==='1'`),'material QA Home');await click(textButton('.sidebar button','Settings'));await section('materials');await until(()=>evaluate(`!!document.querySelector('.material-settings')&&getComputedStyle(document.querySelector('.settings-modal')).opacity==='1'`),'material QA Settings');};
  await win('set_size',{value:{Physical:{width:1200,height:760}}});await delay(300);
  report.surfaceMaterials=[];
  for(const side of ['left','right'])for(const mode of ['attached','floating'])for(const compact of [false,true]) {
@@ -26,7 +27,7 @@ export async function materialPresetQA({evaluate,choose,click,textButton,call,wi
  // Inspect all identities in the native window on each palette, and resize
  // during switching. Geometry is compared within each viewport, never across it.
  for(const theme of ['Light','Dark','AMOLED']) {
-  await click(textButton('.mode-grid button',theme));
+  await section('appearance');await click(textButton('.mode-grid button',theme));await section('materials');
   for(const width of [1200,960]) {
    await win('set_size',{value:{Physical:{width,height:760}}});await delay(300);const before=await geometry();
    for(let i=0;i<names.length;i++) {

@@ -1,15 +1,17 @@
+import {useBackend} from "../services/backend";
 import {useWindowFullscreen} from "./WindowFullscreen";
 import {useEffect,useState} from "react";
 import {Minus,Square,Copy,X} from "lucide-react";
-import {isTauri} from "@tauri-apps/api/core";
+import {invoke,isTauri} from "@tauri-apps/api/core";
 import {getCurrentWindow} from "@tauri-apps/api/window";
 import {windowMessages} from "../locales/window";
 import {useVisualAppearance} from "./VisualAppearance";
 export default function TitleBar({light,russian}:{light:boolean;russian:boolean}){
- const {value}=useVisualAppearance();const [maximized,setMaximized]=useState(false);const [error,setError]=useState(false);
+ const {snapshot}=useBackend();const {value}=useVisualAppearance();const [maximized,setMaximized]=useState(false);const [error,setError]=useState(false);
  useWindowFullscreen(()=>setError(true));const text=windowMessages[russian?"ru":"en"];
  useEffect(()=>{if(!isTauri())return;const win=getCurrentWindow();let dispose:(()=>void)|undefined;let live=true;const sync=()=>{void win.isMaximized().then(v=>{if(live)setMaximized(v);document.documentElement.dataset.windowMaximized=String(v);}).catch(()=>{});};sync();void win.onResized(sync).then(fn=>{if(live)dispose=fn;else fn();});return()=>{live=false;dispose?.();};},[]);
- const action=(kind:"minimize"|"toggleMaximize"|"close"|"startDragging")=>{if(isTauri()&&document.documentElement.dataset.windowTransition!=="true")void getCurrentWindow()[kind]().catch(()=>setError(true));};
+ useEffect(()=>{if(isTauri())void invoke("set_tray_language",{russian}).catch(()=>{});},[russian]);
+ const action=(kind:"minimize"|"toggleMaximize"|"close"|"startDragging")=>{if(isTauri()&&document.documentElement.dataset.windowTransition!=="true")void (kind==="minimize"&&snapshot?.settings.minimize_to_tray?invoke("hide_to_tray"):getCurrentWindow()[kind]()).catch(()=>setError(true));};
  return <header className="window-titlebar" data-controls={value.windowControls} data-controls-position={value.controlsPosition}>
   <div className="window-drag" onMouseDown={e=>{if(e.button===0&&e.detail===1)action("startDragging");}} onDoubleClick={()=>action("toggleMaximize")} aria-hidden="true"/>
   <div className="window-brand" aria-hidden="true">{["icon","icon-text"].includes(value.titlebarBranding)&&<img src={`/branding/canary-bird-${light?"black":"white"}.png`} alt="" draggable={false}/>}{["text","icon-text"].includes(value.titlebarBranding)&&<span>Canary</span>}</div>

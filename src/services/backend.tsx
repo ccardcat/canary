@@ -33,6 +33,8 @@ export interface Account {
   last_used?: number;
 }
 export interface RuntimeInstance {
+  group?: string;
+  shared_settings?: boolean;
   internal?: boolean;
   id: string;
   name: string;
@@ -67,6 +69,14 @@ export interface RuntimeInstance {
   };
 }
 export interface RuntimeSettings {
+  world_backups?: boolean;
+  world_backup_retention?: number;
+  world_backup_max_mb?: number;
+  close_to_tray?: boolean;
+  minimize_to_tray?: boolean;
+  library_groups?: string[];
+  library_group_ids?: Record<string,string>;
+  shared_settings_source?: string;
   instances_path?: string;
   backup_before_changes: boolean;
   backup_retention: number;
@@ -334,6 +344,7 @@ export function BackendProvider({ children }: { children: ReactNode }) {
             "content_project",
             "content_versions",
             "content_preview","bulk_content_preview",
+            "list_world_backups","list_skins","choose_launcher_folder",
             "choose_mrpack_file",
             "choose_content_files",
             "inspect_content_files",
@@ -383,6 +394,7 @@ export function BackendProvider({ children }: { children: ReactNode }) {
         else disposers.push(unlisten);
       }
       for (const [event, handler] of [
+        ["instance-stopping",(payload:unknown)=>{const id=(payload as {id:string}).id;setSnapshot(current=>current?{...current,instances:current.instances.map(i=>i.id===id?{...i,status:"stopping"}:i)}:current);}],
         ["backend-error", (payload: unknown) => {retryRef.current=null;setError(normalizeError(payload));void refresh().catch(()=>{});}],
         ["memory-adjusted",(payload:unknown)=>setError({code:"memory_adjusted",...(payload as object)})],
         [
