@@ -190,7 +190,14 @@ test("Home hero copy stays stable through slides and Continue has compact real P
   await expect(
     card.getByRole("button", { name: "Stop", exact: true }),
   ).toBeVisible();
+  const taskId="cb62ab60-c057-4f20-921c-561d69d1d840";
+  const activeInstance=await card.getAttribute("data-instance-id");
+  const backgroundTask={id:taskId,operationId:activeInstance,instanceId:activeInstance,kind:"install",title:"Adding resource pack",status:"running",stage:"installing",startedAt:Date.now()/1000,updatedAt:Date.now()/1000,revision:1,cancellable:true,cancelRequested:false,completed:0,total:1,downloaded:0,bytesTotal:1,percent:0,speed:0,currentFile:"pack.zip"};
+  await page.evaluate(async task=>{const {emit}=await import("/node_modules/@tauri-apps/api/event.js");await emit("activity-task",task);},backgroundTask);
+  await expect(card.getByRole("button",{name:"Stop",exact:true})).toBeEnabled();
   await card.getByRole("button", { name: "Stop", exact: true }).click();
+  await expect.poll(()=>page.evaluate(id=>(globalThis as any).__materialQA.calls.some((call:any)=>call.command==="stop_instance"&&call.args.id===id),activeInstance)).toBe(true);
+  await page.evaluate(async task=>{const {emit}=await import("/node_modules/@tauri-apps/api/event.js");await emit("activity-task",{...task,status:"completed",revision:2,cancellable:false,percent:100});},backgroundTask);
   await expect(
     card.getByRole("button", { name: "Play", exact: true }),
   ).toBeVisible();
