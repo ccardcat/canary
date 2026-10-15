@@ -5,7 +5,7 @@ The status dock is omitted. Progress remains on project cards and the Downloads 
 ## Behavior
 
 - Test copies offer independent choices for worlds, settings and screenshots. Copies receive a new ID and do not overwrite their source.
-- Export produces a local .mrpack with the exact Minecraft/loader versions and selected overrides. Exported account credentials, runtimes and launcher logs are excluded.
+- Export produces a local .mrpack with the exact Minecraft/loader versions and selected overrides. Accounts, worlds, screenshots, runtimes and launcher logs are excluded.
 - Shared game options are opt-in for each instance. Only controls, mouse, sound, FOV and accessibility options are shared; graphics and unknown options stay local. The selected source is captured after Minecraft exits.
 - Transfer discovers Prism, Modrinth and Minecraft instances through an explicitly selected folder. Unrecognized folders require a Minecraft/loader choice before import.
 - Skin files are validated PNGs, stored in the launcher library and previewed as Classic or Slim. Upload requires a selected Microsoft Minecraft Java account and an explicit Apply action.
@@ -20,8 +20,12 @@ The status dock is omitted. Progress remains on project cards and the Downloads 
 
 ## Checks
 
-Before the GitHub-only handoff, 144 Rust tests passed (9 existing integration cases ignored), and six native IPC cases passed against disposable fixture data: copy choices, backup restore/retention, shared settings, group identity, backup storage accounting and native tray hide. No real account skin upload or real Minecraft hot-content session was exercised.
+GitHub Actions runs the complete browser suite in two shards, locked Rust checks/tests on Windows and Linux, dependency advisory scans, a real disposable Modrinth installation on Linux, and production Windows NSIS/MSI and Linux DEB builds.
 
-GitHub Actions runs the production build, browser suite, locked Rust checks/tests, dependency advisory scans, Windows native collection/tray checks, packaged CSP checks and window/material checks. The collection smoke creates disposable fixture instances inside the Actions runner. Installer artifacts come from the production build; the inspector executable is only a QA tool.
+Windows native QA uses a separate inspector executable with isolated application and WebView2 data. The collection suite checks a real font parser and removal, independent copies, backup restore with a current-world safeguard, shared settings, group identities, backup storage accounting and tray behavior. The CSP suite checks startup, main-window IPC, denied IPC in untrusted windows, dynamic styles and blocked injected content. Window QA covers fullscreen geometry, supported native materials across Light/Dark/AMOLED, all surface presets, layout persistence, a full process restart and live Discover installation/cancellation state.
 
-The current browser suite was interrupted at the user's request when work moved to GitHub. Its complete result is not recorded as a pass. See the pull request checks for final verification.
+The window suite waits for a stable main UI before its first preference reload and verifies isolated storage before seeding. Every seeded reload waits for its own new-document marker and ready UI. A process restart must release the previous inspector, and Discover must expose loaded, installable cards before starting the real download. Assertions and security boundaries remain unchanged.
+
+Use [PR #16 checks](https://github.com/ccardcat/canary/pull/16/checks) for the final result on the current head; an earlier successful suite does not certify a later commit. Installer artifacts come from the production build. The inspector executable is only a QA tool and must not be published as a production installer.
+
+Real Microsoft skin upload, licensed Minecraft gameplay, and a real Minecraft hot-content session are not exercised. No user accounts, worlds, installed launcher or local processes are used. Live Discover records a blocked result when the public provider cannot be reached; that is not evidence of a successful live install.

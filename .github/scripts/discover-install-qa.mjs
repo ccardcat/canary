@@ -10,9 +10,10 @@ export async function discoverInstallQA({evaluate,invoke,click,textButton,until,
   report.liveDiscover={status:'blocked',reason:await evaluate(`document.querySelector('.discover-page [role="alert"]').textContent`),mocked:false};
  }else{
   const beforeInstall=await invoke('backend_snapshot');
-  const project=await evaluate(`document.querySelector('.discover-page .project-card:has(.install-action:not(:disabled))').dataset.projectId`);
+  await until(()=>evaluate(`document.querySelector('.discover-page [aria-busy="false"] .project-grid')?.children.length>=5&&!!document.querySelector('.discover-page .project-card[data-project-id]:has(.install-action:not(:disabled))')`),'live installable Modrinth cards',45000);
+  // Select and click in one renderer turn so a catalog refresh cannot detach the card.
+  const project=await evaluate(`(()=>{const card=document.querySelector('.discover-page .project-card[data-project-id]:has(.install-action:not(:disabled))');if(!card)throw Error('Live installable Modrinth card disappeared');const id=card.dataset.projectId;card.querySelector('.install-action').click();return id;})()`);
   const selector=`.discover-page .project-card[data-project-id="${project}"]`;
-  await click(`document.querySelector(${JSON.stringify(selector+' .install-action')})`);
   await until(()=>evaluate(`!!document.querySelector(${JSON.stringify(selector)})?.dataset.taskId`),'live project task');
   const taskId=await evaluate(`document.querySelector(${JSON.stringify(selector)}).dataset.taskId`);
   const mapping=await evaluate(`[...document.querySelectorAll('.discover-page .project-card')].map(card=>({project:card.dataset.projectId,task:card.dataset.taskId,label:card.querySelector('.install-action')?.textContent.trim()}))`);

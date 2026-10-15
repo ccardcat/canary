@@ -22,7 +22,7 @@ export async function materialPresetQA({evaluate,choose,click,textButton,call,wi
    assert.equal(await evaluate(`document.querySelector('.sidebar').classList.contains('compact')`),compact);
    report.surfaceMaterials.push({side,mode,compact,preset:ids[i],geometryStable:true,unrelatedSettingsPreserved:true});
   }
-  await choose('Material preset','Clear Glass');await call('Page.reload');await settings();assert.deepEqual(await unrelated(),saved);assert.equal(await evaluate(`document.documentElement.dataset.materialCards`),'clear');
+  await choose('Material preset','Clear Glass');await reloadWithPreferences('');await settings();assert.deepEqual(await unrelated(),saved);assert.equal(await evaluate(`document.documentElement.dataset.materialCards`),'clear');
  }
  // Inspect all identities in the native window on each palette, and resize
  // during switching. Geometry is compared within each viewport, never across it.

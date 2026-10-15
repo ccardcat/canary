@@ -14,10 +14,13 @@ const qaDataRoot=resolve(folder,'data-'+randomUUID());
 const report={platform:process.platform,cases:[],captures:[],thumbnails:[]};const port=9384;
 const stdout=openSync(resolve(folder,'app-stdout.log'),'w'),stderr=openSync(resolve(folder,'app-stderr.log'),'w');
 const launch=()=>spawn(resolve(process.argv[2]||'src-tauri/target/release/scaffold.exe'),[],{windowsHide:true,env:{...process.env,CANARY_QA_DATA_ROOT:qaDataRoot,CANARY_STARTUP_LOG:resolve(folder,'app-startup.log'),WEBVIEW2_USER_DATA_FOLDER:resolve(folder,'webview-data'),WEBVIEW2_ADDITIONAL_BROWSER_ARGUMENTS:`--remote-debugging-port=${port} --remote-debugging-address=127.0.0.1`},stdio:['ignore',stdout,stderr]});
-let app=launch(),launchError;app.once('error',error=>{launchError=error;});
+let app,launchError;
 const delay=ms=>new Promise(r=>setTimeout(r,ms));let socket;
-async function until(test,label,timeout=15000){const start=Date.now();while(Date.now()-start<timeout){if(launchError)throw launchError;if(app.exitCode!==null)throw Error(`Canary exited (${app.exitCode}) during ${label}`);try{if(await test())return;}catch(error){if(Date.now()-start>timeout-500)throw error;}await delay(100);}throw Error(`Timed out: ${label}`);}
+async function until(test,label,timeout=15000){const start=Date.now();while(Date.now()-start<timeout){if(launchError)throw launchError;if(app?.exitCode!=null)throw Error(`Canary exited (${app.exitCode}) during ${label}`);try{if(await test())return;}catch(error){if(Date.now()-start>timeout-500)throw error;}await delay(100);}throw Error(`Timed out: ${label}`);}
+// Every suite/restart must release its inspector before a new process is launched.
+const inspectorReleased=()=>until(async()=>{try{await fetch(`http://127.0.0.1:${port}/json/list`,{signal:AbortSignal.timeout(1000)});return false;}catch(error){if(error.name==='TimeoutError')return false;return true;}},'previous WebView2 inspector shutdown');
 try{
+ await inspectorReleased();app=launch();app.once('error',error=>{launchError=error;});
  let target;await until(async()=>{const targets=await(await fetch(`http://127.0.0.1:${port}/json/list`)).json();target=targets.find(t=>t.type==='page'&&t.url.includes('tauri.localhost'));return !!target?.webSocketDebuggerUrl;},'WebView2 inspector',45000);
  socket=new WebSocket(target.webSocketDebuggerUrl);await new Promise((r,j)=>{socket.addEventListener('open',r,{once:true});socket.addEventListener('error',j,{once:true});});
  let next=0;const pending=new Map();
@@ -25,10 +28,12 @@ try{
  socket.addEventListener('message',receive);
  const call=(method,params={})=>new Promise((resolve,reject)=>{const id=++next;const timer=setTimeout(()=>{pending.delete(id);reject(Error(`Inspector timeout: ${method}`));},20000);pending.set(id,{resolve:r=>{clearTimeout(timer);resolve(r);},reject:e=>{clearTimeout(timer);reject(e);}});socket.send(JSON.stringify({id,method,params}));});
  const evaluate=async expression=>{const result=await call('Runtime.evaluate',{expression,awaitPromise:true,returnByValue:true});if(result.exceptionDetails)throw Error(JSON.stringify(result.exceptionDetails));return result.result?.value;};
- // Seed preferences in the new document: pagehide flushes the running UI's state.
+ const readyUI=()=>until(()=>evaluate(`document.readyState==='complete'&&document.documentElement?.dataset.startup==='ready'&&!!document.querySelector('.window-titlebar')&&document.documentElement.dataset.windowTransition==='false'&&!!window.__TAURI_INTERNALS__?.invoke&&!window.__canarySecurityProbe`),'stable Canary main UI',30000);
+ // Seed preferences only after startup is stable: pagehide flushes the running UI's state.
  const reloadWithPreferences=async source=>{
+  await readyUI();
   const marker=String(Date.now())+Math.random();const {identifier}=await call('Page.addScriptToEvaluateOnNewDocument',{source:source+';window.__canaryQASeed='+JSON.stringify(marker)});
-  try{await call('Page.reload');await until(()=>evaluate('window.__canaryQASeed==='+JSON.stringify(marker)),'preference seed');}finally{await call('Page.removeScriptToEvaluateOnNewDocument',{identifier});}
+  try{await call('Page.reload');await until(()=>evaluate('window.__canaryQASeed==='+JSON.stringify(marker)),'preference seed');await readyUI();}finally{await call('Page.removeScriptToEvaluateOnNewDocument',{identifier});}
  };
  const invoke=(command,args={})=>evaluate(`window.__TAURI_INTERNALS__.invoke(${JSON.stringify(command)},${JSON.stringify(args)})`);
  const win=(command,args={})=>invoke(`plugin:window|${command}`,{label:'main',...args});
@@ -55,11 +60,10 @@ try{
   }
  };
 
- await call('Runtime.enable');await call('Page.enable');
+ await call('Runtime.enable');await call('Page.enable');await readyUI();
+ const initial=await invoke('backend_snapshot',{localOnly:true});assert.equal(resolve(initial.data_folder),qaDataRoot,'Native window QA must use this process and isolated storage');assert.deepEqual(initial.accounts,[]);
  // This suite deliberately exercises Hero geometry; fresh-user Hero stays off.
  await reloadWithPreferences(`localStorage.setItem('canary-language','en');localStorage.setItem('canary-visual',JSON.stringify({...JSON.parse(localStorage.getItem('canary-visual')||'{}'),showHero:true}));`);
- await until(()=>evaluate(`document.documentElement.dataset.startup==='ready'&&!!document.querySelector('.window-titlebar')&&document.documentElement.dataset.windowTransition==='false'&&!!window.__TAURI_INTERNALS__`),'Canary UI');
- const initial=await invoke('backend_snapshot',{localOnly:true});assert.equal(resolve(initial.data_folder),qaDataRoot,'Native window QA must use isolated storage');
  await invoke('save_collection_preferences',{preferences:{...initial.settings,close_to_tray:false}});
  report.capabilities=await invoke('window_material_capabilities');assert.equal(report.capabilities.platform,'windows');
  await win('unmaximize');await win('set_size',{value:{Physical:{width:900,height:620}}});await win('set_position',{value:{Physical:{x:50,y:40}}});await delay(300);
@@ -123,10 +127,11 @@ try{
  const saved=await persistence();assert.equal(saved.visual.sidebarSide,'right');assert.equal(saved.visual.sidebarMode,'floating');assert.equal(saved.compact,'true');assert.equal(saved.cards,'clear');
  const previousPid=app.pid;const exited=new Promise((resolve,reject)=>{const timer=setTimeout(()=>reject(Error('Canary process did not close')),15000);app.once('exit',()=>{clearTimeout(timer);resolve();});});
  // The close IPC can lose its response when the WebView is destroyed.
- void win('close').catch(()=>{});await exited;socket.close();await delay(500);launchError=undefined;app=launch();app.once('error',error=>{launchError=error;});
+ void win('close').catch(()=>{});await exited;socket.close();app=undefined;await inspectorReleased();launchError=undefined;app=launch();app.once('error',error=>{launchError=error;});
  await until(async()=>{const targets=await(await fetch(`http://127.0.0.1:${port}/json/list`)).json();target=targets.find(t=>t.type==='page'&&t.url.includes('tauri.localhost'));return !!target?.webSocketDebuggerUrl;},'restarted WebView2 inspector',45000);
  socket=new WebSocket(target.webSocketDebuggerUrl);await new Promise((resolve,reject)=>{socket.addEventListener('open',resolve,{once:true});socket.addEventListener('error',reject,{once:true});});socket.addEventListener('message',receive);
- await call('Runtime.enable');await call('Page.enable');await until(()=>evaluate(`!!document.querySelector('.home-hero')&&document.documentElement.dataset.windowTransition==='false'`),'restarted Canary Home');
+ await call('Runtime.enable');await call('Page.enable');await readyUI();await until(()=>evaluate(`!!document.querySelector('.home-hero')&&document.documentElement.dataset.windowTransition==='false'`),'restarted Canary Home');
+ const restartedSnapshot=await invoke('backend_snapshot',{localOnly:true});assert.equal(resolve(restartedSnapshot.data_folder),qaDataRoot);assert.deepEqual(restartedSnapshot.accounts,[]);
  const reopened=await persistence();assert.deepEqual(reopened,saved);assert.notEqual(app.pid,previousPid);await screenshot('right-floating-compact-clear-process-restart');
  report.cases.push({name:'material-layout-full-process-restart',previousPid,restartedPid:app.pid,sidebarSide:reopened.visual.sidebarSide,sidebarMode:reopened.visual.sidebarMode,compact:reopened.compact,preset:reopened.cards,configurationPreserved:true});
  await discoverInstallQA({evaluate,invoke,click,textButton,until,screenshot,report});
@@ -140,5 +145,5 @@ try{
  }catch(diagnosticError){report.startupDiagnosticError=String(diagnosticError).split('\n')[0];}
  throw error;
 }
-finally{await writeFile(resolve(folder,'result.json'),JSON.stringify(report,null,2));socket?.close();app.kill();closeSync(stdout);closeSync(stderr);}
+finally{await writeFile(resolve(folder,'result.json'),JSON.stringify(report,null,2));socket?.close();app?.kill();closeSync(stdout);closeSync(stderr);}
 

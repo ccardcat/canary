@@ -40,4 +40,4 @@ try{
  const shot=await call('Page.captureScreenshot',{format:'png',captureBeyondViewport:false});await writeFile(join(folder,'native-collection.png'),Buffer.from(shot.data,'base64'));
  await invoke('set_tray_language',{russian:false});await invoke('hide_to_tray');assert.equal(await win('is_visible'),false);await win('close');await until(async()=>!await win('is_visible'),'close to tray');assert.equal(app.exitCode,null);report.cases.push('native tray exists and close preserves the process');
  report.status='passed';console.log(JSON.stringify(report));
-}catch(error){report.status='failed';report.error=String(error);throw error;}finally{await writeFile(join(folder,'result.json'),JSON.stringify(report,null,2));socket?.close();app.kill();}
+}catch(error){report.status='failed';report.error=String(error);throw error;}finally{await writeFile(join(folder,'result.json'),JSON.stringify(report,null,2));socket?.close();if(app.exitCode===null){const exited=new Promise((resolve,reject)=>{const timer=setTimeout(()=>reject(Error('Collection QA process did not stop')),15000);app.once('exit',()=>{clearTimeout(timer);resolve();});});app.kill();await exited;}}
