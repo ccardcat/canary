@@ -16,7 +16,7 @@ export async function discoverInstallQA({evaluate,invoke,click,textButton,until,
   await until(()=>evaluate(`!!document.querySelector(${JSON.stringify(selector)})?.dataset.taskId`),'live project task');
   const taskId=await evaluate(`document.querySelector(${JSON.stringify(selector)}).dataset.taskId`);
   const mapping=await evaluate(`[...document.querySelectorAll('.discover-page .project-card')].map(card=>({project:card.dataset.projectId,task:card.dataset.taskId,label:card.querySelector('.install-action')?.textContent.trim()}))`);
-  assert.ok(mapping.length>=5);assert.equal(mapping.filter(card=>card.task).length,1);assert.equal(mapping.find(card=>card.task)?.project,project);assert.equal(mapping.filter(card=>/^Installing(?:\\s|$)/.test(card.label??'')).length,1);
+  assert.ok(mapping.length>=5);assert.equal(mapping.filter(card=>card.task).length,1);assert.equal(mapping.find(card=>card.task)?.project,project);assert.equal(mapping.filter(card=>(card.label??'').startsWith('Installing')).length,1);
   await screenshot('live-discover-one-project-installing');
   let nativeTask,handoffIssue;
   // Wait until version resolution has actually reached the Rust task registry.
