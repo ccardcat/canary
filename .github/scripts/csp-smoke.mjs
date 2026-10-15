@@ -1,5 +1,5 @@
 import {spawn} from 'node:child_process';
-import {mkdir,writeFile} from 'node:fs/promises';
+import {mkdir,writeFile,readFile} from 'node:fs/promises';
 import {resolve} from 'node:path';
 import {randomUUID} from 'node:crypto';
 import assert from 'node:assert/strict';
@@ -27,6 +27,14 @@ try{
   try{browser=await chromium.connectOverCDP(`http://127.0.0.1:${port}`,{timeout:1000});break;}catch{await delay(500);}
  }
  assert.ok(browser,'WebView2 inspector did not start');
+ let setupReady=false;
+ for(let attempt=0;attempt<120;attempt++){
+  if(app.exitCode!==null)throw Error(`Canary exited during setup (${app.exitCode}): ${stderr}`);
+  const stages=await readFile(resolve(folder,'startup.log'),'utf8').catch(()=>'');
+  if(stages.includes('Tauri setup complete')){setupReady=true;break;}await delay(250);
+ }
+ assert.ok(setupReady,`Canary setup did not finish: ${stderr}`);
+
  const context=browser.contexts()[0];let page;
  for(let attempt=0;attempt<60;attempt++){for(const candidate of context.pages()){if(candidate.url().includes('tauri.localhost')&&await candidate.evaluate(()=>!window.__canarySecurityProbe&&!!window.__TAURI_INTERNALS__?.invoke).catch(()=>false)){page=candidate;break;}}if(page)break;await delay(500);}
  report.targets=await Promise.all(context.pages().map(async candidate=>({url:candidate.url(),probe:await candidate.evaluate(()=>window.__canarySecurityProbe??null).catch(()=>null)})));

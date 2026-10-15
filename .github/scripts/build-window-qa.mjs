@@ -9,8 +9,8 @@ const folder = resolve('qa/windows-window-smoke');
 await mkdir(folder, { recursive: true });
 const config = JSON.parse(await readFile('src-tauri/tauri.conf.json', 'utf8'));
 config.app.windows[0].devtools = true;
-config.app.windows[0].additionalBrowserArgs = '--remote-debugging-port=9384 --remote-debugging-address=127.0.0.1';
-config.app.windows[0].dataDirectory = 'canary-native-qa-webview';
+// Each QA script supplies one shared WebView2 environment for main and ACL probes.
+// Per-window browser arguments or data folders would create incompatible environments.
 const path = resolve(folder, 'inspector-config.json');
 await writeFile(path, JSON.stringify(config));
 const build = spawnSync(process.execPath, [resolve('node_modules/@tauri-apps/cli/tauri.js'), 'build', '--ci', '--no-bundle', '--features', 'native-qa', '--config', path, '--', '--locked'], { stdio: 'inherit' });
