@@ -1,3 +1,4 @@
+pub mod fonts;
 pub mod live_content;
 pub mod launcher_database;
 pub mod collection;

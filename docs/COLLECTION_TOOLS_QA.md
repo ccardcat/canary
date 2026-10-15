@@ -15,6 +15,7 @@ The status dock is omitted. Progress remains on project cards and the Downloads 
 - Stop immediately reports the stopping state and gives Minecraft three seconds to exit before offering force stop.
 - Adding new mods, shaders and resource packs is allowed during a session. Duplicate/replacement files and destructive changes remain blocked. Mods load on restart. Resource packs and shaders can be selected in the running game's settings; no automatic in-game selection is implemented.
 - Cards hide loader and modpack version numbers, keeping Minecraft and the loader name. Light surfaces provide a text backing for arbitrary artwork. Disclosures animate with a reduced-motion override.
+- Typography can import .ttf/.otf files up to 16 MiB into Canary's font library. Selection persists across restart. Removing the active custom font returns to Nunito; original files and system fonts are not changed.
 - The sidebar supports left, right, top, bottom and four corners with an optional Mini size. Floating placements reserve a content lane.
 
 ## Checks

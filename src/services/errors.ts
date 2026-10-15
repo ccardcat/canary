@@ -18,6 +18,7 @@ function explainedCode(detail:ErrorDetail){
  return detail.code;
 }
 const copies:Record<string,{ru:Copy;en:Copy}>={
+ font:{ru:["Не удалось загрузить шрифт","Canary не смог прочитать или сохранить этот шрифт.","Выберите другой файл .ttf или .otf размером до 16 МБ."],en:["Could not load the font","Canary could not read or save this font.","Choose another .ttf or .otf file up to 16 MiB."]},
  rateLimit:{ru:["Сервер просит подождать","Источник загрузки временно ограничил число запросов.","Подождите немного и повторите загрузку. Не запускайте много установок одновременно."],en:["The server asks you to wait","The download source temporarily limited the number of requests.","Wait a little and retry. Avoid starting many installations at once."]},
  sourceMissing:{ru:["Файл больше недоступен","Сервер не нашёл выбранный файл или версию сборки.","Выберите другую версию на странице проекта и повторите установку."],en:["The file is no longer available","The server could not find the selected file or pack version.","Choose another release on the project page and retry."]},
  sourceDenied:{ru:["Источник не разрешил загрузку","Сервер отказал в доступе к выбранному файлу.","Проверьте доступность файла на странице проекта. Выберите другую версию или разрешённый автором способ загрузки."],en:["The source refused the download","The server denied access to the selected file.","Check availability on the project page. Choose another release or a download method allowed by the author."]},

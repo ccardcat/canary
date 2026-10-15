@@ -10,6 +10,10 @@ const root=join(folder,'data-'+crypto.randomUUID()),source=join(root,'instances'
 await mkdir(join(source,'saves','World'),{recursive:true});await mkdir(join(source,'mods'),{recursive:true});await mkdir(join(source,'config'),{recursive:true});
 await writeFile(join(source,'saves','World','level.dat'),'original world');await writeFile(join(source,'saves','World','session.lock'),'lock');await writeFile(join(source,'mods','demo.jar'),'local mod');await writeFile(join(source,'config','demo.txt'),'mod settings');await writeFile(join(source,'options.txt'),'version:4000\nfov:0.5\nkey_jump:key.keyboard.space\nrenderDistance:12\n');
 await writeFile(join(source,'instance.json'),JSON.stringify({id:'collection-source',name:'Collection QA',minecraft:'1.21.1',loader:'vanilla'}));
+const fontId='a99d6db7-9850-4949-aa3c-6cef18e7a60f';
+await mkdir(join(root,'fonts'),{recursive:true});
+await writeFile(join(root,'fonts',fontId+'.ttf'),await readFile(resolve('public/Monocraft.ttf')));
+await writeFile(join(root,'fonts','index.json'),JSON.stringify([{id:fontId,name:'Native QA typeface',extension:'ttf',hash:'fixture'}]));
 const app=spawn(resolve(process.argv[2]||'qa/windows-window-smoke/canary-native-qa.exe'),[],{windowsHide:true,env:{...process.env,CANARY_QA_DATA_ROOT:root,WEBVIEW2_USER_DATA_FOLDER:join(folder,'webview'),WEBVIEW2_ADDITIONAL_BROWSER_ARGUMENTS:'--remote-debugging-port=9384 --remote-debugging-address=127.0.0.1'},stdio:'ignore'});
 let socket,launchError;app.once('error',error=>{launchError=error;});const pause=ms=>new Promise(r=>setTimeout(r,ms));
 async function until(check,name,timeout=45000){const start=Date.now();while(Date.now()-start<timeout){if(launchError)throw launchError;if(app.exitCode!==null)throw Error(`Canary exited during ${name}`);try{if(await check())return;}catch{}await pause(150);}throw Error(`Timeout: ${name}`);}
@@ -24,6 +28,10 @@ try{
  const win=(command)=>invoke(`plugin:window|${command}`,{label:'main'});
  await until(()=>evaluate(`document.documentElement.dataset.startup==='ready'&&!!window.__TAURI_INTERNALS__`),'startup');
  const initial=await invoke('backend_snapshot',{localOnly:true});assert.equal(resolve(initial.data_folder),root,'QA build must honor isolated storage');assert.equal(initial.accounts.length,0);
+ const fonts=await invoke('list_fonts');assert.equal(fonts.length,1);assert.equal(fonts[0].id,fontId);
+ const fontLoaded=await evaluate(`(async()=>{const url=window.__TAURI_INTERNALS__.convertFileSrc(${JSON.stringify(fonts[0].path)});const response=await fetch(url);if(!response.ok)throw Error('Managed font unavailable');const face=await new FontFace('CanaryNativeFont',await response.arrayBuffer()).load();document.fonts.add(face);return document.fonts.check('14px CanaryNativeFont');})()`);
+ assert.equal(fontLoaded,true);await invoke('remove_font',{id:fontId});assert.equal((await invoke('list_fonts')).length,0);report.cases.push('custom font real parser, scoped file access and native removal');
+
  const copy=await invoke('clone_instance',{id:'collection-source',name:'Independent QA copy',options:{worlds:true,settings:false,screenshots:false}});assert.notEqual(copy.id,'collection-source');assert.equal(await readFile(join(copy.directory,'saves','World','level.dat'),'utf8'),'original world');await assert.rejects(readFile(join(copy.directory,'config','demo.txt')));await writeFile(join(copy.directory,'mods','demo.jar'),'changed copy');assert.equal(await readFile(join(source,'mods','demo.jar'),'utf8'),'local mod');report.cases.push('independent copy and optional files');
  const backup=await invoke('create_world_backup',{id:'collection-source'});assert.ok(backup.id);await writeFile(join(source,'saves','World','level.dat'),'current world');await invoke('restore_world_backup',{id:'collection-source',backupId:backup.id,confirmed:true});assert.equal(await readFile(join(source,'saves','World','level.dat'),'utf8'),'original world');assert.equal((await invoke('list_world_backups',{id:'collection-source'})).length,2);report.cases.push('world restore and current-world safeguard');
  await invoke('capture_game_settings',{id:'collection-source'});await invoke('set_shared_settings',{id:copy.id,enabled:true});report.cases.push('shared game settings commands');

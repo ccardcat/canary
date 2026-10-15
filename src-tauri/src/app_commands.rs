@@ -1,5 +1,8 @@
 // Registered commands require the main local window capability.
 pub const COMMANDS:&[&str]=&[
+    "list_fonts",
+    "import_font",
+    "remove_font",
     "hide_to_tray",
     "set_tray_language",
     "clone_instance",

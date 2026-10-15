@@ -2,6 +2,9 @@
 identifier = "canary-backend"
 description = "Validated Canary commands for the main bundled window only"
 commands.allow = [
+  "list_fonts",
+  "import_font",
+  "remove_font",
   "hide_to_tray",
   "set_tray_language",
   "clone_instance",
