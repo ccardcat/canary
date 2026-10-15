@@ -12,7 +12,7 @@ if(process.platform!=='win32')throw Error('Windows CSP QA only');
 const folder=resolve(process.env.CANARY_CSP_QA_OUTPUT||'.qa/csp-native');
 const data=resolve(folder,'data-'+randomUUID()),profile=resolve(folder,'webview-'+randomUUID());
 await mkdir(folder,{recursive:true});
-const report={status:'running',cases:[],violations:[]},port=Number(process.env.CANARY_CSP_QA_PORT||9385);
+const report={status:'running',cases:[],violations:[]},port=Number(process.env.CANARY_CSP_QA_PORT||9384);
 let browser,app,stderr='';
 const remoteServer=createServer((request,response)=>{response.writeHead(200,{'content-type':'text/html'});response.end('<!doctype html><title>Remote ACL probe</title><p>Isolated remote page</p>');});
 await new Promise(resolve=>remoteServer.listen(0,'127.0.0.1',resolve));

@@ -51,14 +51,16 @@ pub fn run() {
             use tauri::Manager;
             #[cfg(all(windows,feature="native-qa"))]
             if std::env::var("CANARY_IPC_SECURITY_QA").as_deref()==Ok("true") {
-                tauri::WebviewWindowBuilder::new(app,"security-local",tauri::WebviewUrl::App("index.html".into()))
-                    .title("Canary local ACL probe").visible(false)
+                // WebViews sharing a browser profile must use identical environment options.
+                let main=app.config().app.windows.iter().find(|config|config.label=="main").ok_or("Main QA window config is missing")?.clone();
+                let mut local=main.clone();local.label="security-local".into();local.url=tauri::WebviewUrl::App("index.html".into());local.title="Canary local ACL probe".into();local.visible=false;
+                tauri::WebviewWindowBuilder::from_config(app,&local)?
                     .initialization_script("window.__canarySecurityProbe='local';").build()?;
                 let remote=std::env::var("CANARY_IPC_QA_REMOTE_URL")?;
                 let url=tauri::Url::parse(&remote)?;
                 if url.scheme()!="http"||url.host_str()!=Some("127.0.0.1") {return Err("Native QA requires an isolated loopback page".into());}
-                tauri::WebviewWindowBuilder::new(app,"security-remote",tauri::WebviewUrl::External(url))
-                    .title("Canary remote ACL probe").visible(false)
+                let mut remote=main;remote.label="security-remote".into();remote.url=tauri::WebviewUrl::External(url);remote.title="Canary remote ACL probe".into();remote.visible=false;
+                tauri::WebviewWindowBuilder::from_config(app,&remote)?
                     .initialization_script("window.__canarySecurityProbe='remote';").build()?;
             }
             if let Some(window) = app.get_webview_window("main") {
