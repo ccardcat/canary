@@ -7,7 +7,7 @@ export async function nativeFixture(page: Page) {
     route.fulfill({ json: { hits: [], total_hits: 0 } }),
   );
   await page.route("**/src/main.tsx*", async (route) => {
-    const response = await route.fetch();
+    const response = await route.fetch({maxRetries:2});
     const body = await response.text();
     await route.fulfill({
       response,
