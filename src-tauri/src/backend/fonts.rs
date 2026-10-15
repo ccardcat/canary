@@ -44,7 +44,7 @@ pub fn import_file(b:&Backend,source:&Path)->Result<FontEntry>{
  if !matches!(extension.as_str(),"ttf"|"otf"){return Err(font_error("Choose a .ttf or .otf font"))}
  let input=fs::open(source)?;if input.metadata()?.len()>MAX_BYTES{return Err(font_error("Choose a font up to 16 MiB"))}
  let mut bytes=vec![];input.take(MAX_BYTES+1).read_to_end(&mut bytes)?;validate(&bytes)?;
- let hash=format!("{:x}",Sha256::digest(&bytes));let mut fonts=index(b)?;
+ let hash=Sha256::digest(&bytes).iter().map(|byte|format!("{byte:02x}")).collect::<String>();let mut fonts=index(b)?;
  if let Some(font)=fonts.iter().find(|font|font.hash==hash){
   if !path(b,font).is_file(){fs::write(path(b,font),&bytes)?}
   return Ok(entry(b,font))

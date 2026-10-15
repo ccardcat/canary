@@ -8,12 +8,12 @@ export async function materialPresetQA({evaluate,choose,click,textButton,call,wi
  const ids=['solid','soft','vibrancy','glass','clear','liquid','transparent'];
  const geometry=()=>evaluate(`['.sidebar','.settings-modal','.window-titlebar','.home-hero'].map(selector=>{const r=document.querySelector(selector).getBoundingClientRect();return {x:r.x,y:r.y,width:r.width,height:r.height};})`);
  const unrelated=()=>evaluate(`(()=>{const value=JSON.parse(localStorage.getItem('canary-visual'));return Object.fromEntries(['sidebarSide','sidebarMode','materialRadius','instanceLayout','instanceArtwork','buttonDensity','app','sidebar','font','fontScale','backgroundSource','material','tint','windowTransparency'].map(key=>[key,value[key]]));})()`);
- const section=async id=>{await until(()=>evaluate(`!!document.querySelector('[data-settings-section="${id}"]')`),'settings navigation');await evaluate(`(()=>{const button=document.querySelector('[data-settings-section="${id}"]');const group=button.closest('[data-settings-group]');const toggle=group?.querySelector('.settings-group-toggle');if(toggle?.getAttribute('aria-expanded')==='false')toggle.click();button.click();})()`);await until(()=>evaluate(`document.querySelector('[data-settings-section="${id}"]')?.getAttribute('aria-current')==='page'`),'active settings section');};
+ const section=async id=>{await until(()=>evaluate(`!!document.querySelector('[data-settings-section="${id}"]')`),'settings navigation');await evaluate(`(()=>{const button=document.querySelector('[data-settings-section="${id}"]');const group=button.closest('[data-settings-group]');const toggle=group?.querySelector('.settings-group-toggle');if(toggle?.getAttribute('aria-expanded')==='false')toggle.click();button.click();})()`);await until(()=>evaluate(`(()=>{const content=document.querySelector('[data-settings-content="${id}"][aria-hidden="false"]');return !!content&&getComputedStyle(content).opacity==='1';})()`),'active settings section');};
  const settings=async()=>{await until(()=>evaluate(`!!document.querySelector('.home-hero')&&getComputedStyle(document.querySelector('.page-transition')).opacity==='1'`),'material QA Home');await click(textButton('.sidebar button','Settings'));await section('materials');await until(()=>evaluate(`!!document.querySelector('.material-settings')&&getComputedStyle(document.querySelector('.settings-modal')).opacity==='1'`),'material QA Settings');};
  await win('set_size',{value:{Physical:{width:1200,height:760}}});await delay(300);
  report.surfaceMaterials=[];
  for(const side of ['left','right'])for(const mode of ['attached','floating'])for(const compact of [false,true]) {
-  await reloadWithPreferences(`(()=>{const old=JSON.parse(localStorage.getItem('canary-visual'));localStorage.setItem('canary-visual',JSON.stringify({...old,sidebarSide:${JSON.stringify(side)},sidebarMode:${JSON.stringify(mode)},quality:'balanced',focus:false,reduceTransparency:false,backgroundSource:'canary',app:'sakura1',sidebar:'green'}));localStorage.setItem('canary-compact',${JSON.stringify(String(compact))});localStorage.setItem('canary-sidebar-expanded-narrow','true');localStorage.setItem('canary-mode','dark');})()`);
+  await reloadWithPreferences(`(()=>{const old=JSON.parse(localStorage.getItem('canary-visual'));localStorage.setItem('canary-visual',JSON.stringify({...old,sidebarSide:${JSON.stringify(side)},sidebarMode:${JSON.stringify(mode)},quality:'balanced',focus:false,reduceTransparency:false,backgroundSource:'canary',app:'amethyst-cave',sidebar:'winter-island'}));localStorage.setItem('canary-compact',${JSON.stringify(String(compact))});localStorage.setItem('canary-sidebar-expanded-narrow','true');localStorage.setItem('canary-mode','dark');})()`);
   await settings();const before=await geometry(),saved=await unrelated();
   for(let i=0;i<names.length;i++) {
    await choose('Material preset',names[i]);
@@ -32,7 +32,7 @@ export async function materialPresetQA({evaluate,choose,click,textButton,call,wi
    await win('set_size',{value:{Physical:{width,height:760}}});await delay(300);const before=await geometry();
    for(let i=0;i<names.length;i++) {
     await choose('Material preset',names[i]);assert.deepEqual(await geometry(),before);
-    await evaluate(`document.querySelector('.material-preview').scrollIntoView({block:'center'})`);
+    await evaluate(`(()=>{const preview=document.querySelector('.material-preview');if(preview.closest('details'))preview.closest('details').open=true;preview.scrollIntoView({block:'center'});})()`);
     await screenshot(`surface-${theme.toLowerCase()}-${width}-${ids[i]}`);
     report.surfaceMaterials.push({theme,width,preset:ids[i],geometryStable:true,nativeWindow:true});
    }
