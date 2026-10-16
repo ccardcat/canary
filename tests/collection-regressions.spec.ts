@@ -25,7 +25,7 @@ test("skins belong to the sidebar and follow Microsoft or Ely.by without automat
  await expect(page.getByRole("button",{name:"Open Ely.by",exact:true})).toBeVisible();
  await page.getByRole("button",{name:"Save to my skins",exact:true}).click();await expect(page.locator(".skin-entry[aria-pressed=true]")).toContainText("ElyPlayer");
  expect(await page.evaluate(()=>(globalThis as any).__materialQA.calls.find((c:any)=>c.command==="save_account_skin").args)).toEqual({accountId:"ely"});
- await page.locator(".skin-account-preview").getByRole("slider",{name:"Rotation",exact:true}).fill("25");await page.locator(".skin-library").getByRole("slider",{name:"Rotation",exact:true}).fill("25");
+ for(const scope of [".skin-account-preview",".skin-library"]){const rotate=page.locator(scope).getByRole("button",{name:"Rotate",exact:true});if(await rotate.getAttribute("aria-pressed")==="true")await rotate.click();await page.locator(scope).getByRole("slider",{name:"Rotation",exact:true}).fill("25");}
  mkdirSync(".qa/collection-regressions",{recursive:true});await page.locator(".skin-account-card").screenshot({path:".qa/collection-regressions/ely-current-skin.png"});await page.locator(".skin-library").screenshot({path:".qa/collection-regressions/ely-saved-skin.png"});
 });
 
@@ -49,6 +49,7 @@ test("narrow Russian library cards keep play repair and folder on the same row",
  const metrics=await actions.evaluate(el=>{const buttons=[...el.querySelectorAll("button")];const rects=buttons.map(b=>b.getBoundingClientRect());const card=el.closest(".instance-card")!.getBoundingClientRect();return {centers:rects.map(r=>r.top+r.height/2),inside:rects.every(r=>r.left>=card.left&&r.right<=card.right),overflow:el.scrollWidth>el.clientWidth};});
  expect(Math.max(...metrics.centers)-Math.min(...metrics.centers)).toBeLessThan(2);expect(metrics.inside).toBe(true);expect(metrics.overflow).toBe(false);
  await expect(actions.locator("button")).toHaveCount(3);
+ const links=card.locator(".instance-links");const lower=await links.evaluate(el=>{const labels=[...el.querySelectorAll<HTMLElement>(".density-label")];const buttons=[...el.querySelectorAll("button")].map(b=>b.getBoundingClientRect());return {heights:buttons.map(r=>r.height),singleLine:labels.every(label=>{const range=document.createRange();range.selectNodeContents(label);return range.getClientRects().length===1;}),labelsFit:labels.every(label=>label.scrollWidth<=label.clientWidth)};});expect(Math.max(...lower.heights)-Math.min(...lower.heights)).toBeLessThan(1);expect(lower.singleLine).toBe(true);expect(lower.labelsFit).toBe(true);
  mkdirSync(".qa/collection-regressions",{recursive:true});await card.scrollIntoViewIfNeeded();await expect(actions).toBeInViewport();await card.screenshot({path:".qa/collection-regressions/ru-card-760.png"});await page.screenshot({path:".qa/collection-regressions/ru-library-760.png",fullPage:true});
 });
 
@@ -68,6 +69,8 @@ test("account skins fit narrow Light Dark and AMOLED pages without horizontal ov
   await nav(page,"Skins").click();await page.getByRole("combobox",{name:"Skin account"}).click();await page.getByRole("option",{name:"LicensedPlayer · Microsoft"}).click();await expect(page.locator(".skin-account-copy")).toContainText("Microsoft / Minecraft");
   await expect(page.locator(".page-transition").last()).toHaveCSS("opacity","1");await expect(page.locator("html")).toHaveAttribute("data-mode",mode.toLowerCase());
   const width=await page.locator(".content-shell").evaluate(el=>({client:el.clientWidth,scroll:el.scrollWidth}));expect(width.scroll).toBeLessThanOrEqual(width.client);
-  await page.locator(".skin-account-preview").getByRole("slider",{name:"Rotation",exact:true}).fill("25");await page.locator(".skin-account-card").screenshot({path:".qa/collection-regressions/skin-"+mode.toLowerCase()+".png"});
+  const rotate=page.locator(".skin-account-preview").getByRole("button",{name:"Rotate",exact:true});if(await rotate.getAttribute("aria-pressed")==="true")await rotate.click();await page.locator(".skin-account-preview").getByRole("slider",{name:"Rotation",exact:true}).fill("25");
+  // Width/overflow was checked at 760x540; a taller capture shows the full card.
+  await page.setViewportSize({width:760,height:900});await page.locator(".skin-account-card").screenshot({path:".qa/collection-regressions/skin-"+mode.toLowerCase()+".png"});await page.setViewportSize({width:760,height:540});
  }
 });
