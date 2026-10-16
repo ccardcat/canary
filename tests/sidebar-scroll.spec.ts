@@ -226,7 +226,8 @@ test("wheel, scrollbar drag and Tab reveal navigation while utilities stay pinne
   await page.screenshot({ path: ".qa/sidebar-scroll/drag-bottom.png" });
   await nav.evaluate((el) => (el.scrollTop = 0));
   await nav.locator("button").first().focus();
-  for (let i = 0; i < 6; i++) await page.keyboard.press("Tab");
+  const navigationSteps=(await nav.locator("button").count())-1;
+  for (let i = 0; i < navigationSteps; i++) await page.keyboard.press("Tab");
   await expect(nav.locator("button").last()).toBeFocused();
   expect(await nav.evaluate((el) => el.scrollTop)).toBeGreaterThan(0);
   await expect(nav.locator("button").last()).toHaveCSS("outline-style", "solid");

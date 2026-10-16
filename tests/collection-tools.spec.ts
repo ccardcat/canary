@@ -1,3 +1,4 @@
+import {skinFixture} from "./helpers/skins";
 import {test,expect,type Page} from '@playwright/test';
 import {nativeFixture} from './helpers/nativeFixture';
 import {settingsSection} from './helpers/settings';
@@ -15,12 +16,14 @@ test('card metadata hides pack and loader versions while keeping the game versio
 test('new disclosure wrappers open and close through native summaries',async({page})=>{await nav(page,'Settings').click();await settingsSection(page,'sidebar');const details=page.locator('details.material-disclosure');await details.locator('summary').click();await expect(details).toHaveAttribute('data-expanded','true');await expect(details.locator('.animated-disclosure-content')).toBeVisible();await details.locator('summary').click();await expect(details).toHaveAttribute('data-expanded','false');await expect(details).not.toHaveAttribute('open','');});
 
 test('skin library previews both models and uploads only to the selected Microsoft account',async({page})=>{
- await page.evaluate(()=>{const qa=(globalThis as any).__materialQA;const canvas=document.createElement('canvas');canvas.width=canvas.height=64;const ctx=canvas.getContext('2d')!;ctx.fillStyle='#e9b770';ctx.fillRect(0,0,64,64);ctx.fillStyle='#8bd298';ctx.fillRect(16,16,24,16);ctx.fillStyle='#2b4853';ctx.fillRect(0,16,16,16);qa.skins=[];qa.overrides.list_skins=()=>qa.skins;qa.overrides.import_skin=()=>{const skin={id:'skin-1',name:'My skin',model:'classic',legacy:false,preview:canvas.toDataURL()};qa.skins.push(skin);return skin;};qa.overrides.edit_skin=(args:any)=>Object.assign(qa.skins[0],args);qa.overrides.apply_skin=()=>{};});
+ await page.evaluate(preview=>{const qa=(globalThis as any).__materialQA;qa.skins=[];qa.overrides.list_skins=()=>qa.skins;qa.overrides.import_skin=()=>{const skin={id:'skin-1',name:'My skin',model:'classic',legacy:false,preview};qa.skins.push(skin);return skin;};qa.overrides.edit_skin=(args:any)=>Object.assign(qa.skins[0],args);qa.overrides.apply_skin=()=>{};},await page.evaluate(skinFixture));
  await nav(page,'Skins').click();
  await page.getByRole('button',{name:'Add PNG',exact:true}).click();
  await expect(page.getByRole('img',{name:'3D skin preview'})).toBeVisible();
+ const classicArm=await page.locator('.skin-library .skin-cube').nth(2).evaluate(el=>parseFloat(getComputedStyle(el).width));
  await page.getByRole('combobox',{name:'Model',exact:true}).click();await page.getByRole('option',{name:'Slim',exact:true}).click();
  await expect.poll(()=>page.evaluate(()=>(globalThis as any).__materialQA.skins[0].model)).toBe('slim');
+ await expect.poll(()=>page.locator('.skin-library .skin-cube').nth(2).evaluate(el=>parseFloat(getComputedStyle(el).width))).toBe(classicArm*.75);
  await page.getByRole('combobox',{name:'Skin account',exact:true}).click();await page.getByRole('option',{name:'Choose Microsoft or Ely.by',exact:true}).click();
  await expect(page.getByRole('button',{name:'Apply skin',exact:true})).toHaveCount(0);
  await page.getByRole('combobox',{name:'Skin account',exact:true}).click();await expect(page.getByRole('option',{name:/CanaryPlayer/})).toHaveCount(0);await page.getByRole('option',{name:'LicensedPlayer · Microsoft',exact:true}).click();
