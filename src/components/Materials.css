@@ -190,7 +190,7 @@
 .instance-links>button {min-width:0;justify-content:center;overflow:hidden;gap:6px;padding-inline:8px}
 .instance-links .density-label {min-width:0;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
 .instance-card {container-type:inline-size}
-@container (max-width:390px) {.instance-actions {grid-template-columns:minmax(90px,1fr) 36px 36px}.instance-actions>button:nth-child(2) {padding:8px}.instance-actions>button:nth-child(2) .density-label {display:none}}
+@container (max-width:390px) {.instance-actions {grid-template-columns:minmax(90px,1fr) 36px 36px}.instance-actions>button:nth-child(2) {padding:8px}.instance-actions>button:nth-child(2) .density-label {display:none}.instance-links>button>svg {display:none}}
 :root .instance-actions .repair-needed { border-color:color-mix(in srgb,var(--accent) 45%,var(--line)); color:var(--text); font-weight:700; }
 .instance-links { display:flex; gap:8px; margin-top:12px; flex-wrap:wrap; }
 :root .instance-card .card-body { display:flex; flex-direction:column; padding:16px; position:relative; }
