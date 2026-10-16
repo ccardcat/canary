@@ -5,7 +5,7 @@ The status dock is omitted. Progress remains on project cards and the Downloads 
 ## Behavior
 
 - Test copies offer independent choices for worlds, settings and screenshots. Copies receive a new ID and do not overwrite their source.
-- Export produces a local .mrpack with the exact Minecraft/loader versions and selected overrides. Accounts, worlds, screenshots, runtimes and launcher logs are excluded.
+- Export produces a local .mrpack with the exact Minecraft/loader versions and selected overrides. Accounts, worlds, screenshots, private JourneyMap/Xaero map data, runtimes and launcher logs are excluded. Map data follows the worlds choice when cloning or transferring.
 - Shared game options are opt-in for each instance. Only controls, mouse, sound, FOV and accessibility options are shared; graphics and unknown options stay local. The selected source is captured after Minecraft exits.
 - Transfer discovers Prism, Modrinth and Minecraft instances through an explicitly selected folder. Unrecognized folders require a Minecraft/loader choice before import.
 - Skins have their own sidebar page. The current skin is fetched by the selected Microsoft/Ely.by account UUID from its official profile service, with provider-bound texture hosts and Classic/Slim metadata. There is no nickname search or random skin fallback. A current account skin can be saved to the local library; imported PNGs remain supported. Upload requires a selected Microsoft Minecraft Java account and an explicit Apply action. Ely.by changes open the provider site; the launcher does not claim native Ely.by uploads.
