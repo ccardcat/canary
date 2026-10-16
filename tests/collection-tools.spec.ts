@@ -21,6 +21,7 @@ test('skin library previews both models and uploads only to the selected Microso
  await expect(page.getByRole('img',{name:'3D skin preview'})).toBeVisible();
  await page.getByRole('combobox',{name:'Model',exact:true}).click();await page.getByRole('option',{name:'Slim',exact:true}).click();
  await expect.poll(()=>page.evaluate(()=>(globalThis as any).__materialQA.skins[0].model)).toBe('slim');
+ await page.getByRole('combobox',{name:'Skin account',exact:true}).click();await page.getByRole('option',{name:'Choose Microsoft or Ely.by',exact:true}).click();
  await expect(page.getByRole('button',{name:'Apply skin',exact:true})).toHaveCount(0);
  await page.getByRole('combobox',{name:'Skin account',exact:true}).click();await expect(page.getByRole('option',{name:/CanaryPlayer/})).toHaveCount(0);await page.getByRole('option',{name:'LicensedPlayer · Microsoft',exact:true}).click();
  expect(await page.evaluate(()=>(globalThis as any).__materialQA.calls.some((c:any)=>c.command==='apply_skin'))).toBe(false);
