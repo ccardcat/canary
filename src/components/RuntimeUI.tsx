@@ -1,5 +1,5 @@
 import {Fragment} from "react";
-import {groupLabel,InstanceTools,SharedGameSettings,CollectionPreferences,LibraryGroups,LauncherTransfer,SkinLibrary} from "./CollectionTools";
+import {groupLabel,InstanceTools,SharedGameSettings,CollectionPreferences,LibraryGroups,LauncherTransfer} from "./CollectionTools";
 import {ActivityPage} from "./ActivityPage";
 import {ErrorDialog} from "./ErrorDialog";
 import {GameLogs} from "./GameLogs";
@@ -43,7 +43,7 @@ export function AccountsPanel({russian}:{russian:boolean}) {
       {remove===account.id&&<div className="runtime-inline account-confirm" role="group" aria-label={text.remove}><span>{text.remove} {account.username}?</span><button className="quiet-button destructive" onClick={()=>ignore(run("remove_account",{id:account.id}).then(()=>{setRemove("");if(edit===account.id)setEdit("");}))}>{text.confirm}</button><button className="quiet-button" onClick={()=>setRemove("")}>{text.cancel}</button></div>}
     </div>)}
     <form className="runtime-form local-account-form" onSubmit={e=>{e.preventDefault();ignore(run("create_local_account",{username}).then(()=>setUsername("")));}}><label>{text.username}<input aria-label={text.username} placeholder="MinecraftPlayer" autoComplete="off" spellCheck={false} value={username} minLength={3} maxLength={16} pattern="[A-Za-z0-9_]+" required onChange={e=>setUsername(e.target.value)}/></label><button className="compact-action" disabled={!isTauri()||!username.trim()}><Plus size={15}/>{text.createLocal}</button></form>
-    <p className="settings-note local-account-note">{text.localNote}</p><div className="account-logins"><button className="compact-action" onClick={()=>setEly(true)}>{ct.authLogin}</button><button className="compact-action" disabled={!snapshot?.providers.microsoft?.configured} data-tooltip={snapshot?.providers.microsoft?.configured?undefined:(snapshot?.providers.microsoft?.requirement||ct.authUnavailable)} onClick={()=>setMicrosoft(true)}>Microsoft{!snapshot?.providers.microsoft?.configured&&<span className="control-status">{russian?"Недоступен":"Unavailable"}</span>}</button></div>{ely&&<ElyLogin russian={russian} onClose={()=>setEly(false)}/>} {microsoft&&<MicrosoftLogin russian={russian} onClose={()=>setMicrosoft(false)}/>}<SkinLibrary russian={russian}/>
+    <p className="settings-note local-account-note">{text.localNote}</p><div className="account-logins"><button className="compact-action" onClick={()=>setEly(true)}>{ct.authLogin}</button><button className="compact-action" disabled={!snapshot?.providers.microsoft?.configured} data-tooltip={snapshot?.providers.microsoft?.configured?undefined:(snapshot?.providers.microsoft?.requirement||ct.authUnavailable)} onClick={()=>setMicrosoft(true)}>Microsoft{!snapshot?.providers.microsoft?.configured&&<span className="control-status">{russian?"Недоступен":"Unavailable"}</span>}</button></div>{ely&&<ElyLogin russian={russian} onClose={()=>setEly(false)}/>} {microsoft&&<MicrosoftLogin russian={russian} onClose={()=>setMicrosoft(false)}/>}
   </div>;
 }
 export function RuntimeSettingsPanel({russian,section="all"}:{russian:boolean;section?:"all"|"minecraft"|"downloads"|"advanced"}) {

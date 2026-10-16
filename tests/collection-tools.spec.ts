@@ -16,16 +16,17 @@ test('new disclosure wrappers open and close through native summaries',async({pa
 
 test('skin library previews both models and uploads only to the selected Microsoft account',async({page})=>{
  await page.evaluate(()=>{const qa=(globalThis as any).__materialQA;const canvas=document.createElement('canvas');canvas.width=canvas.height=64;const ctx=canvas.getContext('2d')!;ctx.fillStyle='#e9b770';ctx.fillRect(0,0,64,64);ctx.fillStyle='#8bd298';ctx.fillRect(16,16,24,16);ctx.fillStyle='#2b4853';ctx.fillRect(0,16,16,16);qa.skins=[];qa.overrides.list_skins=()=>qa.skins;qa.overrides.import_skin=()=>{const skin={id:'skin-1',name:'My skin',model:'classic',legacy:false,preview:canvas.toDataURL()};qa.skins.push(skin);return skin;};qa.overrides.edit_skin=(args:any)=>Object.assign(qa.skins[0],args);qa.overrides.apply_skin=()=>{};});
- await nav(page,'Settings').click();await settingsSection(page,'Account');
+ await nav(page,'Skins').click();
  await page.getByRole('button',{name:'Add PNG',exact:true}).click();
  await expect(page.getByRole('img',{name:'3D skin preview'})).toBeVisible();
  await page.getByRole('combobox',{name:'Model',exact:true}).click();await page.getByRole('option',{name:'Slim',exact:true}).click();
  await expect.poll(()=>page.evaluate(()=>(globalThis as any).__materialQA.skins[0].model)).toBe('slim');
- await expect(page.getByRole('button',{name:'Apply skin',exact:true})).toBeDisabled();
- await page.getByRole('combobox',{name:'Account for skin change',exact:true}).click();await expect(page.getByRole('option',{name:'CanaryPlayer',exact:true})).toHaveCount(0);await page.getByRole('option',{name:'LicensedPlayer',exact:true}).click();
- await page.getByRole('button',{name:'Apply skin',exact:true}).click();await expect(page.locator('.skin-library')).toContainText('Skin changed');
+ await expect(page.getByRole('button',{name:'Apply skin',exact:true})).toHaveCount(0);
+ await page.getByRole('combobox',{name:'Skin account',exact:true}).click();await expect(page.getByRole('option',{name:/CanaryPlayer/})).toHaveCount(0);await page.getByRole('option',{name:'LicensedPlayer · Microsoft',exact:true}).click();
+ expect(await page.evaluate(()=>(globalThis as any).__materialQA.calls.some((c:any)=>c.command==='apply_skin'))).toBe(false);
+ await page.getByRole('button',{name:'Apply skin',exact:true}).click();await expect(page.locator('.skins-page')).toContainText('Skin uploaded to Microsoft');
  expect(await page.evaluate(()=>(globalThis as any).__materialQA.calls.find((c:any)=>c.command==='apply_skin').args)).toEqual({id:'skin-1',accountId:'ms'});
- mkdirSync('.qa/collection',{recursive:true});await page.getByRole('slider',{name:'Rotation',exact:true}).fill('25');await page.locator('.skin-preview').screenshot({path:'.qa/collection/skin-preview.png'});
+ mkdirSync('.qa/collection',{recursive:true});await page.locator('.skin-library').getByRole('slider',{name:'Rotation',exact:true}).fill('25');await page.locator('.skin-library .skin-preview').screenshot({path:'.qa/collection/skin-preview.png'});
 });
 
 test('world restore requires confirmation and passes the selected backup identity',async({page})=>{

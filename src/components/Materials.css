@@ -181,8 +181,15 @@
 .instance-heading small { display:block; color:var(--muted); margin-top:6px; line-height:1.5; }
 .instance-small-icon { display:none; width:44px; height:44px; flex-shrink:0; border-radius:12px; overflow:hidden; }
 .instance-small-icon .remote-image { width:100%; height:100%; }
-.instance-actions { display:flex; gap:8px; flex-wrap:wrap; align-items:center; margin-top:auto; padding-top:12px; }
-.instance-actions .play-action { margin-right:auto; min-height:36px; display:inline-flex; gap:6px; justify-content:center; align-items:center; min-width:90px; }
+.instance-actions { display:grid; grid-template-columns:minmax(90px,1fr) minmax(36px,1.6fr) 36px; gap:8px; align-items:center; margin-top:auto; padding-top:12px; }
+.instance-actions .play-action { margin-right:0; min-height:36px; display:inline-flex; gap:6px; justify-content:center; align-items:center; min-width:0; }
+.instance-actions>button {min-width:0;max-width:100%;min-height:36px;display:flex;align-items:center;justify-content:center;gap:6px;overflow:hidden}
+.instance-actions .density-label {white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.instance-actions>button:last-child {width:36px;padding:8px}
+.instance-links {display:grid!important;grid-template-columns:repeat(2,minmax(0,1fr));gap:8px!important}
+.instance-links>button {min-width:0;justify-content:center}
+.instance-card {container-type:inline-size}
+@container (max-width:390px) {.instance-actions {grid-template-columns:minmax(90px,1fr) 36px 36px}.instance-actions>button:nth-child(2) {padding:8px}.instance-actions>button:nth-child(2) .density-label {display:none}}
 :root .instance-actions .repair-needed { border-color:color-mix(in srgb,var(--accent) 45%,var(--line)); color:var(--text); font-weight:700; }
 .instance-links { display:flex; gap:8px; margin-top:12px; flex-wrap:wrap; }
 :root .instance-card .card-body { display:flex; flex-direction:column; padding:16px; position:relative; }

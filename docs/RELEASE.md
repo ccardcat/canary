@@ -1,6 +1,6 @@
 Version **0.1.9** adds test copies, local .mrpack export, shared game settings, Prism/Modrinth/Minecraft transfer, a saved skin library with a rotating Classic/Slim preview, library groups, automatic world backups and a native system tray. It improves stop feedback, light-theme readability and disclosure animation, adds six floating sidebar placements with a Mini size, and permits adding new content files while Minecraft is running. Typography now supports importing and retaining custom .ttf/.otf fonts.
 
-Mods become active after restarting Minecraft. New resource packs and shaders can be selected in the running game's settings; Canary does not inject an in-game companion or select them automatically. Loaded files, pack updates, deletions and world changes remain protected until the game stops. Skin upload uses an explicitly selected Microsoft Minecraft Java account.
+Mods become active after restarting Minecraft. New resource packs and shaders can be selected in the running game's settings; Canary does not inject an in-game companion or select them automatically. Loaded files, pack updates, deletions and world changes remain protected until the game stops. Skins have a dedicated sidebar page, showing the selected Microsoft/Ely.by profile's actual skin. Microsoft upload uses an explicit Apply action; Ely.by skin changes open the provider site.
 
 Canary desktop launcher for Windows x64 and Linux x64.
 

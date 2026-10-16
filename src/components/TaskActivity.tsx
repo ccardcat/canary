@@ -141,11 +141,6 @@ export function TaskRow({
     </article>
   );
 }
-export function PackDownloads({russian}:{russian:boolean}){
- const tasks=useLiveTasks().filter(t=>t.kind==="install"&&t.projectId&&!isTerminal(t));
- if(!tasks.length)return null;
- return <section className="pack-downloads" aria-label={russian?"Текущая установка":"Current installation"}>{tasks.map(task=><TaskRow key={task.id} task={task} russian={russian}/>)}</section>;
-}
 export function ActivityTasks({ russian,showRecent=true }: { russian: boolean;showRecent?:boolean }) {
   const tasks=useLiveTasks();
   const text = activityMessages[russian ? "ru" : "en"];

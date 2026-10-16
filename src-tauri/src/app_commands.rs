@@ -1,5 +1,7 @@
 // Registered commands require the main local window capability.
 pub const COMMANDS:&[&str]=&[
+    "get_account_skin",
+    "save_account_skin",
     "list_fonts",
     "import_font",
     "remove_font",

@@ -344,7 +344,7 @@ export function BackendProvider({ children }: { children: ReactNode }) {
             "content_project",
             "content_versions",
             "content_preview","bulk_content_preview",
-            "list_world_backups","list_skins","list_fonts","choose_launcher_folder",
+            "list_world_backups","list_skins","get_account_skin","list_fonts","choose_launcher_folder",
             "choose_mrpack_file",
             "choose_content_files",
             "inspect_content_files",

@@ -1,3 +1,4 @@
+import {SkinsPage} from "./components/SkinsPage";
 import {AnimatedDetails} from "./components/AnimatedDetails";
 import "./components/CollectionPolish.css";
 import {CollectionPreferences} from "./components/CollectionTools";
@@ -60,6 +61,7 @@ import {
   Puzzle,
   Search,
   Server,
+  Shirt,
   Settings as SettingsIcon,
   UserRound,
   X,
@@ -98,6 +100,7 @@ type Page =
   | "Library"
   | "Downloads"
   | "Screenshots"
+  | "Skins"
   | "Activity"
   | "Settings";
 type Mode = "dark" | "light" | "amoled" | "system";
@@ -118,6 +121,7 @@ const nav: Record<Page, typeof House> = {
   Library: LibraryIcon,
   Downloads: Download,
   Screenshots: Image,
+  Skins: Shirt,
   Activity,
   Settings: SettingsIcon,
 };
@@ -592,6 +596,8 @@ function App() {
                 />
               ) : page === "Downloads" ? (
                 isTauri()?<RuntimeProgress russian={lang === "ru"}/>:<DownloadsPage t={t} progress={progress} error={error} />
+              ) : page === "Skins" ? (
+                <SkinsPage russian={lang === "ru"}/>
               ) : page === "Screenshots" ? (
                 isTauri() ? <RuntimeScreenshots russian={lang === "ru"}/> : <EmptyPage
                   icon={Image}

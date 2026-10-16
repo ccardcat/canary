@@ -2,6 +2,8 @@
 identifier = "canary-backend"
 description = "Validated Canary commands for the main bundled window only"
 commands.allow = [
+  "get_account_skin",
+  "save_account_skin",
   "list_fonts",
   "import_font",
   "remove_font",

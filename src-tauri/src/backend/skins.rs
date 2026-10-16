@@ -30,3 +30,59 @@ pub fn list(b:&Backend)->Result<Vec<Skin>>{let root=folder(b);if !root.exists(){
     let _=super::microsoft::identity(&b,&account).await;Ok(())
 }
 #[cfg(test)]mod tests{use super::*;#[test]fn png_validation_checks_dimensions_and_format(){for (w,h,ok) in [(64,64,true),(64,32,true),(128,128,false),(64,128,false)]{let mut bytes=std::io::Cursor::new(vec![]);image::DynamicImage::new_rgba8(w,h).write_to(&mut bytes,image::ImageFormat::Png).unwrap();assert_eq!(normalize(&bytes.into_inner()).is_ok(),ok);}assert!(normalize(b"not a png").is_err());}}
+
+#[derive(Serialize)]pub struct AccountSkin{pub account_id:String,pub provider:String,pub model:String,pub legacy:bool,pub preview:String}
+fn texture_for(account:&Account,profile:&serde_json::Value)->Result<Option<(reqwest::Url,String)>>{
+ let expected=uuid::Uuid::parse_str(&account.uuid).map_err(|_|BackendError::new("skin","Invalid account identity"))?;
+ if profile["id"].as_str().and_then(|id|uuid::Uuid::parse_str(id).ok())!=Some(expected){return Err(BackendError::new("skin","Skin profile does not match the selected account"));}
+ let Some(encoded)=profile["properties"].as_array().and_then(|values|values.iter().find(|p|p["name"]=="textures")).and_then(|p|p["value"].as_str())else{return Ok(None)};
+ if encoded.len()>64*1024{return Err(BackendError::new("skin","Skin profile is too large"));}
+ let bytes=base64::engine::general_purpose::STANDARD.decode(encoded).map_err(|_|BackendError::new("skin","Invalid skin profile"))?;
+ let data:serde_json::Value=serde_json::from_slice(&bytes)?;
+ if data.get("profileId").is_some()&&data["profileId"].as_str().and_then(|id|uuid::Uuid::parse_str(id).ok())!=Some(expected){return Err(BackendError::new("skin","Texture identity does not match the account"));}
+ let skin=&data["textures"]["SKIN"];let Some(raw)=skin["url"].as_str()else{return Ok(None)};
+ let mut url=reqwest::Url::parse(raw).map_err(|_|BackendError::new("skin","Invalid texture URL"))?;
+ let allowed=match account.provider.as_str(){"microsoft"=>url.host_str()==Some("textures.minecraft.net"),"elyby"=>matches!(url.host_str(),Some("ely.by"|"textures.minecraft.net")),_=>false};
+ if !allowed{return Err(BackendError::new("skin","Texture source does not match the account provider"));}
+ if url.scheme()=="http"{let _=url.set_scheme("https");}
+ super::network::public_url(&url)?;
+ let model=match skin["metadata"]["model"].as_str(){None|Some("default"|"classic")=>"classic",Some("slim")=>"slim",_=>return Err(BackendError::new("skin","Unsupported skin model"))};
+ Ok(Some((url,model.into())))
+}
+async fn read_account_skin(b:&Arc<Backend>,account_id:&str)->Result<Option<AccountSkin>>{
+ let selection=Instance{overrides:Overrides{account:Some(account_id.into()),..Overrides::default()},..Instance::default()};
+ let (account,_dependency)=super::account_resources::launch(b,&selection)?;
+ if account.id!=account_id{return Err(BackendError::new("account","The selected account no longer exists"));}
+ if !matches!(account.provider.as_str(),"microsoft"|"elyby"){return Ok(None)}
+ let uuid=uuid::Uuid::parse_str(&account.uuid).map_err(|_|BackendError::new("skin","Invalid account identity"))?.simple().to_string();
+ let endpoint=if account.provider=="microsoft"{format!("https://sessionserver.mojang.com/session/minecraft/profile/{uuid}")}else{format!("https://authserver.ely.by/session/profile/{uuid}")};
+ // Query the exact signed-in profile UUID. Never search a third-party skin catalog by nickname.
+ let response=b.private_api_client.get(endpoint).timeout(std::time::Duration::from_secs(10)).send().await?;
+ if matches!(response.status().as_u16(),204|404){return Ok(None)}
+ let profile:serde_json::Value=serde_json::from_slice(&super::network::bytes(response.error_for_status()?,128*1024).await?)?;
+ let Some((url,model))=texture_for(&account,&profile)?else{return Ok(None)};
+ // No redirects: a trusted profile cannot redirect the reader to an unrelated origin.
+ let response=b.private_api_client.get(url).timeout(std::time::Duration::from_secs(10)).send().await?.error_for_status()?;
+ let (bytes,legacy)=normalize(&super::network::bytes(response,1024*1024).await?)?;
+ Ok(Some(AccountSkin{account_id:account.id,provider:account.provider,model:if legacy{"classic".into()}else{model},legacy,preview:format!("data:image/png;base64,{}",base64::engine::general_purpose::STANDARD.encode(bytes))}))
+}
+#[tauri::command]pub async fn get_account_skin(backend:State<'_,Arc<Backend>>,account_id:String)->Result<Option<AccountSkin>>{read_account_skin(backend.inner(),&account_id).await}
+#[tauri::command]pub async fn save_account_skin(backend:State<'_,Arc<Backend>>,account_id:String)->Result<Skin>{
+ let b=backend.inner().clone();let _lease=b.lease("skin-library")?;
+ if list(&b)?.len()>=256{return Err(BackendError::new("skin","The skin library can store up to 256 skins"));}
+ let current=read_account_skin(&b,&account_id).await?.ok_or_else(||BackendError::new("skin","This account has no skin to save"))?;
+ let name=b.store.lock().unwrap().accounts.iter().find(|a|a.id==account_id).map(|a|a.username.clone()).ok_or_else(||BackendError::new("account","The selected account no longer exists"))?;
+ let encoded=current.preview.strip_prefix("data:image/png;base64,").ok_or_else(||BackendError::new("skin","Invalid skin image"))?;
+ let bytes=base64::engine::general_purpose::STANDARD.decode(encoded).map_err(|_|BackendError::new("skin","Invalid skin image"))?;
+ let skin=Skin{id:uuid::Uuid::new_v4().to_string(),name,model:current.model,legacy:current.legacy,preview:current.preview};
+ let root=folder(&b);let png=root.join(format!("{}.png",skin.id));fs::write(&png,bytes)?;
+ if let Err(error)=storage::write_json(&root.join(format!("{}.json",skin.id)),&skin){let _=fs::remove_file(png);return Err(error)}
+ Ok(skin)
+}
+#[cfg(test)]mod account_skin_tests{
+ use super::*;use serde_json::json;
+ fn account(provider:&str)->Account{Account{id:"fixture".into(),provider:provider.into(),uuid:"ffc8fdc95824509e8a57c99b940fb996".into(),username:"Fixture".into(),avatar:None,status:"authenticated".into(),last_used:None,credential_ref:None}}
+ fn profile(url:&str,model:&str)->serde_json::Value{json!({"id":"ffc8fdc95824509e8a57c99b940fb996","properties":[{"name":"textures","value":base64::engine::general_purpose::STANDARD.encode(serde_json::to_vec(&json!({"profileId":"ffc8fdc95824509e8a57c99b940fb996","textures":{"SKIN":{"url":url,"metadata":{"model":model}}}})).unwrap())}]})}
+ #[test]fn uses_exact_provider_texture_and_model(){let a=account("microsoft");let(url,model)=texture_for(&a,&profile("http://textures.minecraft.net/texture/fixture","slim")).unwrap().unwrap();assert_eq!(url.scheme(),"https");assert_eq!(model,"slim");assert!(texture_for(&a,&profile("https://ely.by/storage/skins/test.png","classic")).is_err());assert!(texture_for(&account("elyby"),&profile("https://ely.by/storage/skins/test.png","classic")).unwrap().is_some());}
+ #[test]fn rejects_foreign_identity_and_untrusted_textures(){let a=account("microsoft");for url in ["https://example.com/skin.png","https://user:secret@textures.minecraft.net/texture/x","https://textures.minecraft.net:8443/texture/x","https://127.0.0.1/skin"]{assert!(texture_for(&a,&profile(url,"classic")).is_err());}let mut p=profile("https://textures.minecraft.net/texture/x","slim");p["id"]=json!(uuid::Uuid::new_v4().simple().to_string());assert!(texture_for(&a,&p).is_err());assert!(texture_for(&a,&profile("https://textures.minecraft.net/texture/x","unknown")).is_err());}
+}
