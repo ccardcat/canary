@@ -13,6 +13,7 @@ pub async fn launch(backend:Arc<Backend>,mut instance:Instance,job:Arc<Job>,app:
     if adjusted {if let Some(app)=&app{let _=app.emit("memory-adjusted",serde_json::json!({"instance_id":instance.id,"max_memory":max}));}}
     super::system::validate_memory(min,max)?;
     let dir=backend.instance_path(&instance.id)?;
+    super::collection::before_launch(backend.clone(),&instance.id,job.clone()).await?;
     let width=instance.overrides.width.unwrap_or(settings.width);let height=instance.overrides.height.unwrap_or(settings.height);
     let values=HashMap::from([
         ("auth_player_name".into(),identity.username),("auth_uuid".into(),identity.uuid),("auth_access_token".into(),identity.access_token.clone()),
@@ -93,15 +94,18 @@ pub async fn launch(backend:Arc<Backend>,mut instance:Instance,job:Arc<Job>,app:
     });
     let monitor=backend.clone();let started=std::time::Instant::now();
     tokio::spawn(async move {
-        let exit=loop{match child.lock().await.try_wait(){Ok(Some(status))=>break Ok(status),Err(error)=>break Err(error),Ok(None)=>{}}tokio::time::sleep(std::time::Duration::from_millis(200)).await;};
+        let exit=loop{match child.lock().await.try_wait(){Ok(Some(status))=>break Ok(status),Err(error)=>break Err(error),Ok(None)=>{}}tokio::time::sleep(std::time::Duration::from_millis(60)).await;};
         let played=started.elapsed().as_secs();
         // Drain the already sanitized output so a short loader failure is not
         // lost to the process-exit/output-reader scheduling race.
         let _=tokio::time::timeout(std::time::Duration::from_secs(1),&mut output_task).await;
+        // Keep metadata changed while playing, including library group assignment.
+        if let Ok(current)=monitor.instance(&instance.id){instance=current;}
         instance.playtime+=played;instance.status=if exit.as_ref().is_ok_and(|s|s.success())||stopping.load(std::sync::atomic::Ordering::Relaxed){ "ready" }else{"crashed"}.into();
         if let Ok(status)=&exit{if !status.success()&&!stopping.load(std::sync::atomic::Ordering::Relaxed){let explanation=loader_explanation.lock().unwrap().message();instance.error=Some(BackendErrorData{code:if explanation.is_some(){"content_runtime_conflict"}else{"process_exit"}.into(),message:explanation.unwrap_or_else(||format!("Minecraft exited with code {:?}",status.code()))});}}
         let _=monitor.save_instance(&instance);
         {let mut store=monitor.store.lock().unwrap();store.activity.push(Activity{id:uuid::Uuid::new_v4().to_string(),timestamp:now(),instance:Some(instance.id.clone()),kind:if instance.status=="crashed"{"game_crashed"}else{"game_exited"}.into(),message:instance.name.clone()});if store.activity.len()>300{store.activity.remove(0);}}
+        if monitor.settings().shared_settings_source.as_deref()==Some(instance.id.as_str()){let capture=monitor.clone();let source=instance.id.clone();let _=tokio::task::spawn_blocking(move||super::collection::capture_shared(&capture,&source)).await;}
         let _=monitor.persist();monitor.processes.lock().unwrap().remove(&instance.id);monitor.discord.changed();
         if instance.status=="crashed" {if let Ok(task)=Job::tracked(monitor.clone(),&instance.id,"launch",&instance.name,Some(&instance.id),app.clone(),Arc::new(std::sync::atomic::AtomicBool::new(false)),None){let error=instance.error.as_ref().map(|e|BackendError::new(&e.code,&e.message)).unwrap_or_else(||BackendError::new("process_exit","Minecraft exited with an error. Open the instance game logs for details."));task.finish(&Err::<(),_>(error.clone()));if error.code=="content_runtime_conflict"{if let Some(app)=&app{if let Ok(mut detail)=serde_json::to_value(error){detail["instance_id"]=serde_json::json!(instance.id);let _=app.emit("backend-error",detail);}}}}}
         if let Some(app)=app {let _=app.emit("process-exited",serde_json::json!({"id":instance.id,"status":instance.status,"playtime":instance.playtime,"exit_code":exit.ok().and_then(|s|s.code())}));}
@@ -123,7 +127,8 @@ fn request_close(pid:u32)->Result<()> {
 }
 #[cfg(not(any(target_os="linux",windows)))]
 fn request_close(_pid:u32)->Result<()>{Err(BackendError::new("stop_pending","Close Minecraft normally, or explicitly choose Force stop."))}
-pub async fn stop(backend:&Backend,id:&str,force:bool)->Result<()> {
+pub async fn stop(backend:&Backend,id:&str,force:bool)->Result<()>{stop_with_events(backend,id,force,None).await}
+pub async fn stop_with_events(backend:&Backend,id:&str,force:bool,app:Option<&AppHandle>)->Result<()> {
     use std::sync::atomic::Ordering;
     let (pid,child,stopping)={let processes=backend.processes.lock().unwrap();let Some(process)=processes.get(id) else{return Ok(());};(process.pid,process.child.clone(),process.stopping.clone())};
     {
@@ -134,8 +139,9 @@ pub async fn stop(backend:&Backend,id:&str,force:bool)->Result<()> {
         if force {stopping.store(true,Ordering::Relaxed);process.kill().await?;return Ok(());}
         if !stopping.swap(true,Ordering::AcqRel){if let Err(error)=request_close(pid){stopping.store(false,Ordering::Relaxed);return Err(error);}}
     }
-    let deadline=std::time::Instant::now()+std::time::Duration::from_secs(8);
-    while std::time::Instant::now()<deadline {if child.lock().await.try_wait()?.is_some(){return Ok(());}tokio::time::sleep(std::time::Duration::from_millis(200)).await;}
+    if let Some(app)=app{let _=app.emit("instance-stopping",serde_json::json!({"id":id}));let _=app.emit("instances-changed",());}
+    let deadline=std::time::Instant::now()+std::time::Duration::from_secs(3);
+    while std::time::Instant::now()<deadline {if child.lock().await.try_wait()?.is_some(){return Ok(());}tokio::time::sleep(std::time::Duration::from_millis(60)).await;}
     Err(BackendError::new("stop_pending","Minecraft has not closed yet. Save the world and close the game normally. Force stop can lose unsaved progress."))
 }
 

@@ -28,7 +28,7 @@ mockIPC((command,args)=>{
   }
   if(command==='choose_mrpack_file')return {path:'C:/packs/example.mrpack',name:'Imported contract pack',minecraft:'1.21.1',loader:'fabric',loader_version:'0.16.0',version:'1',files:12,download_bytes:1048576,archive_bytes:1024,sha256:'preview-checksum'};
   if(command==='create_instance'||command==='import_mrpack'){const instance={...state.instances[0],id:args.requestId,name:args.name,provider:command==='import_mrpack'?'mrpack':'vanilla',minecraft:args.minecraft||'1.21.1',loader:args.loader||'fabric',status:'ready'};return new Promise((resolve,reject)=>{globalThis.__backendTest.cancelCreate=()=>reject({code:'cancelled',message:'Operation cancelled'});setTimeout(()=>{state.instances.push(instance);resolve(instance);},600);});}
-  if(command==='cancel_operation'){globalThis.__backendTest.cancelCreate?.();return;}
+  if(command==='cancel_operation'){globalThis.__backendTest.cancelCreate?.();globalThis.__backendTest.finishContent?.();return;}
 
   if(command==='storage_usage')return {path:'D:/Canary',free:10737418240,used:1073741824,available:true,breakdown:{instances:1073741824,cache:2147483648,java:1073741824,logs:0,total:4294967296}};
   if(command==='catalog_search'){if(globalThis.__backendTest.manyPages)return {hits:Array.from({length:args.limit},(_,i)=>({provider:'curseforge',project_id:String(args.offset+i),title:'CF page item '+(args.offset+i),description:'Pagination contract',author:'Author',downloads:123,versions:['1.21.1'],categories:['fabric'],project_type:globalThis.__backendTest.cfKind||'modpack',download_allowed:!globalThis.__backendTest.cfRestricted})),total_hits:96};const data={hits:[{provider:'curseforge',project_id:'100',title:globalThis.__backendTest.slowSearch&&args.query?args.query+' CF pack':'CurseForge contract pack',description:'Provider contract',author:'Author',downloads:123,versions:['1.21.1'],categories:['fabric'],project_type:globalThis.__backendTest.cfKind||'modpack',download_allowed:!globalThis.__backendTest.cfRestricted}],total_hits:1};return globalThis.__backendTest.slowSearch&&args.query?new Promise(resolve=>setTimeout(()=>resolve(data),600)):data;}
@@ -38,7 +38,7 @@ mockIPC((command,args)=>{
   if(command==='install_curseforge_pack'){const instance={...state.instances[0],id:'curseforge-100-200',provider:'curseforge',project_id:'100',version_id:'200',name:'CurseForge contract pack',directory:'C:/Canary/instances/curseforge-100-200'};state.instances.push(instance);return instance;}
   if(command==='content_inventory')return structuredClone(inventory);
   if(command==='content_worlds')return [];
-  if(command==='content_search'){const data={hits:[{project_id:'sodium',title:'Sodium',author:'Author',description:'A compatible optimization mod',downloads:123,versions:['1.21.1'],categories:['fabric']}],total_hits:1};return globalThis.__backendTest.slowContent?new Promise(resolve=>setTimeout(()=>resolve(data),600)):data;}
+  if(command==='content_search'){const data={hits:[{project_id:'sodium',title:'Sodium',author:'Author',description:'A compatible optimization mod',downloads:123,versions:['1.21.1'],categories:['fabric']}],total_hits:1};return globalThis.__backendTest.slowContent?new Promise(resolve=>{globalThis.__backendTest.finishContent=()=>resolve(data);}):data;}
   if(command==='content_project')return {id:'sodium',title:'Sodium',description:'Optimized rendering',body:'**Safe description**',game_versions:['1.21.1'],loaders:['fabric']};
   if(command==='content_versions'&&args.provider==='curseforge')return [{id:'200',name:'Compatible CF mod',version_number:'1',version_type:'release'}];
   if(command==='content_versions')return [{id:'sodium-v1',name:'Sodium 1',version_number:'1',version_type:'release'}];
@@ -138,14 +138,16 @@ test("native account, Play/Stop and human error details connect to the backend",
   await page.locator("h1").click();
   await page.getByRole("button",{name:"Library",exact:true}).first().click();
   await page.getByRole("button",{name:"Play",exact:true}).click();
-  await expect(page.getByRole("button",{name:"Stop game",exact:true})).toBeVisible();
-  await page.getByRole("button",{name:"Stop game",exact:true}).click();
+  await expect(page.locator(".library-grid").getByRole("button",{name:"Stop game",exact:true})).toBeVisible();
+  await page.locator(".library-grid").getByRole("button",{name:"Stop game",exact:true}).click();
   await expect(page.locator(".library-grid")).toContainText("Less than a minute");
   await page.getByRole("button",{name:"Check / repair",exact:true}).click();
   const error=page.getByRole("dialog",{name:"File verification failed"});await expect(error).toContainText("integrity check");
   await expect(error.locator(".error-technical-message")).not.toBeVisible();
   await error.locator("summary").click();
-  await expect(error.locator(".error-technical-message")).toContainText("Technical checksum contract details");
+  await page.evaluate(()=>{Object.defineProperty(navigator,"clipboard",{configurable:true,value:{writeText:async(text:string)=>{(globalThis as any).__copiedError=text;}}});});
+  await error.getByRole("button",{name:"Copy details",exact:true}).click();
+  await expect.poll(()=>page.evaluate(()=>(globalThis as any).__copiedError)).toContain("Technical checksum contract details");
   const calls=await page.evaluate(()=> (globalThis as unknown as {__backendTest:{calls:{command:string;args:{id?:string}}[]}}).__backendTest.calls);
   expect(calls.find(call=>call.command==="launch_instance")?.args.id).toBe("contract-instance");
 });
@@ -261,7 +263,7 @@ test("pending Stop waits for an explicit Force choice",async({page})=>{
   await page.evaluate(()=>{const test=(globalThis as any).__backendTest;test.state.instances[0].status="running";test.stopPending=true;});
   await page.getByRole("button",{name:"Library",exact:true}).first().click();
   await page.getByRole("button",{name:"Check updates",exact:true}).click();
-  await page.getByRole("button",{name:"Stop game",exact:true}).click();
+  await page.locator(".library-grid").getByRole("button",{name:"Stop game",exact:true}).click();
   const dialog=page.getByRole("dialog",{name:"Minecraft is still running"});
   await expect(dialog).toContainText("unsaved progress");
   let calls=await page.evaluate(()=>(globalThis as any).__backendTest.calls.filter((c:any)=>c.command==="stop_instance"));
@@ -293,6 +295,7 @@ test("switching providers cancels pending Content requests and discards stale Mo
  expect(request.args.requestId).toMatch(/^provider-/);
  expect(calls.some((c:any)=>c.command==="cancel_operation"&&c.args.id===request.args.requestId)).toBe(true);
  expect(calls.some((c:any)=>c.args?.provider==="curseforge")).toBe(false);
+ await page.evaluate(()=>(globalThis as any).__backendTest.slowContent=false);
  await page.getByRole("combobox",{name:"Provider",exact:true}).click();await page.getByRole("option",{name:"Modrinth",exact:true}).click();
  await expect(page.locator(".card-title")).toHaveText("Sodium");
 });

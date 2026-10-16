@@ -1,8 +1,4 @@
 /* Shared progress and cancellation for Downloads, install dialogs and content. */
-.pack-downloads{display:grid;gap:10px;max-width:1440px;margin:0 auto 18px;animation:canary-view-in 240ms var(--view-enter-ease)}
-.pack-downloads .activity-task{margin:0}
-.pack-downloads .activity-file{display:none}
-.pack-downloads .activity-cancel{justify-self:start}
 .activity-row-heading {
   display: flex;
   align-items: center;

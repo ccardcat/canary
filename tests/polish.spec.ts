@@ -9,6 +9,7 @@ test.beforeEach(async ({ page }) => {
 test("sidebar mirrors and collapses on both sides without overflow", async ({ page }) => {
   await page.getByRole("button", { name: "Settings", exact: true }).click();
   for (const side of ["Right", "Left"]) {
+    await settingsSection(page,"sidebar");
     await page.getByRole("button", { name: side, exact: true }).click();
     await page.keyboard.press("Escape");
     for (const compact of [false, true]) {
@@ -39,6 +40,7 @@ test("sidebar mirrors and collapses on both sides without overflow", async ({ pa
 });
 test("custom cursors preserve editing; ordinary right click is suppressed", async ({ page }) => {
   await page.getByRole("button", { name: "Settings", exact: true }).click();
+  await settingsSection(page,"cursor");
   for (const [name,id] of [["Canary Custom","custom"],["System","system"]]) {
     await page.getByRole("group", { name: "Cursor", exact: true }).getByRole("button", { name, exact: true }).click();
     await expect(page.locator("html")).toHaveAttribute("data-cursor",id);
@@ -80,7 +82,7 @@ test("advanced backgrounds reset, crossfade and effect budgets persist", async (
   await page.locator(".background-options").first().getByRole("button",{name:"Sunny Meadow",exact:true}).click();
   await expect(page.locator(".global-wallpaper .artwork-current")).toHaveCSS("background-image",/meadow.webp/);
   await page.locator(".background-options").first().getByRole("button",{name:"Frozen Lake"}).click();
-  await expect(page.locator(".global-wallpaper .artwork-current")).toHaveCSS("background-image",/gray-bg.png/);
+  await expect(page.locator(".global-wallpaper .artwork-current")).toHaveCSS("background-image",/frozen-lake.webp/);
   await settingsSection(page,"Effects");await page.getByRole("button",{name:"Snow",exact:true}).click();
   await settingsSection(page,"layout");
   await page.getByRole("switch",{name:"Focus mode",exact:true}).click();
@@ -122,6 +124,7 @@ test("native cursor roles, hotspots and migration", async ({ page, request }) =>
     }
   }
   await page.getByRole("button", { name:"Settings",exact:true }).click();
+  await settingsSection(page,"cursor");
   await page.getByRole("group", { name:"Cursor",exact:true }).getByRole("button",{name:"System",exact:true}).click();
   await page.reload();
   await expect(page.locator("html")).toHaveAttribute("data-cursor", "system");

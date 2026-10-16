@@ -86,7 +86,7 @@ test("Storage, Accounts and About keep their geometry at narrow widths and low h
         expect(gap).toBeGreaterThanOrEqual(8);
       }
       if(tab==="Account") await expect(page.locator(".account-logins button").last()).toBeDisabled();
-      if(tab==="About") {await expect(page.locator(".about-card")).toContainText("CurseForge unavailable");await expect(page.locator(".about-card .planned-badge")).toHaveCount(0);}
+      if(tab==="About") {await expect(page.locator(".about-card")).toContainText("Version");await expect(page.locator(".about-card .planned-badge")).toHaveCount(0);}
       await page.screenshot({path:`${directory}/settings-${tab.toLowerCase()}-${width}.png`});
     }
   }

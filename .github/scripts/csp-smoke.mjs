@@ -1,5 +1,5 @@
 import {spawn} from 'node:child_process';
-import {mkdir,writeFile} from 'node:fs/promises';
+import {mkdir,writeFile,readFile} from 'node:fs/promises';
 import {resolve} from 'node:path';
 import {randomUUID} from 'node:crypto';
 import assert from 'node:assert/strict';
@@ -12,7 +12,7 @@ if(process.platform!=='win32')throw Error('Windows CSP QA only');
 const folder=resolve(process.env.CANARY_CSP_QA_OUTPUT||'.qa/csp-native');
 const data=resolve(folder,'data-'+randomUUID()),profile=resolve(folder,'webview-'+randomUUID());
 await mkdir(folder,{recursive:true});
-const report={status:'running',cases:[],violations:[]},port=Number(process.env.CANARY_CSP_QA_PORT||9385);
+const report={status:'running',cases:[],violations:[]},port=Number(process.env.CANARY_CSP_QA_PORT||9384);
 let browser,app,stderr='';
 const remoteServer=createServer((request,response)=>{response.writeHead(200,{'content-type':'text/html'});response.end('<!doctype html><title>Remote ACL probe</title><p>Isolated remote page</p>');});
 await new Promise(resolve=>remoteServer.listen(0,'127.0.0.1',resolve));
@@ -27,13 +27,23 @@ try{
   try{browser=await chromium.connectOverCDP(`http://127.0.0.1:${port}`,{timeout:1000});break;}catch{await delay(500);}
  }
  assert.ok(browser,'WebView2 inspector did not start');
+ let setupReady=false;
+ for(let attempt=0;attempt<120;attempt++){
+  if(app.exitCode!==null)throw Error(`Canary exited during setup (${app.exitCode}): ${stderr}`);
+  const stages=await readFile(resolve(folder,'startup.log'),'utf8').catch(()=>'');
+  if(stages.includes('Tauri setup complete')){setupReady=true;break;}await delay(250);
+ }
+ assert.ok(setupReady,`Canary setup did not finish: ${stderr}`);
+
  const context=browser.contexts()[0];let page;
- for(let attempt=0;attempt<60;attempt++){for(const candidate of context.pages()){if(candidate.url().includes('tauri.localhost')&&await candidate.evaluate(()=>window.__TAURI_INTERNALS__?.metadata?.currentWindow?.label==='main').catch(()=>false)){page=candidate;break;}}if(page)break;await delay(500);}
+ for(let attempt=0;attempt<60;attempt++){for(const candidate of context.pages()){if(candidate.url().includes('tauri.localhost')&&await candidate.evaluate(()=>!window.__canarySecurityProbe&&!!window.__TAURI_INTERNALS__?.invoke).catch(()=>false)){page=candidate;break;}}if(page)break;await delay(500);}
+ report.targets=await Promise.all(context.pages().map(async candidate=>({url:candidate.url(),probe:await candidate.evaluate(()=>window.__canarySecurityProbe??null).catch(()=>null)})));
  assert.ok(page,'Packaged Canary page is missing');
+ const section=async id=>{const button=page.locator(`[data-settings-section="${id}"]`);const group=button.locator('xpath=ancestor::*[@data-settings-group]').locator('.settings-group-toggle');if(await group.getAttribute('aria-expanded')==='false')await group.click();await button.click();await page.locator(`[data-settings-content="${id}"][aria-hidden="false"]`).waitFor();};
  await page.addInitScript(()=>{
   globalThis.__cspQA=[];
   document.addEventListener('securitypolicyviolation',e=>globalThis.__cspQA.push({directive:e.effectiveDirective,blocked:e.blockedURI}));
-  localStorage.setItem('canary-language','en');localStorage.setItem('canary-mode','light');localStorage.setItem('canary-visual',JSON.stringify({backgroundSource:'canary',app:'sakura1',sidebar:'green',materialPreset:'glass',materialLinked:true,materialStyle:'glass',showHero:true,showCommunity:false,discordEnabled:false,cursor:'custom'}));
+  localStorage.setItem('canary-language','en');localStorage.setItem('canary-mode','light');localStorage.setItem('canary-visual',JSON.stringify({backgroundSource:'canary',app:'amethyst-cave',sidebar:'winter-island',materialPreset:'glass',materialLinked:true,materialStyle:'glass',showHero:true,showCommunity:false,discordEnabled:false,cursor:'custom'}));
  });
  const response=await page.reload();await page.waitForFunction(()=>document.documentElement.dataset.startup==='ready',{},{timeout:30000});
  const snapshot=await page.evaluate(()=>window.__TAURI_INTERNALS__.invoke('backend_snapshot',{localOnly:true}));
@@ -53,9 +63,10 @@ try{
  report.policy=csp;report.cases.push('actual generated Tauri CSP and startup');
  await page.locator('.home-hero').waitFor();
  assert.ok(await page.evaluate(async()=>{await document.fonts.ready;return document.fonts.check('16px Nunito');}));
- assert.ok((await page.locator('.global-wallpaper .artwork-current').evaluate(e=>getComputedStyle(e).backgroundImage)).includes('sakura1'));
+ assert.ok((await page.locator('.global-wallpaper .artwork-current').evaluate(e=>getComputedStyle(e).backgroundImage)).includes('amethyst-cave'));
  await page.locator('.sidebar').getByRole('button',{name:'Settings',exact:true}).click();
  for(const theme of ['Dark','AMOLED','Light']){await page.locator('.mode-grid').getByRole('button',{name:theme,exact:true}).click();await page.waitForFunction(theme=>document.documentElement.dataset.mode===theme,theme.toLowerCase());}
+ await section('materials');
  const slider=page.getByRole('slider',{name:'Surface opacity',exact:true});await slider.fill('54');await slider.press('Tab');
  await page.waitForFunction(()=>JSON.parse(localStorage.getItem('canary-visual')).surfaceOpacity===54);
  report.cases.push('wallpaper, local fonts, themes and live surface styles');

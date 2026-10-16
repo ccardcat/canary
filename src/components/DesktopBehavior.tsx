@@ -26,8 +26,10 @@ export default function DesktopBehavior() {
       timer.current = setTimeout(() => {
         const rect = element.getBoundingClientRect();
         const sidebar = !!element.closest(".sidebar.compact");
-        const right = document.documentElement.dataset.sidebarSide === "right";
-        setTooltip({ text: element.dataset.tooltip || element.getAttribute("aria-label") || "", x: Math.max(10, Math.min(innerWidth - 240, sidebar ? (right ? rect.left - 160 : rect.right + 10) : rect.left)), y: Math.min(innerHeight - 48, sidebar ? rect.top : rect.bottom + 8) });
+        const side = document.documentElement.dataset.sidebarSide ?? "left";
+        const right = side.endsWith("right");
+        const floating = side !== "left" && side !== "right";
+        setTooltip({ text: element.dataset.tooltip || element.getAttribute("aria-label") || "", x: Math.max(10, Math.min(innerWidth - 240, sidebar && !floating ? (right ? rect.left - 160 : rect.right + 10) : rect.left)), y: Math.min(innerHeight - 48, sidebar && floating && side.startsWith("bottom") ? rect.top - 42 : sidebar && !floating ? rect.top : rect.bottom + 8) });
       }, 180);
     };
     const context = (event: MouseEvent) => {

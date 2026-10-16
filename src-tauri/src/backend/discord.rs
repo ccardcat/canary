@@ -289,6 +289,10 @@ pub fn map(
                 (Kind::Downloading, tr("Загружает", "Downloading"))
             }
             TaskKind::Install => (Kind::Installing, tr("Устанавливает", "Installing")),
+            TaskKind::Copy => (Kind::Installing, tr("Копирует", "Copying")),
+            TaskKind::Export => (Kind::Installing, tr("Экспортирует", "Exporting")),
+            TaskKind::Backup => (Kind::Installing, tr("Сохраняет миры", "Backing up worlds")),
+            TaskKind::Import => (Kind::Installing, tr("Переносит", "Importing")),
         };
         let details = if kind == Kind::Launching {
             verb

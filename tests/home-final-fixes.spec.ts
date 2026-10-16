@@ -31,7 +31,8 @@ test("Continue shows the latest server with its own instance and Minecraft versi
  });
  const card=page.locator(".last-server-card");
  await expect(card).toContainText("Last server · play.example.org:25566");
- await expect(card).toContainText("Server pack 2.4.7 · Minecraft 1.8.9 · Forge");
+ await expect(card).toContainText("Server pack · Minecraft 1.8.9 · Forge");
+ await expect(card).not.toContainText("2.4.7");
  await card.getByRole("button",{name:"Play",exact:true}).click();
  await expect(card.getByRole("button",{name:"Stop",exact:true})).toBeVisible();
  const call=await page.evaluate(()=>(globalThis as any).__materialQA.calls.findLast((c:any)=>c.command==="launch_instance"));

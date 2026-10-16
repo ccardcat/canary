@@ -16,7 +16,7 @@ async function settings(page: Page) {
 async function choose(page: Page, name: string, option: string) {
  if(await page.locator(".settings-modal").isVisible()){if(["Material preset","Shared material","Button style","Card material"].includes(name))await settingsSection(page,"materials");if(name==="Sidebar layout")await settingsSection(page,"sidebar");}
 
-  await page.getByRole("combobox", { name, exact: true }).evaluate(el=>{for(let details=el.closest("details");details;details=details.parentElement?.closest("details")??null)details.open=true;});
+  await page.getByRole("combobox", { name, exact: true, includeHidden:true }).evaluate(el=>{for(let details=el.closest("details");details;details=details.parentElement?.closest("details")??null)details.open=true;});
   await page.getByRole("combobox", { name, exact: true }).click();
   await page.getByRole("option", { name: option, exact: true }).click();
 }
@@ -190,7 +190,14 @@ test("Home hero copy stays stable through slides and Continue has compact real P
   await expect(
     card.getByRole("button", { name: "Stop", exact: true }),
   ).toBeVisible();
+  const taskId="cb62ab60-c057-4f20-921c-561d69d1d840";
+  const activeInstance=await card.getAttribute("data-instance-id");
+  const backgroundTask={id:taskId,operationId:activeInstance,instanceId:activeInstance,kind:"install",title:"Adding resource pack",status:"running",stage:"installing",startedAt:Date.now()/1000,updatedAt:Date.now()/1000,revision:1,cancellable:true,cancelRequested:false,completed:0,total:1,downloaded:0,bytesTotal:1,percent:0,speed:0,currentFile:"pack.zip"};
+  await page.evaluate(async task=>{const {emit}=await import("/node_modules/@tauri-apps/api/event.js");await emit("activity-task",task);},backgroundTask);
+  await expect(card.getByRole("button",{name:"Stop",exact:true})).toBeEnabled();
   await card.getByRole("button", { name: "Stop", exact: true }).click();
+  await expect.poll(()=>page.evaluate(id=>(globalThis as any).__materialQA.calls.some((call:any)=>call.command==="stop_instance"&&call.args.id===id),activeInstance)).toBe(true);
+  await page.evaluate(async task=>{const {emit}=await import("/node_modules/@tauri-apps/api/event.js");await emit("activity-task",{...task,status:"completed",revision:2,cancellable:false,percent:100});},backgroundTask);
   await expect(
     card.getByRole("button", { name: "Play", exact: true }),
   ).toBeVisible();
@@ -209,7 +216,7 @@ test("community visibility is searchable, applies live, persists and preserves a
   await nativeFixture(page);
   await catalog(page);
   await page.addInitScript(() => {
-    if (!localStorage.getItem("canary-visual"))
+    if (!sessionStorage.getItem("community-initial"))
       localStorage.setItem(
         "canary-visual",
         JSON.stringify({
@@ -222,6 +229,7 @@ test("community visibility is searchable, applies live, persists and preserves a
           showCommunity: "invalid",
         }),
       );
+    sessionStorage.setItem("community-initial","yes");
   });
   await page.goto("/");
   await expect(page.locator(".community-section")).toBeVisible();
@@ -288,10 +296,9 @@ test("RU Monocraft particle labels have a real gap and regrouped settings retain
     .getByRole("button", { name: "Настройки", exact: true })
     .first()
     .click();
-  const headings = await page.locator(".settings-content h3").allTextContents();
-  expect(headings).toEqual(
-    expect.arrayContaining(["Оформление", "Поверхности"]),
-  );
+  await expect(page.locator(".settings-content h3").first()).toHaveText("Тема и цвета");
+  await settingsSection(page,"materials");
+  await expect(page.locator(".settings-content h3").first()).toHaveText("Поверхности");
   for(const section of ["Фон","Эффекты","Типографика"]){await settingsSection(page,section);await expect(page.locator(".settings-content h3").first()).toContainText(section);}
   await settingsSection(page,"Эффекты");
   const preset = page.getByRole("combobox", {

@@ -101,6 +101,6 @@ test("Home and library share restored project icons, navigation opens the overvi
   const input = page.locator(".local-account-form input");
   await expect(input).toBeVisible();
   expect((await input.boundingBox())!.width).toBeGreaterThan(230);
-  await input.fill("CanaryPlayer_1234");
-  await expect(input).toHaveValue("CanaryPlayer_1234");
+  await input.fill("CanaryUser_12345");
+  await expect(input).toHaveValue("CanaryUser_12345");
 });

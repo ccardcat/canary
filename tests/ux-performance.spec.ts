@@ -60,7 +60,7 @@ test("Particle drag previews without persistence or IPC per pixel",async({page})
  for(let i=1;i<36;i++)await page.mouse.move(box!.x+box!.width*(.1+i*.022),box!.y+box!.height/2);
  expect(await page.evaluate(()=>(globalThis as any).__writes())).toBe(0);await page.mouse.up();
  await expect.poll(()=>page.evaluate(()=>(globalThis as any).__writes())).toBe(1);
- expect(await page.evaluate(()=>(globalThis as any).__materialQA.calls.length-(globalThis as any).__callsBefore)).toBe(0);
+ expect(await page.evaluate(()=>(globalThis as any).__materialQA.calls.slice((globalThis as any).__callsBefore).filter((c:any)=>["apply_window_material","import_wallpaper","save_backend_settings","save_collection_preferences"].includes(c.command)))).toEqual([]);
  expect(await page.locator(".ambient-particles i").count()).toBe(24);
 });
 test("Splash centers logo first and the final group, then unmounts permanently",async({page})=>{

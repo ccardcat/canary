@@ -21,9 +21,9 @@ pub async fn install_curseforge_pack(backend:State<'_,B>,app:AppHandle,project_i
 pub async fn check_modpack_updates(backend:State<'_,B>,allowed_providers:Option<Vec<String>>)->Result<serde_json::Value>{super::modpacks::updates_for_providers(backend.inner().clone(),allowed_providers.as_deref()).await}
 #[tauri::command]
 pub async fn backend_snapshot(backend:State<'_,B>,local_only:Option<bool>)->Result<serde_json::Value>{
+    let mut providers=accounts::providers();providers["curseforge"]["configured"]=serde_json::json!(if local_only==Some(true){false}else{super::curseforge::available(&backend).await});
     let mut instances=backend.instances()?;for instance in &mut instances{super::server_history::restore(&backend,instance);}let store=backend.store.lock().unwrap().clone();
     let processes:std::collections::HashMap<_,_>=backend.processes.lock().unwrap().iter().map(|(id,p)|(id.clone(),p.stopping.load(Ordering::Relaxed))).collect();let preparing:std::collections::HashSet<_>=backend.jobs.lock().unwrap().keys().cloned().collect();for instance in &mut instances{if let Some(process)=processes.get(&instance.id){instance.status=if *process{"stopping"}else{"running"}.into();}else if preparing.contains(&instance.id){instance.status="preparing".into();}}
-    let mut providers=accounts::providers();providers["curseforge"]["configured"]=serde_json::json!(if local_only==Some(true){false}else{super::curseforge::available(&backend).await});
     Ok(serde_json::json!({"instances":instances,"accounts":store.accounts,"settings":store.settings,"providers":providers,"activity":store.activity,"data_folder":backend.root,"physical_memory_mb":super::system::memory_mb(),"tasks":backend.tasks.lock().unwrap().values().map(|r|r.task.clone()).collect::<Vec<_>>()}))
 }
 #[tauri::command]
@@ -33,6 +33,7 @@ pub async fn save_backend_settings(backend:State<'_,B>,app:AppHandle,mut setting
     super::system::validate_memory(settings.min_memory,settings.max_memory)?;
     if settings.min_memory<128||settings.max_memory<=settings.min_memory||settings.max_memory>1_048_576||!(1..=8).contains(&settings.concurrency)||settings.width<320||settings.height<240{return Err(BackendError::new("settings","Invalid memory, resolution or concurrency"));}
     if settings.instances_path!=backend.settings().instances_path{return Err(BackendError::new("storage_path","Use the storage migration dialog to change instance folders"));}
+    if !(1..=64).contains(&settings.world_backup_retention)||!(128..=102400).contains(&settings.world_backup_max_mb)||settings.library_groups.len()>64{return Err(BackendError::new("settings","Invalid collection settings"));}
     if !(1..=32).contains(&settings.backup_retention)||!matches!(settings.log_retention_days,0|7|30|90){return Err(BackendError::new("settings","Invalid retention settings"));}
     if settings.active_account.as_ref().is_some_and(|id|!backend.store.lock().unwrap().accounts.iter().any(|a|&a.id==id)){return Err(BackendError::new("account","Default account no longer exists"));}
     let b=backend.inner().clone();let jvm=settings.jvm_args.clone();let game=settings.game_args.clone();let a=app.clone();
@@ -139,7 +140,7 @@ pub async fn launch_instance(backend:State<'_,B>,app:AppHandle,id:String,task_id
     let result=process::launch(backend.inner().clone(),instance,job.clone(),Some(app.clone())).await;job.finish(&result);let _=app.emit("instances-changed",());result
 }
 #[tauri::command]
-pub async fn stop_instance(backend:State<'_,B>,id:String,force:bool)->Result<()>{process::stop(&backend,&id,force).await}
+pub async fn stop_instance(backend:State<'_,B>,app:AppHandle,id:String,force:bool)->Result<()>{process::stop_with_events(&backend,&id,force,Some(&app)).await}
 #[tauri::command]
 pub fn cancel_operation(backend:State<'_,B>,app:AppHandle,id:String)->Result<()>{
     if super::activity::cancel(&backend,&id,Some(&app))?{return Ok(());}
@@ -225,10 +226,10 @@ pub async fn content_project(backend:State<'_,B>,project:String,provider:Option<
 #[tauri::command]
 pub async fn content_versions(backend:State<'_,B>,id:String,project:String,kind:String,beta:bool,provider:Option<String>,request_id:Option<String>)->Result<Vec<serde_json::Value>>{provider_request(&backend,request_id,async{super::content_provider::provider_versions(&backend,provider.as_deref().unwrap_or("modrinth"),&backend.instance(&id)?,&project,&kind,beta).await}).await}
 #[tauri::command]
-pub async fn content_preview(backend:State<'_,B>,id:String,project:String,version:Option<String>,kind:String,world:Option<String>,beta:bool,provider:Option<String>)->Result<super::content_provider::Plan>{let _lease=backend.inner().lease(&id)?;super::content_provider::identify(&backend,&id).await?;super::content_provider::provider_preview(&backend,provider.as_deref().unwrap_or("modrinth"),&backend.instance(&id)?,&project,version.as_deref(),&kind,world,beta).await}
+pub async fn content_preview(backend:State<'_,B>,id:String,project:String,version:Option<String>,kind:String,world:Option<String>,beta:bool,provider:Option<String>)->Result<super::content_provider::Plan>{let _lease=backend.inner().content_lease(&id)?;super::content_provider::identify(&backend,&id).await?;super::content_provider::provider_preview(&backend,provider.as_deref().unwrap_or("modrinth"),&backend.instance(&id)?,&project,version.as_deref(),&kind,world,beta).await}
 #[tauri::command]
 pub async fn install_content(backend:State<'_,B>,app:AppHandle,id:String,project:String,version:Option<String>,kind:String,world:Option<String>,beta:bool,fingerprint:String,provider:Option<String>,task_id:Option<String>)->Result<super::content::State>{
- let lease=backend.inner().lease(&id)?;let job=Job::tracked(backend.inner().clone(),&id,"install",&backend.instance(&id)?.name,Some(&id),Some(app.clone()),lease.cancel.clone(),task_id)?;job.content_history.store(true,Ordering::Relaxed);
+ let lease=backend.inner().content_lease(&id)?;let job=Job::tracked(backend.inner().clone(),&id,"install",&backend.instance(&id)?.name,Some(&id),Some(app.clone()),lease.cancel.clone(),task_id)?;job.content_history.store(true,Ordering::Relaxed);
  let result=async {let instance=backend.instance(&id)?;job.emit("content_resolve","running",&project);let plan=super::download::cancellable(&job,super::content_provider::provider_preview(&backend,provider.as_deref().unwrap_or("modrinth"),&instance,&project,version.as_deref(),&kind,world,beta)).await?;if plan.fingerprint!=fingerprint{return Err(BackendError::new("content_plan_changed","Install plan changed; review it again"));}if let Some(primary)=plan.items.iter().find(|p|p.project==project&&!p.required){job.project_identity(&primary.provider,&primary.project,&primary.version);}
 super::content_provider::install(backend.inner().clone(),&id,plan,job.clone()).await}.await;
  job.finish(&result);let _=app.emit("content-changed",serde_json::json!({"id":id}));result
@@ -238,28 +239,28 @@ pub async fn content_action(backend:State<'_,B>,app:AppHandle,id:String,ids:Vec<
 #[tauri::command]
 pub async fn content_rollback(backend:State<'_,B>,app:AppHandle,id:String)->Result<super::content::State>{let b=backend.inner().clone();let event_id=id.clone();let result=tokio::task::spawn_blocking(move||{let _lease=b.lease(&id)?;super::content::rollback(&b,&id)}).await.map_err(|e|BackendError::new("content_snapshot",e.to_string()))?;let _=app.emit("content-changed",serde_json::json!({"id":event_id}));result}
 #[tauri::command]
-pub async fn content_updates(backend:State<'_,B>,id:String,beta:bool,allowed_providers:Option<Vec<String>>)->Result<super::content::State>{let _lease=backend.inner().lease(&id)?;super::content_provider::updates_for_providers(&backend,&id,beta,allowed_providers.as_deref()).await}
+pub async fn content_updates(backend:State<'_,B>,id:String,beta:bool,allowed_providers:Option<Vec<String>>)->Result<super::content::State>{let _lease=backend.inner().content_lease(&id)?;super::content_provider::updates_for_providers(&backend,&id,beta,allowed_providers.as_deref()).await}
 #[tauri::command]
 pub async fn choose_content_files(app:AppHandle)->Result<Vec<String>>{
  tokio::task::spawn_blocking(move||{use tauri_plugin_dialog::DialogExt;Ok(app.dialog().file().add_filter("Minecraft content",&["jar","zip"]).blocking_pick_files().unwrap_or_default().into_iter().filter_map(|p|p.into_path().ok().map(|p|p.to_string_lossy().into_owned())).collect())}).await.map_err(|e|BackendError::new("content_file",e.to_string()))?
 }
 #[tauri::command]
-pub async fn inspect_content_files(backend:State<'_,B>,id:String,paths:Vec<String>)->Result<Vec<super::content::Inspection>>{let b=backend.inner().clone();tokio::task::spawn_blocking(move||{let _lease=b.lease(&id)?;super::content_provider::inspect_batch(&b,&id,&paths)}).await.map_err(|e|BackendError::new("content_file",e.to_string()))?}
+pub async fn inspect_content_files(backend:State<'_,B>,id:String,paths:Vec<String>)->Result<Vec<super::content::Inspection>>{let b=backend.inner().clone();tokio::task::spawn_blocking(move||{let _lease=b.content_lease(&id)?;super::content_provider::inspect_batch(&b,&id,&paths)}).await.map_err(|e|BackendError::new("content_file",e.to_string()))?}
 #[tauri::command]
-pub async fn import_content_files(backend:State<'_,B>,app:AppHandle,id:String,paths:Vec<String>,world:Option<String>,task_id:Option<String>)->Result<super::content::State>{let b=backend.inner().clone();let lease=b.lease(&id)?;let job=Job::tracked(backend.inner().clone(),&id,"install",&backend.instance(&id)?.name,Some(&id),Some(app.clone()),lease.cancel.clone(),task_id)?;job.content_history.store(true,Ordering::Relaxed);let worker_job=job.clone();let event_id=id.clone();let result=tokio::task::spawn_blocking(move||{let _lease=lease;super::content_provider::import_with_job(&b,&id,paths,world,Some(&worker_job))}).await.unwrap_or_else(|e|Err(BackendError::new("content_file",e.to_string())));job.finish(&result);let _=app.emit("content-changed",serde_json::json!({"id":event_id}));result}
+pub async fn import_content_files(backend:State<'_,B>,app:AppHandle,id:String,paths:Vec<String>,world:Option<String>,task_id:Option<String>)->Result<super::content::State>{let b=backend.inner().clone();let lease=b.content_lease(&id)?;let job=Job::tracked(backend.inner().clone(),&id,"install",&backend.instance(&id)?.name,Some(&id),Some(app.clone()),lease.cancel.clone(),task_id)?;job.content_history.store(true,Ordering::Relaxed);let worker_job=job.clone();let event_id=id.clone();let result=tokio::task::spawn_blocking(move||{let _lease=lease;super::content_provider::import_with_job(&b,&id,paths,world,Some(&worker_job))}).await.unwrap_or_else(|e|Err(BackendError::new("content_file",e.to_string())));job.finish(&result);let _=app.emit("content-changed",serde_json::json!({"id":event_id}));result}
 
 #[derive(serde::Deserialize)]
 pub struct ContentRequest {#[serde(default="super::content::default_provider")]provider:String,project:String,version:Option<String>,kind:String,world:Option<String>,beta:bool,#[serde(default)]fingerprint:String}
 #[tauri::command]
 pub async fn bulk_content_preview(backend:State<'_,B>,id:String,requests:Vec<ContentRequest>)->Result<Vec<super::content_provider::Plan>>{
  if requests.is_empty()||requests.len()>100{return Err(BackendError::new("dependency","Select between 1 and 100 projects"));}
- let _lease=backend.inner().lease(&id)?;super::content_provider::identify(&backend,&id).await?;let instance=backend.instance(&id)?;let mut plans=Vec::new();
+ let _lease=backend.inner().content_lease(&id)?;super::content_provider::identify(&backend,&id).await?;let instance=backend.instance(&id)?;let mut plans=Vec::new();
  for r in requests{plans.push(super::content_provider::provider_preview(&backend,&r.provider,&instance,&r.project,r.version.as_deref(),&r.kind,r.world,r.beta).await?);}
  super::content_provider::validate_plans(&plans,&super::content::scan(&backend,&id)?)?;Ok(plans)
 }
 #[tauri::command]
 pub async fn bulk_install_content(backend:State<'_,B>,app:AppHandle,id:String,requests:Vec<ContentRequest>,task_id:Option<String>)->Result<super::content::State>{
- let lease=backend.inner().lease(&id)?;let job=Job::tracked(backend.inner().clone(),&id,"install",&backend.instance(&id)?.name,Some(&id),Some(app.clone()),lease.cancel.clone(),task_id)?;job.content_history.store(true,Ordering::Relaxed);
+ let lease=backend.inner().content_lease(&id)?;let job=Job::tracked(backend.inner().clone(),&id,"install",&backend.instance(&id)?.name,Some(&id),Some(app.clone()),lease.cancel.clone(),task_id)?;job.content_history.store(true,Ordering::Relaxed);
  let result=async{let instance=backend.instance(&id)?;let mut plans=vec![];if requests.len()>100{return Err(BackendError::new("dependency","Too many projects"));}for r in requests{job.check()?;job.emit("content_resolve","running",&r.project);let p=super::download::cancellable(&job,super::content_provider::provider_preview(&backend,&r.provider,&instance,&r.project,r.version.as_deref(),&r.kind,r.world,r.beta)).await?;if p.fingerprint!=r.fingerprint{return Err(BackendError::new("content_plan_changed","Install plan changed"));}plans.push(p);}super::content_provider::install_many(backend.inner().clone(),&id,plans,job.clone()).await}.await;
  job.finish(&result);let _=app.emit("content-changed",serde_json::json!({"id":id}));result
 }

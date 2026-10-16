@@ -1,3 +1,6 @@
+import {CustomFonts} from "./CustomFonts";
+import {isCustomFont,fontFamily,loadCustomFont,type CustomFont} from "../services/fonts";
+import {AnimatedDetails} from "./AnimatedDetails";
 import {sidebarDefaults,normalizeSidebar,applySidebarTokens,type SidebarPreferences} from "../services/sidebarAppearance";
 import {applyBackgroundTokens} from "./appearancePreview";
 import {BackgroundSettings} from "./BackgroundSettings";
@@ -36,8 +39,9 @@ export function normalizePreferences(input:unknown):Preferences {
  const result={...base,...normalizeSidebar(saved),...normalizeCatalog(saved),...normalizeMaterials(Object.keys(saved).length?saved:base),...normalizeLayout(Object.keys(saved).length?saved:base),globalTreatment:{...base.globalTreatment},sidebarTreatment:{...base.sidebarTreatment}};
  const fields=result as unknown as Record<string,unknown>;
  for(const key of Object.keys(defaults).filter(key=>!(key in materialDefaults)&&!(key in layoutDefaults)&&!(key in catalogDefaults)&&!(key in sidebarDefaults))){const value=saved[key];if(typeof value===typeof fields[key]&&(typeof value!=="number"||Number.isFinite(value)))fields[key]=value;}
- const enums:Record<string,string[]>={backgroundSource:["canary","desktop","solid"],material:["solid","transparent","acrylic","mica","mica-alt"],tint:["neutral","theme","strong"],vibrancyPreset:["off","subtle","balanced","glass","custom"],titlebarBranding:["icon","text","icon-text","hidden"],windowControls:["windows","minimal","compact","traffic-lights"],controlsPosition:["left","right"],effectPreset:["off","low","medium","high","custom"],ambient:["off","automatic","sakura","snow","autumn","embers"],quality:["low","balanced","high"],sidebarSide:["left","right"],cursor:["system","custom"],minecraft:["headings","full"],font:fonts};
+ const enums:Record<string,string[]>={backgroundSource:["canary","desktop","solid"],material:["solid","transparent","acrylic","mica","mica-alt"],tint:["neutral","theme","strong"],vibrancyPreset:["off","subtle","balanced","glass","custom"],titlebarBranding:["icon","text","icon-text","hidden"],windowControls:["windows","minimal","compact","traffic-lights"],controlsPosition:["left","right"],effectPreset:["off","low","medium","high","custom"],ambient:["off","automatic","sakura","snow","autumn","embers"],quality:["low","balanced","high"],sidebarSide:["left","right","top","bottom","top-left","top-right","bottom-left","bottom-right"],cursor:["system","custom"],minecraft:["headings","full"],font:fonts};
  for(const [key,allowed] of Object.entries(enums))if(!allowed.includes(String(fields[key])))fields[key]=(defaults as unknown as Record<string,unknown>)[key];
+ if(typeof saved.font==="string"&&isCustomFont(saved.font))result.font=saved.font;
  const ranges:Record<string,[number,number]>={windowTransparency:[0,100],surfaceOpacity:[20,100],surfaceBlur:[0,32],glassIntensity:[0,70],heroSpeed:[7,20],particleWind:[0,200],density:[4,24],particleSpeed:[40,180],particleOpacity:[5,70],particleSize:[50,160],glass:[5,35],intensity:[0,100],blur:[0,32],sidebarBlur:[0,20],sidebarIntensity:[0,100]};
  for(const [key,[min,max]] of Object.entries(ranges))fields[key]=Math.min(max,Math.max(min,Number(fields[key])));
  result.fontScale=[90,100,110,120].includes(result.fontScale)?result.fontScale:100;
@@ -55,10 +59,18 @@ export function normalizePreferences(input:unknown):Preferences {
  result.app=migrateBackgroundId(result.app,"app");result.sidebar=migrateBackgroundId(result.sidebar,"sidebar");
  return result;
 }
-const Context = createContext<{ registry:Background[];effectsPaused:"focus"|"motion"|null;wallpapersReady:boolean;reload:()=>Promise<void>;value: Preferences; native:ReturnType<typeof useNativeMaterial>|null;update: (patch: Partial<Preferences>) => void;preview:(patch:Partial<Preferences>)=>void }>({registry:backgrounds,effectsPaused:null,wallpapersReady:true,reload:async()=>{},value: defaults,native:null,update: () => {},preview:()=>{} });
+const Context = createContext<{ customFonts:CustomFont[];reloadFonts:()=>Promise<CustomFont[]>;fontLoadFailed:boolean;registry:Background[];effectsPaused:"focus"|"motion"|null;wallpapersReady:boolean;reload:()=>Promise<void>;value: Preferences; native:ReturnType<typeof useNativeMaterial>|null;update: (patch: Partial<Preferences>) => void;preview:(patch:Partial<Preferences>)=>void }>({customFonts:[],reloadFonts:async()=>[],fontLoadFailed:false,registry:backgrounds,effectsPaused:null,wallpapersReady:true,reload:async()=>{},value: defaults,native:null,update: () => {},preview:()=>{} });
 export const useVisualAppearance=()=>useContext(Context);
 export function VisualAppearanceProvider({ children }: { children: ReactNode }) {
   const {run}=useBackend();const [custom,setCustom]=useState<Background[]>([]);const [wallpapersReady,setWallpapersReady]=useState(!isTauri());
+  const [customFonts,setCustomFonts]=useState<CustomFont[]>([]),[fontsReady,setFontsReady]=useState(!isTauri()),[fontLoadFailed,setFontLoadFailed]=useState(false);
+  const reloadFonts=useCallback(async()=>{
+    if(!isTauri())return [];
+    const result=await run<CustomFont[]>("list_fonts");
+    const entries=Array.isArray(result)?result.filter(font=>typeof font?.id==="string"&&isCustomFont("custom:"+font.id)&&typeof font.name==="string"&&typeof font.path==="string"):[];
+    setCustomFonts(entries);return entries;
+  },[run]);
+  useEffect(()=>{let live=true;void reloadFonts().then(()=>{if(live)setFontsReady(true);}).catch(()=>{if(live)setFontLoadFailed(true);});return()=>{live=false;};},[reloadFonts]);
   const objectUrls=useRef(new Set<string>());const loadSequence=useRef(0);
   useEffect(()=>()=>{loadSequence.current++;objectUrls.current.forEach(url=>URL.revokeObjectURL(url));objectUrls.current.clear();},[]);
   const reload=async()=>{
@@ -84,6 +96,13 @@ export function VisualAppearanceProvider({ children }: { children: ReactNode }) 
       return normalizePreferences(saved);
     } catch { return freshDefaults; }
   });
+  useEffect(()=>{
+    if(!fontsReady||!isCustomFont(value.font)){setFontLoadFailed(false);return;}
+    const selected=value.font,font=customFonts.find(font=>"custom:"+font.id===selected);let live=true;
+    const failed=()=>{if(live){setFontLoadFailed(true);setValue(old=>old.font===selected?{...old,font:"Nunito"}:old);}};
+    if(font)void loadCustomFont(font).then(()=>{if(live)setFontLoadFailed(false);}).catch(failed);else failed();
+    return()=>{live=false;};
+  },[value.font,customFonts,fontsReady]);
   const [reduced, setReduced] = useState(false);
   const native=useNativeMaterial(value);
   useEffect(() => { const media=matchMedia("(prefers-reduced-motion: reduce)");const sync=()=>setReduced(media.matches||document.documentElement.dataset.motion==="reduced");const observer=new MutationObserver(sync);observer.observe(document.documentElement,{attributes:true,attributeFilter:["data-motion"]});sync();media.addEventListener("change",sync);return()=>{observer.disconnect();media.removeEventListener("change",sync);}; }, []);
@@ -97,15 +116,15 @@ export function VisualAppearanceProvider({ children }: { children: ReactNode }) 
     root.style.setProperty("--ui-font-scale", String(value.fontScale / 100));
     root.dataset.uiFont = value.font; root.dataset.minecraft = value.minecraft;
     root.dataset.ambient = value.ambient;
-    root.dataset.sidebarSide = value.sidebarSide; root.dataset.cursor = value.cursor;
+    root.dataset.sidebarSide = value.sidebarSide; root.dataset.sidebarMini=String(value.sidebarMini); root.dataset.cursor = value.cursor;
     root.dataset.focus = String(value.focus); root.dataset.quality = value.quality;
     root.dataset.backgroundSource=value.backgroundSource;root.dataset.frost=String(value.frost);
     root.style.setProperty("--surface-opacity",`${value.focus?97:value.surfaceOpacity}%`);
     root.style.setProperty("--material-blur",`${value.quality==="low"?0:value.focus?Math.min(value.surfaceBlur,4):value.surfaceBlur}px`);
     root.style.setProperty("--glass-strength",String(value.glassIntensity/100));
     root.style.setProperty("--glass-opacity", (100-value.glass)+"%");
-    root.style.setProperty("--ui-font", value.font === "Monocraft" && value.minecraft === "headings" ? "Nunito" : `"${value.font}"`);
-    root.style.setProperty("--heading-font", `"${value.font}"`);
+    root.style.setProperty("--ui-font", value.font === "Monocraft" && value.minecraft === "headings" ? "Nunito" : `"${fontFamily(value.font)}"`);
+    root.style.setProperty("--heading-font", `"${fontFamily(value.font)}"`);
     root.style.setProperty("--sidebar-art", `url("${registry.find(p => p.id === value.sidebar)?.sidebar || defaultSidebarImage}")`);
     root.style.setProperty("--sidebar-blur", `${value.sidebarBlur}px`);
   }, [value,custom]);
@@ -131,7 +150,7 @@ export function VisualAppearanceProvider({ children }: { children: ReactNode }) 
   }),[]);
   const effect=resolveAmbient(value.ambient,value.backgroundSource==="canary"?registry.find(p=>p.id===value.app)?.ambient:"off",value.sidebarBackgroundSource==="picture"?registry.find(p=>p.id===value.sidebar)?.ambient:"off");
   const image = value.backgroundSource==="canary"?registry.find(p => p.id === value.app)?.app:undefined;
-  return <Context.Provider value={{registry,effectsPaused:value.focus?"focus":reduced?"motion":null,wallpapersReady,reload,value,native,update,preview }}>
+  return <Context.Provider value={{customFonts,reloadFonts,fontLoadFailed,registry,effectsPaused:value.focus?"focus":reduced?"motion":null,wallpapersReady,reload,value,native,update,preview }}>
     <div className="visual-backdrop" aria-hidden="true">
       <ArtworkFade source={image} className="global-wallpaper" />
       <div className="wallpaper-veil" />
@@ -148,10 +167,11 @@ export function VisualPreferences({ russian,group="all",effectsControls }: { rus
 
   return <section className="visual-preferences" data-visual-group={group}>
 
-    {(group==="all"||group==="layout")&&<div className="visual-appearance-group"><MaterialLayoutSettings russian={russian} value={value} update={update} group="cards"/><CatalogSettings russian={russian} value={value} update={update}/><PolishControls russian={russian} value={value} update={update} group="interface"/>{group==="all"&&native&&<details className="material-disclosure"><summary>{russian?"Материал окна Windows":"Windows window material"}</summary><WindowMaterialSettings russian={russian} value={value} update={update} preview={preview} nativeOnly {...native}/></details>}</div>}
+    {(group==="all"||group==="layout")&&<div className="visual-appearance-group"><MaterialLayoutSettings russian={russian} value={value} update={update} group="cards"/><CatalogSettings russian={russian} value={value} update={update}/><PolishControls russian={russian} value={value} update={update} group="interface"/>{group==="all"&&native&&<AnimatedDetails className="material-disclosure"><summary>{russian?"Материал окна Windows":"Windows window material"}</summary><WindowMaterialSettings russian={russian} value={value} update={update} preview={preview} nativeOnly {...native}/></AnimatedDetails>}</div>}
     {(group==="all"||group==="background")&&<BackgroundSettings russian={russian} target={group==="background"?"app":undefined}/>}
     {group==="all"&&<EffectsPreferences russian={russian}>{effectsControls}</EffectsPreferences>}
     {(group==="all"||group==="typography")&&<div className="visual-typography-group"><h3>{russian?"Типографика":"Typography"}</h3><h4>{text["Interface font"]}</h4><div className="font-options">{fonts.map(font => <button key={font} style={{ fontFamily: `"${font}", Nunito, sans-serif` }} className={value.font === font ? "selected" : ""} aria-pressed={value.font === font} onClick={() => update({ font })}>{font}</button>)}</div>
+    <CustomFonts russian={russian}/>
     <h4>{text["Interface size"]}</h4><div className="font-options">{([90,100,110,120] as const).map(fontScale=><button key={fontScale} aria-pressed={value.fontScale===fontScale} className={value.fontScale===fontScale?"selected":""} onClick={()=>update({fontScale})}>{fontScale}%</button>)}</div>
     {value.font === "Monocraft" && <><h4>{text["Minecraft style"]}</h4><div className="font-options">{(["headings", "full"] as const).map(minecraft => <button key={minecraft} aria-pressed={value.minecraft === minecraft} className={value.minecraft === minecraft ? "selected" : ""} onClick={() => update({ minecraft })}>{minecraft === "headings" ? text["Headings"] : text["Full interface"]}</button>)}</div></>}
     </div>}
