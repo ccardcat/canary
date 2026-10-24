@@ -106,25 +106,26 @@ pub fn replace(source:&Path,target:&Path)->Result<()> {
 }
 
 #[cfg(test)]
-mod invalid_zip_name_tests {
+mod encoded_zip_name_tests {
     use super::*;
     use std::io::{Cursor, Write};
     #[test]
-    fn invalid_utf8_archive_names_fail_before_creating_destination_files() {
+    fn encoded_traversal_names_fail_before_creating_destination_files() {
         let root=std::env::temp_dir().join(format!("canary-invalid-zip-name-{}",uuid::Uuid::new_v4()));
         let _cleanup=Staging(root.clone());
         fs::create_dir_all(&root).unwrap();
         let mut zip=zip::ZipWriter::new(Cursor::new(Vec::new()));
-        zip.start_file("safe.txt",zip::write::SimpleFileOptions::default().compression_method(zip::CompressionMethod::Stored)).unwrap();
+        zip.start_file("safe/x.txt",zip::write::SimpleFileOptions::default().compression_method(zip::CompressionMethod::Stored)).unwrap();
         zip.write_all(b"payload").unwrap();
         let mut bytes=zip.finish().unwrap().into_inner();
-        // Mark both ZIP headers as UTF-8, then supply an invalid filename byte.
-        bytes[7]|=8;bytes[30]=0xff;
+        // ZIP 9 also accepts legacy CP437 bytes. Validate the decoded path,
+        // including traversal mixed with a non-UTF-8 filename component.
+        bytes[30..40].copy_from_slice(b"../\xff/x.txt");
         let central=bytes.windows(4).position(|s|s==b"PK\x01\x02").unwrap();
-        bytes[central+9]|=8;bytes[central+46]=0xff;
+        bytes[central+46..central+56].copy_from_slice(b"../\xff/x.txt");
         let archive=root.join("invalid.zip");fs::write(&archive,bytes).unwrap();
         let destination=root.join("destination");
-        assert!(extract(&archive,&destination).is_err());
+        assert_eq!(extract(&archive,&destination).unwrap_err().code,"unsafe_path");
         assert!(!destination.exists());
     }
 }
