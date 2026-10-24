@@ -43,7 +43,7 @@ async function start(page: Page, russian = false) {
 async function choose(page: Page, name: string, option: string) {
  if(await page.locator(".settings-modal").isVisible()){if(["Material preset","Shared material","Button style","Card material"].includes(name))await settingsSection(page,"materials");if(name==="Sidebar layout")await settingsSection(page,"sidebar");}
 
-  await page.getByRole("combobox", { name, exact: true }).evaluate(el=>{for(let details=el.closest("details");details;details=details.parentElement?.closest("details")??null)details.open=true;});
+  await page.getByRole("combobox", { name, exact: true, includeHidden:true }).evaluate(el=>{for(let details=el.closest("details");details;details=details.parentElement?.closest("details")??null)details.open=true;});
   await page.getByRole("combobox", { name, exact: true }).click();
   await page.getByRole("option", { name: option, exact: true }).click();
 }
@@ -226,7 +226,8 @@ test("wheel, scrollbar drag and Tab reveal navigation while utilities stay pinne
   await page.screenshot({ path: ".qa/sidebar-scroll/drag-bottom.png" });
   await nav.evaluate((el) => (el.scrollTop = 0));
   await nav.locator("button").first().focus();
-  for (let i = 0; i < 6; i++) await page.keyboard.press("Tab");
+  const navigationSteps=(await nav.locator("button").count())-1;
+  for (let i = 0; i < navigationSteps; i++) await page.keyboard.press("Tab");
   await expect(nav.locator("button").last()).toBeFocused();
   expect(await nav.evaluate((el) => el.scrollTop)).toBeGreaterThan(0);
   await expect(nav.locator("button").last()).toHaveCSS("outline-style", "solid");
@@ -438,7 +439,7 @@ test("small-height sidebar side and surface settings switch without losing utili
   for (const side of ["Right", "Left"])
     for (const mode of ["Floating", "Attached", "Floating"]) {
       await page.locator(".sidebar nav button").last().click();
-      await page.getByRole("button", { name: side, exact: true }).click();
+      await settingsSection(page,"sidebar");await page.getByRole("button", { name: side, exact: true }).click();
       await choose(page, "Sidebar layout", mode);
       await page.keyboard.press("Escape");
       await expect(page.locator("html")).toHaveAttribute(

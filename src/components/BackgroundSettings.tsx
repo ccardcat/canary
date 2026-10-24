@@ -1,3 +1,4 @@
+import {AnimatedDetails} from "./AnimatedDetails";
 import {useState} from "react";
 import {isTauri} from "@tauri-apps/api/core";
 import {useVisualAppearance,type Preferences} from "./VisualAppearance";
@@ -57,15 +58,15 @@ export function BackgroundSettings({russian,target:fixedTarget}:{russian:boolean
    <p className="settings-note">{label("Больше видимости — ярче картинка. Размытие смягчает детали. Затемнение помогает читать текст.","More visibility reveals the picture. Blur softens details. Shading keeps text readable.")}</p>
    <h4>{label("Выбрать изображение","Choose wallpaper")}</h4>
    <BackgroundGallery russian={russian} selected={sidebar?value.sidebar:value.app} onSelect={choose} images={sidebar?registry.filter(p=>p.sidebar).map(p=>({...p,app:undefined})):registry.filter(p=>p.app)}/>
-   <details className="polish-disclosure"><summary>{label("Цвет и кадрирование","Color and framing")}</summary><div className="polish-range-grid">
+   <AnimatedDetails className="polish-disclosure"><summary>{label("Цвет и кадрирование","Color and framing")}</summary><div className="polish-range-grid">
     {range(label("Яркость","Brightness"),treatment.brightness,50,130,n=>patch("brightness",n))}
     {range(label("Насыщенность","Saturation"),treatment.saturation,0,130,n=>patch("saturation",n))}
     {range(label("Затемнение по краям","Vignette"),treatment.vignette,0,90,n=>patch("vignette",n))}
     {range(label("Масштаб","Zoom"),treatment.zoom,100,140,n=>patch("zoom",n))}
-   </div><label>{label("Положение","Position")}<GlassSelect disabled={sidebarOpaque} aria-label={label("Положение фона","Wallpaper position")} value={treatment.position} onChange={e=>update(patch("position",e.target.value))}>{[["center","По центру","Center"],["left","Слева","Left"],["right","Справа","Right"],["top","Сверху","Top"],["bottom","Снизу","Bottom"]].map(([id,ru,en])=><option key={id} value={id}>{russian?ru:en}</option>)}</GlassSelect></label></details>
+   </div><label>{label("Положение","Position")}<GlassSelect disabled={sidebarOpaque} aria-label={label("Положение фона","Wallpaper position")} value={treatment.position} onChange={e=>update(patch("position",e.target.value))}>{[["center","По центру","Center"],["left","Слева","Left"],["right","Справа","Right"],["top","Сверху","Top"],["bottom","Снизу","Bottom"]].map(([id,ru,en])=><option key={id} value={id}>{russian?ru:en}</option>)}</GlassSelect></label></AnimatedDetails>
    {isTauri()&&<div className="background-custom-actions"><button className="quiet-button" disabled={importing} onClick={()=>{setImporting(true);void run("import_wallpaper",{target}).then(reload).catch(()=>{}).finally(()=>setImporting(false));}}>{importing?label("Импорт…","Importing…"):label("Выбрать своё изображение","Choose custom image")}</button>{chosen?.custom&&<button className="quiet-button destructive" disabled={importing} onClick={()=>{setImporting(true);void run("remove_wallpaper",{id:chosen.id}).then(()=>{update({...value.app===chosen.id?{app:"meadow"}:{},...value.sidebar===chosen.id?{sidebar:"meadow"}:{}});return reload();}).catch(()=>{}).finally(()=>setImporting(false));}}>{label("Удалить изображение","Remove image")}</button>}</div>}
    <button className="quiet-button" onClick={()=>update(sidebar?{sidebarTreatment:{...polishDefaults.sidebarTreatment},sidebarIntensity:85,sidebarBlur:12}:{globalTreatment:{...polishDefaults.globalTreatment},intensity:85,blur:8})}>{label("Сбросить обработку фона","Reset background adjustments")}</button>
   </>}
-  {(!sidebar&&native&&value.backgroundSource!=="desktop")&&<details className="polish-disclosure"><summary>{label("Материал окна Windows","Windows window material")}</summary><WindowMaterialSettings russian={russian} value={value} update={update} preview={preview} nativeOnly {...native}/></details>}
+  {(!sidebar&&native&&value.backgroundSource!=="desktop")&&<AnimatedDetails className="polish-disclosure"><summary>{label("Материал окна Windows","Windows window material")}</summary><WindowMaterialSettings russian={russian} value={value} update={update} preview={preview} nativeOnly {...native}/></AnimatedDetails>}
  </section>;
 }

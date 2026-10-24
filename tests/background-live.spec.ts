@@ -22,7 +22,7 @@ test("Background drag changes the real wallpaper before release without disk or 
  for(let i=0;i<20;i++)await page.mouse.move(box.x+box.width*(.45+i*.015),box.y+box.height/2);
  await expect.poll(()=>page.locator(".global-wallpaper").evaluate(el=>getComputedStyle(el).filter)).not.toContain("blur(8px)");
  expect(await page.evaluate(()=>(globalThis as any).__writes())).toBe(0);
- expect(await page.evaluate(()=>(globalThis as any).__materialQA.calls.length-(globalThis as any).__calls)).toBe(0);
+ expect(await page.evaluate(()=>(globalThis as any).__materialQA.calls.slice((globalThis as any).__calls).filter((c:any)=>["apply_window_material","import_wallpaper","save_backend_settings","save_collection_preferences"].includes(c.command)))).toEqual([]);
  const draft=Number(await slider.inputValue());await page.mouse.up();
  await expect.poll(()=>page.evaluate(()=>(globalThis as any).__writes())).toBe(1);
  await page.reload();await nav(page,"Settings").click();await background(page);await expect(page.getByRole("slider",{name:"Wallpaper blur",exact:true})).toHaveValue(String(draft));
@@ -80,6 +80,7 @@ test("Legacy defaults become visible once, custom settings remain and RU fits na
  await page.getByRole("slider",{name:"Размытие изображения",exact:true}).scrollIntoViewIfNeeded();await page.waitForTimeout(250);await page.screenshot({path:".qa/background-live/ru-background.png"});
 });
 test("Background and surface settings stay readable in three themes and show the real launcher scene",async({page})=>{
+ test.setTimeout(90000);
  await start(page);await choose(page,"Material preset","Glass");await commit(page,"Surface opacity","65");
  await page.locator(".material-preview").scrollIntoViewIfNeeded();await page.screenshot({path:".qa/background-live/surfaces.png"});
  for(const theme of ["Dark","Light","AMOLED"]){

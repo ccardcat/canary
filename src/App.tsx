@@ -1,9 +1,13 @@
+import {SkinsPage} from "./components/SkinsPage";
+import {AnimatedDetails} from "./components/AnimatedDetails";
+import "./components/CollectionPolish.css";
+import {CollectionPreferences} from "./components/CollectionTools";
 import {SettingsNavigation,settingsGroups} from "./components/SettingsNavigation";
 import {SidebarSettings} from "./components/SidebarSettings";
 import {sidebarInk} from "./services/sidebarAppearance";
 import {EmptyState} from "./components/EmptyState";
 import {useAnchoredPopover} from "./hooks/useAnchoredPopover";
-import {PackDownloads} from "./components/TaskActivity";
+
 import {ErrorSupport} from "./components/ErrorSupport";
 import {errorCopy,normalizeError,technicalDetails} from "./services/errors";
 import {ProviderSelect,ProviderUnavailable} from "./components/ProviderUI";
@@ -17,8 +21,9 @@ import {
   useLayoutEffect,
   useRef,
   useState,
+  type ReactNode,
 } from "react";
-import { AnimatePresence, MotionConfig, motion } from "motion/react";
+import { AnimatePresence, MotionConfig, motion, useIsPresent } from "motion/react";
 import {isTerminal,projectInstallTask} from "./services/activity";
 import {isProjectInstalled} from "./services/library";
 import ProjectCard from "./components/ProjectCard";
@@ -56,6 +61,7 @@ import {
   Puzzle,
   Search,
   Server,
+  Shirt,
   Settings as SettingsIcon,
   UserRound,
   X,
@@ -94,6 +100,7 @@ type Page =
   | "Library"
   | "Downloads"
   | "Screenshots"
+  | "Skins"
   | "Activity"
   | "Settings";
 type Mode = "dark" | "light" | "amoled" | "system";
@@ -114,6 +121,7 @@ const nav: Record<Page, typeof House> = {
   Library: LibraryIcon,
   Downloads: Download,
   Screenshots: Image,
+  Skins: Shirt,
   Activity,
   Settings: SettingsIcon,
 };
@@ -510,7 +518,7 @@ function App() {
               </AnimatePresence>
             </div>
           </header>
-          {page!=="Downloads"&&<PackDownloads russian={lang==="ru"}/>}
+
           {detailLoading && (
             <div className="loading-detail" role="status">
               {t("loading")}
@@ -588,6 +596,8 @@ function App() {
                 />
               ) : page === "Downloads" ? (
                 isTauri()?<RuntimeProgress russian={lang === "ru"}/>:<DownloadsPage t={t} progress={progress} error={error} />
+              ) : page === "Skins" ? (
+                <SkinsPage russian={lang === "ru"}/>
               ) : page === "Screenshots" ? (
                 isTauri() ? <RuntimeScreenshots russian={lang === "ru"}/> : <EmptyPage
                   icon={Image}
@@ -979,10 +989,10 @@ function DiscoverPage({
                 <button className="quiet-button" onClick={retry}>
                   {t("retry")}
                 </button>
-                <details className="selectable">
+                <AnimatedDetails className="selectable">
                   <summary>{t("details")}</summary>
                   {error}
-                </details>
+                </AnimatedDetails>
               </div>
             ) : projects.length ? (
               <div className="project-grid catalog-project-grid" data-layout={appearance.catalogLayout} data-density={appearance.catalogDensity}>
@@ -1284,7 +1294,7 @@ function DetailPage({
           ) : (
             <div className="version-list">
               {versions.map((v) => (
-                <details key={v.id}>
+                <AnimatedDetails key={v.id}>
                   <summary>
                     <b>{v.version_number}</b><small>{v.files.map(f=>f.filename).join(" · ")}{v.files.every(f=>!f.url)?(t("home")==="Главная"?" · Ручная загрузка":" · Manual download"):""}</small>
                     <span>{v.game_versions.join(" · ")}</span>
@@ -1295,7 +1305,7 @@ function DetailPage({
                   <Suspense fallback={<p role="status">{t("loading")}</p>}>
                     <Markdown body={v.changelog || t("noDescription")} />
                   </Suspense>
-                </details>
+                </AnimatedDetails>
               ))}
             </div>
           )}
@@ -1555,15 +1565,9 @@ function SettingsModal({
           </nav>
           <div className="settings-content" ref={content}>
             <AnimatePresence mode="wait" initial={false}>
-              <motion.div
-                key={tab}
-                initial={{ opacity: 0, y: 6 }}
-                animate={{ opacity: 1, y: 0 }}
-                exit={{ opacity: 0, transition: { duration: 0.1 } }}
-                transition={{duration:.22}}
-              >
+              <SettingsSection key={tab} section={tab}>
                 {!search.trim()&&selected&&<div className="settings-breadcrumb"><span>{selected.group}<ChevronRight size={12}/>{selected.label}</span><p>{selected.description}</p></div>}
-                {search.trim()?<div className="settings-results">{results.length?results.map(section=>{const Icon=section.icon;return <button key={section.id} data-settings-result={section.id} onClick={()=>{setTab(section.id);setSearch("");}}><Icon size={17}/><span><b>{section.label}</b><small>{section.group} · {section.description}</small></span></button>;}):<p>{russian?"Настройки не найдены":"No settings found"}</p>}</div>:tab === "discord" ? <DiscordSettings russian={russian} status={discordStatus}/> :tab === "window" ? <WindowPreferencesPanel russian={russian}/> :tab === "background" ? <><VisualPreferences russian={russian} group="background"/><HeroSettings russian={russian}/></> :tab === "effects" ? <EffectsPreferences russian={russian}><MotionPreference t={t} reduceMotion={reduceMotion} setReduceMotion={setReduceMotion}/></EffectsPreferences> :tab === "typography" ? <VisualPreferences russian={russian} group="typography"/> :tab === "materials" ? <MaterialPreferencesPanel russian={russian}/> :tab === "sidebar" ? <SidebarSettings russian={russian} compact={compact} setCompact={setCompact}/> :tab === "layout" ? <><VisualPreferences russian={russian} group="layout"/><InterfaceVisibilityPanel russian={russian}/></> :tab === "quality" ? <VisualQuality russian={russian}/> :tab === "storage" ? <StorageSettings russian={russian}/> :tab === "minecraft"?<RuntimeSettingsPanel russian={russian} section="minecraft"/> :tab === "downloads"?<RuntimeSettingsPanel russian={russian} section="downloads"/> :tab === "appearance" ? (
+                {search.trim()?<div className="settings-results">{results.length?results.map(section=>{const Icon=section.icon;return <button key={section.id} data-settings-result={section.id} onClick={()=>{setTab(section.id);setSearch("");}}><Icon size={17}/><span><b>{section.label}</b><small>{section.group} · {section.description}</small></span></button>;}):<p>{russian?"Настройки не найдены":"No settings found"}</p>}</div>:tab === "discord" ? <DiscordSettings russian={russian} status={discordStatus}/> :tab === "window" ? <><WindowPreferencesPanel russian={russian}/>{isTauri()&&<CollectionPreferences russian={russian} windowOnly/>}</> :tab === "background" ? <><VisualPreferences russian={russian} group="background"/><HeroSettings russian={russian}/></> :tab === "effects" ? <EffectsPreferences russian={russian}><MotionPreference t={t} reduceMotion={reduceMotion} setReduceMotion={setReduceMotion}/></EffectsPreferences> :tab === "typography" ? <VisualPreferences russian={russian} group="typography"/> :tab === "materials" ? <MaterialPreferencesPanel russian={russian}/> :tab === "sidebar" ? <SidebarSettings russian={russian} compact={compact} setCompact={setCompact}/> :tab === "layout" ? <><VisualPreferences russian={russian} group="layout"/><InterfaceVisibilityPanel russian={russian}/></> :tab === "quality" ? <VisualQuality russian={russian}/> :tab === "storage" ? <StorageSettings russian={russian}/> :tab === "minecraft"?<RuntimeSettingsPanel russian={russian} section="minecraft"/> :tab === "downloads"?<RuntimeSettingsPanel russian={russian} section="downloads"/> :tab === "appearance" ? (
                   <Appearance
                     t={t}
                     mode={mode}
@@ -1610,13 +1614,19 @@ function SettingsModal({
                     }
                   />
                 )}
-              </motion.div>
+              </SettingsSection>
             </AnimatePresence>
           </div>
         </div>
       </motion.div>
     </motion.div>
   );
+}
+function SettingsSection({section,children}:{section:string;children:ReactNode}) {
+  const present=useIsPresent();
+  return <motion.div data-settings-content={section} inert={!present} aria-hidden={!present}
+    initial={{opacity:0,y:6}} animate={{opacity:1,y:0}}
+    exit={{opacity:0,transition:{duration:.1}}} transition={{duration:.22}}>{children}</motion.div>;
 }
 function Appearance({
   t,

@@ -3,7 +3,7 @@ export const taskKinds = [
   "install",
   "update",
   "repair",
-  "launch",
+  "launch", "copy", "export", "backup", "import",
 ] as const;
 export type TaskKind = (typeof taskKinds)[number];
 export type TaskStatus =
@@ -64,6 +64,7 @@ export function mergeTask(
     : [...tasks.filter(t=>!isTerminal(t)),...tasks.filter(isTerminal).slice(-99),next];
 }
 export const taskCommands: Record<string, TaskKind> = {
+  clone_instance:"copy", create_world_backup:"backup", restore_world_backup:"backup", import_launcher_instance:"import",
   install_modpack: "install",
   install_curseforge_pack: "install",
   create_instance: "install",

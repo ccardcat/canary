@@ -3,10 +3,11 @@ import type {Page} from '@playwright/test';
 // Seed the new document after pagehide flushes the old renderer's preferences.
 // Remove the initializer so subsequent reloads test real persisted settings.
 export async function reloadWithSeed(page:Page,source:string){
-  const session=await page.context().newCDPSession(page);
-  const {identifier}=await session.send('Page.addScriptToEvaluateOnNewDocument',{source});
-  try{await page.reload();}
-  finally{await session.send('Page.removeScriptToEvaluateOnNewDocument',{identifier});await session.detach();}
+  const marker=`canary-test-seed-${crypto.randomUUID()}`;
+  // Browser init scripts work across Chromium builds. A session marker makes
+  // each initializer run only once, so later reloads test saved preferences.
+  await page.addInitScript({content:`if(!sessionStorage.getItem(${JSON.stringify(marker)})){sessionStorage.setItem(${JSON.stringify(marker)},'applied');${source}}`});
+  await page.reload();
 }
 
 export async function reloadWithPreferences(page:Page,patch:Record<string,unknown>){

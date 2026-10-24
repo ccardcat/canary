@@ -172,7 +172,8 @@ fn apply_overrides_job<R:Read+std::io::Seek>(archive:&mut ZipArchive<R>,base:&Pa
     for i in 0..archive.len() {
         let entry=archive.by_index(i).map_err(|e|InstallError::cause(stage,e))?;
         budget.entry(entry.size()).map_err(|e|InstallError::new(stage,e.message))?;
-        if let Some(rel)=entry.name().strip_prefix(prefix) {let rel=rel.trim_end_matches('/');if rel.is_empty()&&entry.is_dir(){continue;}
+        let name=entry.name().map_err(|e|InstallError::cause(stage,e))?.into_owned();
+        if let Some(rel)=name.strip_prefix(prefix) {let rel=rel.trim_end_matches('/');if rel.is_empty()&&entry.is_dir(){continue;}
             safe(base,rel,stage)?;
             if entry.unix_mode().is_some_and(|m|m&0o170000==0o120000)||!names.insert(rel.to_ascii_lowercase()){return Err(InstallError::new(stage,"Unsafe link or duplicate archive destination"));}
         }
@@ -182,7 +183,8 @@ fn apply_overrides_job<R:Read+std::io::Seek>(archive:&mut ZipArchive<R>,base:&Pa
         let mut entry = archive
             .by_index(i)
             .map_err(|e| InstallError::cause(stage, e))?;
-        let Some(rel) = entry.name().strip_prefix(prefix) else {
+        let name = entry.name().map_err(|e| InstallError::cause(stage, e))?.into_owned();
+        let Some(rel) = name.strip_prefix(prefix) else {
             continue;
         };
         // ZIP directory records have no file payload. In particular `overrides/` is the root.

@@ -1,0 +1,49 @@
+.animated-disclosure-content{display:grid;grid-template-rows:0fr;opacity:0;transition:grid-template-rows .22s var(--ease,ease),opacity .18s ease}.animated-disclosure-content>div{overflow:hidden;min-height:0}details[data-expanded=true]>.animated-disclosure-content{grid-template-rows:1fr;opacity:1}details[data-expanded] summary{cursor:pointer}details[data-expanded] summary svg{transition:transform .22s}details[data-expanded=true] summary svg:last-child{transform:rotate(180deg)}
+
+/* Text backings remain legible over both black and white artwork, even when
+   a saved glass preset has near-zero surface opacity. */
+:root[data-mode=light] .content-shell{background:rgb(255 255 255 / .84)}
+:root[data-mode=light] :is(.project-card,.instance-surface,.runtime-panel,.settings-dialog,.content-item,.runtime-account,.collection-group-target){color:var(--text);text-shadow:none}
+:root[data-mode=light] :is(.project-card,.instance-surface,.runtime-panel,.settings-dialog,.content-item,.runtime-account) :is(p,small,label,.settings-note){color:var(--muted);opacity:1}
+:root[data-mode=light] .project-card .card-body{background:rgb(255 255 255 / .95);color:var(--text)}
+:root[data-mode=light] .instance-ambient{opacity:.08!important}
+:root[data-mode=light][data-sidebar-background=picture] .sidebar::after{background:rgb(255 255 255 / .95)!important}
+:root[data-mode=light]:not([data-sidebar-background=color]) .sidebar :is(button,.brand,.sidebar-icon){color:var(--text)!important;text-shadow:none}
+:root[data-mode=light] .sidebar .nav-capsule{background:var(--surface-3)!important}
+:root[data-mode=light] :is(.quiet-button,.compact-action,.material-icon){color:var(--text);--button-ink:var(--text)}
+/* Floating placements reserve a complete content lane; they never cover cards,
+   dialogs, account controls or the native titlebar. */
+:root:is([data-sidebar-side=top],[data-sidebar-side=bottom],[data-sidebar-side=top-left],[data-sidebar-side=top-right],[data-sidebar-side=bottom-left],[data-sidebar-side=bottom-right]) .canary-app>.sidebar{position:fixed!important;inset:auto;z-index:30;width:max-content!important;max-width:calc(100vw - 32px);height:54px!important;padding:6px!important;border:1px solid var(--line-strong);border-radius:16px;box-shadow:var(--shadow-soft);overflow:clip;flex:none;}
+:root:is([data-sidebar-side=top],[data-sidebar-side=top-left],[data-sidebar-side=top-right]) .canary-app>.sidebar{top:calc(var(--titlebar-height,36px) + 9px);}
+:root:is([data-sidebar-side=bottom],[data-sidebar-side=bottom-left],[data-sidebar-side=bottom-right]) .canary-app>.sidebar{bottom:9px;}
+:root:is([data-sidebar-side=top],[data-sidebar-side=bottom]) .canary-app>.sidebar{left:50%;transform:translateX(-50%)}
+:root:is([data-sidebar-side=top-left],[data-sidebar-side=bottom-left]) .canary-app>.sidebar{left:16px}
+:root:is([data-sidebar-side=top-right],[data-sidebar-side=bottom-right]) .canary-app>.sidebar{right:16px}
+:root:is([data-sidebar-side=top],[data-sidebar-side=bottom],[data-sidebar-side=top-left],[data-sidebar-side=top-right],[data-sidebar-side=bottom-left],[data-sidebar-side=bottom-right]) .sidebar-content{flex-direction:row!important;gap:6px;align-items:center;height:40px;width:auto;}
+:root:is([data-sidebar-side=top],[data-sidebar-side=bottom],[data-sidebar-side=top-left],[data-sidebar-side=top-right],[data-sidebar-side=bottom-left],[data-sidebar-side=bottom-right]) .sidebar nav{flex-direction:row!important;gap:3px;overflow-x:auto;overflow-y:hidden;flex:none;height:40px;}
+:root:is([data-sidebar-side=top],[data-sidebar-side=bottom],[data-sidebar-side=top-left],[data-sidebar-side=top-right],[data-sidebar-side=bottom-left],[data-sidebar-side=bottom-right]) .sidebar :is(.brand,.nav-label,.sidebar-bottom>button:first-child){display:none!important}
+:root:is([data-sidebar-side=top],[data-sidebar-side=bottom],[data-sidebar-side=top-left],[data-sidebar-side=top-right],[data-sidebar-side=bottom-left],[data-sidebar-side=bottom-right]) .sidebar button{width:40px!important;height:40px!important;min-height:40px;padding:9px!important;margin:0!important;justify-content:center;border-radius:11px;}
+:root:is([data-sidebar-side=top],[data-sidebar-side=bottom],[data-sidebar-side=top-left],[data-sidebar-side=top-right],[data-sidebar-side=bottom-left],[data-sidebar-side=bottom-right]) .sidebar-bottom{display:flex;flex-direction:row;padding:0;margin:0;border:0;}
+:root:is([data-sidebar-side=top],[data-sidebar-side=top-left],[data-sidebar-side=top-right]) .content-shell{margin-top:74px!important;padding-top:0!important;height:calc(100dvh - var(--titlebar-height,36px) - 74px)!important;margin-inline:0!important;width:100%;}
+:root:is([data-sidebar-side=bottom],[data-sidebar-side=bottom-left],[data-sidebar-side=bottom-right]) .content-shell{height:calc(100dvh - var(--titlebar-height,36px) - 76px)!important;padding-bottom:8px!important;margin-inline:0!important;width:100%;align-self:flex-start;}
+:root[data-motion=reduced] :is(.animated-disclosure-content){transition:none}
+
+:root[data-mode=light][data-sidebar-background=color] .sidebar :is(button,.brand,.sidebar-icon){color:var(--sidebar-color-ink)!important}
+:root[data-mode=light][data-sidebar-background=color] .sidebar button{background:var(--sidebar-color)}
+:root[data-sidebar-mini=true] .sidebar.compact{width:60px!important;padding-inline:6px!important}
+:root[data-sidebar-mini=true] .sidebar.compact nav button{min-height:36px;height:36px;padding:8px!important}
+:root[data-sidebar-mini=true] .sidebar.compact svg{width:17px;height:17px}
+:root[data-sidebar-mini=true] .sidebar.compact .brand{height:30px;margin-bottom:16px}
+:root[data-sidebar-mini=true]:is([data-sidebar-side=top],[data-sidebar-side=bottom],[data-sidebar-side=top-left],[data-sidebar-side=top-right],[data-sidebar-side=bottom-left],[data-sidebar-side=bottom-right]) .canary-app>.sidebar{width:max-content!important;height:46px!important}
+:root[data-sidebar-mini=true]:is([data-sidebar-side=top],[data-sidebar-side=bottom],[data-sidebar-side=top-left],[data-sidebar-side=top-right],[data-sidebar-side=bottom-left],[data-sidebar-side=bottom-right]) .sidebar :is(.sidebar-content,nav){height:32px!important}
+:root[data-sidebar-mini=true]:is([data-sidebar-side=top],[data-sidebar-side=bottom],[data-sidebar-side=top-left],[data-sidebar-side=top-right],[data-sidebar-side=bottom-left],[data-sidebar-side=bottom-right]) .sidebar button{width:32px!important;height:32px!important;min-height:32px!important;padding:6px!important}
+
+.project-card :is(.card-body>p,.card-provider){color:var(--text);opacity:1}
+
+:root[data-mode=light]{--muted:#47534d}
+
+.game-logs input{min-height:40px}
+
+.project-card .card-provider{color:var(--text)!important;opacity:1!important}
+
+:root:is([data-mode=dark],[data-mode=amoled]) .project-card .card-body{background-color:rgb(9 15 13 / .84)!important}

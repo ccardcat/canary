@@ -7,7 +7,7 @@ import {nativeFixture} from './helpers/nativeFixture';
 const nav=(page:Page,name:string)=>page.locator('.sidebar nav').getByRole('button',{name,exact:true});
 async function choose(page:Page,label:string,name:string){
  if(await page.locator(".settings-modal").isVisible()){if(["Material preset","Shared material","Button style","Card material"].includes(label))await settingsSection(page,"materials");if(label==="Sidebar layout")await settingsSection(page,"sidebar");}
-await page.getByRole('combobox',{name:label,exact:true}).evaluate(el=>{for(let details=el.closest('details');details;details=details.parentElement?.closest('details')??null)details.open=true;});await page.getByRole('combobox',{name:label,exact:true}).click();await page.getByRole('option',{name,exact:true}).click();}
+await page.getByRole('combobox',{name:label,exact:true,includeHidden:true}).evaluate(el=>{for(let details=el.closest('details');details;details=details.parentElement?.closest('details')??null)details.open=true;});await page.getByRole('combobox',{name:label,exact:true}).click();await page.getByRole('option',{name,exact:true}).click();}
 const palettes=[['light','white'],['light','softLight'],['light','frost'],['light','warm'],['dark','graphite'],['dark','black'],['dark','softDark'],['dark','midnight'],['amoled','graphite']];
 const accents=['monochrome','white','winter-island','mint','emerald','aqua','blue','purple','rose','orange'];
 const materials=['Solid','Soft','Vibrancy','Glass','Clear Glass','Liquid Glass','Transparent'];
@@ -153,7 +153,7 @@ test('page headings keep the wallpaper visible across pages, themes and quality 
         return points.map(({x,y})=>[...ctx.getImageData(x,y,1,1).data].slice(0,3));
       },{png:png.toString('base64'),points});
       metrics.push({mode,name,pixels});
-      expect(pixels[0],`${mode}/${name} heading matches the surrounding wallpaper`).toEqual(pixels[1]);
+      expect(Math.max(...pixels[0].map((value:number,index:number)=>Math.abs(value-pixels[1][index]))),`${mode}/${name} heading matches the surrounding wallpaper within 8-bit blending rounding`).toBeLessThanOrEqual(2);
     }
   }
   writeFileSync('.qa/theme-contrast/unboxed-headings.json',JSON.stringify(metrics,null,2));

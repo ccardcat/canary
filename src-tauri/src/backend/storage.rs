@@ -84,14 +84,14 @@ pub fn extract_limited(archive:&Path,base:&Path,job:Option<&super::download::Job
     let mut budget=ExtractionBudget::new(limits);let mut names=std::collections::HashSet::new();
     if zip.len()>limits.entries{return Err(BackendError::new("archive_limit","Archive has too many entries"));}
     for i in 0..zip.len(){if let Some(job)=job{job.check()?;}let entry=zip.by_index(i).map_err(|e|BackendError::new("archive",e.to_string()))?;
-        budget.entry(entry.size())?;let rel=entry.name().trim_end_matches('/');if rel.is_empty(){continue;}
+        budget.entry(entry.size())?;let decoded_name=entry.name().map_err(|e|BackendError::new("archive",e.to_string()))?;let rel=decoded_name.trim_end_matches('/');if rel.is_empty(){continue;}
         safe_join(base,rel)?;
         if entry.unix_mode().is_some_and(|m|m&0o170000==0o120000)||!names.insert(rel.to_lowercase()){return Err(BackendError::new("archive","Archive has symbolic links or duplicate paths"));}
     }
     crate::backend::protected_fs::create_dir_all(base)?;
     if fs2::available_space(base).is_ok_and(|free|free<budget.total().saturating_add(64*1024*1024)){return Err(BackendError::new("disk_space","Not enough free space to expand this archive"));}
     for i in 0..zip.len(){if let Some(job)=job{job.check()?;}let mut entry=zip.by_index(i).map_err(|e|BackendError::new("archive",e.to_string()))?;
-        let rel=entry.name().trim_end_matches('/'); if rel.is_empty()||rel.starts_with("META-INF/"){continue;}
+        let decoded_name=entry.name().map_err(|e|BackendError::new("archive",e.to_string()))?;let rel=decoded_name.trim_end_matches('/'); if rel.is_empty()||rel.starts_with("META-INF/"){continue;}
         if entry.unix_mode().is_some_and(|m|m&0o170000==0o120000){return Err(BackendError::new("archive","Archive contains symbolic links"));}
         let output=safe_join(base,rel)?;
         if entry.is_dir(){crate::backend::protected_fs::create_dir_all(output)?;}else{let expected=entry.size();let mut written=0u64;let mut file=crate::backend::protected_fs::create(output)?;{use std::io::Read;let mut buf=[0u8;128*1024];loop{if let Some(job)=job{job.check()?;}let n=entry.read(&mut buf)?;if n==0{break;}written=written.checked_add(n as u64).filter(|n|*n<=expected&&*n<=limits.entry_bytes).ok_or_else(||BackendError::new("archive_limit","Archive expanded size does not match its metadata"))?;file.write_all(&buf[..n])?;}}if written!=expected{return Err(BackendError::new("archive","Archive entry is truncated"));}}
@@ -103,4 +103,29 @@ pub fn extract_limited(archive:&Path,base:&Path,job:Option<&super::download::Job
 
 pub fn replace(source:&Path,target:&Path)->Result<()> {
     crate::backend::protected_fs::rename(source,target)?;Ok(())
+}
+
+#[cfg(test)]
+mod encoded_zip_name_tests {
+    use super::*;
+    use std::io::{Cursor, Write};
+    #[test]
+    fn encoded_traversal_names_fail_before_creating_destination_files() {
+        let root=std::env::temp_dir().join(format!("canary-invalid-zip-name-{}",uuid::Uuid::new_v4()));
+        let _cleanup=Staging(root.clone());
+        fs::create_dir_all(&root).unwrap();
+        let mut zip=zip::ZipWriter::new(Cursor::new(Vec::new()));
+        zip.start_file("safe/x.txt",zip::write::SimpleFileOptions::default().compression_method(zip::CompressionMethod::Stored)).unwrap();
+        zip.write_all(b"payload").unwrap();
+        let mut bytes=zip.finish().unwrap().into_inner();
+        // ZIP 9 also accepts legacy CP437 bytes. Validate the decoded path,
+        // including traversal mixed with a non-UTF-8 filename component.
+        bytes[30..40].copy_from_slice(b"../\xff/x.txt");
+        let central=bytes.windows(4).position(|s|s==b"PK\x01\x02").unwrap();
+        bytes[central+46..central+56].copy_from_slice(b"../\xff/x.txt");
+        let archive=root.join("invalid.zip");fs::write(&archive,bytes).unwrap();
+        let destination=root.join("destination");
+        assert_eq!(extract(&archive,&destination).unwrap_err().code,"unsafe_path");
+        assert!(!destination.exists());
+    }
 }

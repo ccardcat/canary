@@ -1,3 +1,4 @@
+import {AnimatedDetails} from "./AnimatedDetails";
 import {useVisualAppearance} from "./VisualAppearance";
 import {BackgroundSettings} from "./BackgroundSettings";
 import {MaterialLayoutSettings} from "./MaterialSettings";
@@ -16,15 +17,16 @@ export function SidebarSettings({russian,compact,setCompact}:{russian:boolean;co
     <p className="settings-note">{text("Все настройки панели в одном месте. Изменения видны сразу; фон лаунчера настраивается отдельно.","All sidebar settings in one place. Changes appear immediately; the launcher background has its own settings.")}</p>
     <h4>{text("Расположение и размер","Position and size")}</h4>
     <div className="font-options" role="group" aria-label={text("Сторона боковой панели","Sidebar side")}>
-      {(["left","right"] as const).map(side=><button key={side} aria-pressed={value.sidebarSide===side} onClick={()=>update({sidebarSide:side})}>{side==="left"?text("Слева","Left"):text("Справа","Right")}</button>)}
+      {[["left","Слева","Left"],["right","Справа","Right"],["top","Сверху","Top"],["bottom","Снизу","Bottom"],["top-left","Сверху слева","Top left"],["top-right","Сверху справа","Top right"],["bottom-left","Снизу слева","Bottom left"],["bottom-right","Снизу справа","Bottom right"]].map(([side,ru,en])=><button key={side} aria-pressed={value.sidebarSide===side} onClick={()=>{if(side!=="left"&&side!=="right")setCompact(true);update({sidebarSide:side});}}>{text(ru,en)}</button>)}
     </div>
     <MaterialLayoutSettings russian={russian} value={value} update={update} group="sidebar"/>
     <div className="toggle-setting"><div><b>{text("Компактная панель","Compact sidebar")}</b><span>{text("Оставляет только значки навигации. Панель можно раскрыть кнопкой внизу.","Show navigation icons only. Expand the sidebar with its bottom button.")}</span></div><button className={compact?"toggle on":"toggle"} role="switch" aria-label={text("Компактная панель","Compact sidebar")} aria-checked={compact} onClick={()=>setCompact(!compact)}><i/></button></div>
+    <div className="toggle-setting"><div><b>{text("Минимальный размер панели","Mini sidebar")}</b><span>{text("Меньше значки и отступы в компактном режиме.","Smaller icons and spacing in compact mode.")}</span></div><button className={value.sidebarMini?"toggle on":"toggle"} role="switch" aria-label={text("Минимальный размер панели","Mini sidebar")} aria-checked={value.sidebarMini} onClick={()=>{setCompact(true);update({sidebarMini:!value.sidebarMini});}}><i/></button></div>
     <BackgroundSettings russian={russian} target="sidebar"/>
-    <details className="material-disclosure"><summary>{text("Материал и глубина панели","Sidebar material and depth")}</summary>
+    <AnimatedDetails className="material-disclosure"><summary>{text("Материал и глубина панели","Sidebar material and depth")}</summary>
       <label>{text("Материал боковой панели","Sidebar material")}<GlassSelect aria-label={text("Материал боковой панели","Sidebar material")} value={style} onChange={event=>setStyle(event.target.value as SurfaceMaterial)}>{materialStyles.map(material=><option key={material} value={material}>{names[material]}</option>)}</GlassSelect></label>
       <SmoothRange label={text("Интенсивность материала панели","Sidebar material intensity")} value={value.sidebarMaterialIntensity} min={0} max={150} unit="%" onPreview={sidebarMaterialIntensity=>preview({sidebarMaterialIntensity})} onCommit={sidebarMaterialIntensity=>update({sidebarMaterialIntensity})}/>
       <p className="settings-note">{text("Материал меняет глубину и отражения только этой панели. Однотонный фон не содержит изображения; его непрозрачность задаётся выше.","Material changes depth and reflections for this sidebar only. Solid backgrounds contain no artwork; adjust their opacity above.")}</p>
-    </details>
+    </AnimatedDetails>
   </section>;
 }

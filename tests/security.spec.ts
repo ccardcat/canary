@@ -18,7 +18,7 @@ test('Copy Details and visible details remove synthetic secrets while preserving
   const error={code:'checksum',stage:'download',message:'File mismatch; bEaReR synthetic-bearer-value; refresh_token=synthetic-refresh-value',accessToken:'synthetic-access-value',cookies:'Cookie: session=synthetic-cookie-value',password:'synthetic-password-value',path:'/home/tester/Canary/cache/file.jar',url:'https://example.org/?code=synthetic-oauth-value&ticket=synthetic-ticket-value'};
   const node=document.createElement('div');node.id='security-details';document.body.append(node);createRoot(node).render(React.createElement(InlineError,{error,russian:false}));
  });
- const view=page.locator('#security-details');await view.locator('summary').click();await expect(view).toContainText('checksum');expect(await view.textContent()).not.toContain('synthetic-');await view.getByRole('button',{name:'Copy details'}).click();
+ const view=page.locator('#security-details');await view.locator('summary').click();await expect(view).toContainText('File verification failed');expect(await view.textContent()).not.toContain('synthetic-');await view.getByRole('button',{name:'Copy details'}).click();
  const copied=await page.evaluate(()=>(window as any).__copiedDetails);expect(copied).toContain('checksum');expect(copied).toContain('File mismatch');expect(copied).not.toContain('synthetic-');expect(copied).not.toContain('/home/tester');
 });
 test('external URL validation rejects normalized internal addresses, credentials and dangerous schemes',async({page})=>{
@@ -32,7 +32,7 @@ test('all registered Rust commands require an explicit main local capability',()
 test('Markdown raw HTML and provider-local images remain inert while useful HTTPS links survive',async({page})=>{
  await page.evaluate(async()=>{
   const React=(await import('/node_modules/.vite/deps/react.js')).default;const {createRoot}=(await import('/node_modules/.vite/deps/react-dom_client.js')).default;const {default:Markdown}=await import('/src/components/Markdown.tsx');
-  const node=document.createElement('div');node.id='security-markdown';document.body.append(node);createRoot(node).render(React.createElement(Markdown,{body:'# Useful Markdown\\n\\n[Official page](https://modrinth.com/)\\n\\n![Private local image](asset://localhost/scoped-private-screenshot.png)\\n\\n<script>window.__securityMarkdownXss=true</script>'}));
+  const node=document.createElement('div');node.id='security-markdown';document.body.append(node);createRoot(node).render(React.createElement(Markdown,{body:'# Useful Markdown\n\n[Official page](https://modrinth.com/)\n\n![Private local image](asset://localhost/scoped-private-screenshot.png)\n\n<script>window.__securityMarkdownXss=true</script>'}));
  });
  const view=page.locator('#security-markdown');await expect(view.getByRole('heading')).toHaveText('Useful Markdown');await expect(view.getByRole('link',{name:/Official page/})).toHaveAttribute('href','https://modrinth.com/');await expect(view.locator('script,img[src^="asset:"],img[src*="asset.localhost"]')).toHaveCount(0);expect(await page.evaluate(()=>(window as any).__securityMarkdownXss)).toBeUndefined();
 });

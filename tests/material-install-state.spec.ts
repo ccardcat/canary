@@ -167,7 +167,7 @@ test('changing layout and corner radius keeps the selected material preset',asyn
 test('material rendering retains independent sidebar background treatment controls',async({page})=>{
  await page.goto('/');await nav(page,'Settings').click();await preset(page,4);
  const change=(patch:Record<string,unknown>)=>reloadWithPreferences(page,patch);
- const rendered=()=>page.locator('.sidebar-art').evaluate(e=>({filter:getComputedStyle(e).filter,overlay:getComputedStyle(e,'::after').backgroundImage}));
+ const rendered=()=>page.locator('.sidebar-art').evaluate(e=>({filter:getComputedStyle(e).filter,overlay:getComputedStyle(e.closest('.sidebar')!,'::after').backgroundImage}));
  const before=await rendered();await change({sidebarBlur:2,sidebarTreatment:{brightness:110,saturation:60,overlay:35,vignette:10,zoom:100,position:'center'}});const after=await rendered();expect(after.filter).toContain('blur(2px)');expect(after.filter).toContain('brightness(1.1)');expect(after.overlay).not.toBe(before.overlay);
  await nav(page,'Settings').click();await preset(page,5);expect(await page.evaluate(()=>JSON.parse(localStorage.getItem('canary-visual')!))).toMatchObject({sidebarBlur:2,sidebarTreatment:{brightness:110,saturation:60,overlay:35,vignette:10}});
 });

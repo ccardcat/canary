@@ -91,6 +91,9 @@ const depth:Record<MaterialCategory,number>={cards:1,buttons:.55,sidebar:1.1,pop
 export function applyMaterialTokens(root:HTMLElement,value:TokenPreferences){
   root.dataset.materialPreset=value.materialPreset;
   root.dataset.reduceTransparency=String(value.reduceTransparency);
+  // Modal scrims obey the same blur policy as surfaces, including a zero radius.
+  const opaque=value.quality==='low'||value.reduceTransparency||value.focus;
+  root.style.setProperty('--modal-backdrop-filter',opaque||value.surfaceBlur===0?'none':`blur(${Math.min(3,value.surfaceBlur)}px)`);
   for(const category of materialCategories){
     const style=value.materialLinked?value.materialStyle:value.materialCategories[category];
     root.dataset[`material${category[0].toUpperCase()}${category.slice(1)}`]=style;

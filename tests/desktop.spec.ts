@@ -196,7 +196,7 @@ test("account repeated click, outside click and Escape; Settings trap and live l
   await page.getByRole("button", { name: "Mint", exact: true }).click();
   expect(
     await page
-      .locator(".toggle")
+      .getByRole("button", {name:"Mint",exact:true})
       .first()
       .evaluate((el) => getComputedStyle(el).color),
   ).not.toBe("rgb(255, 255, 255)");
@@ -244,6 +244,7 @@ test("structured install errors hide raw details, retry succeeds and persists th
       if (cmd !== "install_modpack") return;
       if (++attempts === 1)
         throw {
+          code: "modpack",
           stage: "apply_overrides",
           message: "Directory write failed",
           path: "C:/Canary/config",
@@ -255,11 +256,13 @@ test("structured install errors hide raw details, retry succeeds and persists th
   });
   await page.locator(".home-community .install-action").first().click();
   const toast = page.getByRole("alert");
-  await expect(toast).toContainText("Installation failed");
+  await expect(toast).toContainText("Could not finish installation");
   await expect(toast).not.toContainText("Directory write failed");
-  await toast.getByRole("button", { name: "Details", exact: true }).click();
-  await expect(toast.locator("pre")).toContainText("apply_overrides");
-  await expect(toast.locator("pre")).toContainText("Access denied");
+  await toast.locator("summary").filter({hasText:"For support"}).click();
+  await page.evaluate(()=>{(globalThis as any).__copiedError="";Object.defineProperty(navigator,"clipboard",{configurable:true,value:{writeText:async(text:string)=>{(globalThis as any).__copiedError=text;}}});});
+  await toast.getByRole("button",{name:"Copy details",exact:true}).click();
+  await expect.poll(()=>page.evaluate(()=>(globalThis as any).__copiedError)).toContain("apply_overrides");
+  expect(await page.evaluate(()=>(globalThis as any).__copiedError)).toContain("Access denied");
   await toast.getByRole("button", { name: "Retry", exact: true }).click();
   await expect(page.locator("h1")).toHaveText("Library");
   await expect(page.locator(".library-grid .chips")).toHaveCount(0);

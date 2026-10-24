@@ -7,8 +7,8 @@ use tauri::{AppHandle, Emitter};
 pub enum TaskStatus {Running,Cancelling,Completed,Cancelled,Failed}
 #[derive(Clone,Copy,serde::Serialize)]
 #[serde(rename_all="lowercase")]
-pub enum TaskKind {Download,Install,Update,Repair,Launch}
-impl TaskKind {fn parse(kind:&str)->Result<Self>{match kind{"download"=>Ok(Self::Download),"install"=>Ok(Self::Install),"update"=>Ok(Self::Update),"repair"=>Ok(Self::Repair),"launch"=>Ok(Self::Launch),_=>Err(BackendError::new("task","Unknown task kind"))}}}
+pub enum TaskKind {Download,Install,Update,Repair,Launch,Copy,Export,Backup,Import}
+impl TaskKind {fn parse(kind:&str)->Result<Self>{match kind{"download"=>Ok(Self::Download),"install"=>Ok(Self::Install),"update"=>Ok(Self::Update),"repair"=>Ok(Self::Repair),"launch"=>Ok(Self::Launch),"copy"=>Ok(Self::Copy),"export"=>Ok(Self::Export),"backup"=>Ok(Self::Backup),"import"=>Ok(Self::Import),_=>Err(BackendError::new("task","Unknown task kind"))}}}
 #[derive(Clone, serde::Serialize)]
 #[serde(rename_all="camelCase")]
 pub struct Task {
@@ -56,7 +56,7 @@ impl Job {
     }
     pub fn finish<T>(&self,result:&Result<T>) {
         let Some(b)=&self.activity else{return};let task={let mut records=b.tasks.lock().unwrap();let Some(record)=records.get_mut(&self.id)else{return};if terminal(&record.task.status){return;}let t=&mut record.task;t.revision+=1;t.status=match result{Ok(_)=>TaskStatus::Completed,Err(e) if e.code=="cancelled"=>TaskStatus::Cancelled,Err(_)=>TaskStatus::Failed};t.error=result.as_ref().err().cloned();t.cancellable=false;t.updated_at=now();t.current_file.clear();t.speed=0;if result.is_ok(){t.percent=100.;}t.clone()};
-        let kind=match task.status{TaskStatus::Failed=>"operation_failed".to_owned(),TaskStatus::Cancelled=>"install_cancelled".to_owned(),_=>match task.kind{TaskKind::Launch=>"game_launched",TaskKind::Repair=>"repair_completed",TaskKind::Update=>"content_updated",TaskKind::Install=>"instance_installed",TaskKind::Download=>"download_completed"}.to_owned()};
+        let kind=match task.status{TaskStatus::Failed=>"operation_failed".to_owned(),TaskStatus::Cancelled=>"install_cancelled".to_owned(),_=>match task.kind{TaskKind::Launch=>"game_launched",TaskKind::Repair=>"repair_completed",TaskKind::Update=>"content_updated",TaskKind::Install=>"instance_installed",TaskKind::Copy=>"instance_copied",TaskKind::Export=>"pack_exported",TaskKind::Backup=>"worlds_backed_up",TaskKind::Import=>"instance_imported",TaskKind::Download=>"download_completed"}.to_owned()};
         if !(result.is_ok()&&self.content_history.load(Ordering::Relaxed))&&result.as_ref().err().is_none_or(|e|e.code!="process_exit"){let _=b.record_activity(&kind,&task.title,task.instance_id.as_deref());}
         b.discord.changed();
         eprintln!("[task][{}][{}] {}",task.id,task.stage,format!("{:?}",task.status));
