@@ -33,3 +33,11 @@ Real Microsoft skin upload, licensed Minecraft gameplay, and a real Minecraft ho
 ## Visual regression follow-up
 
 The obsolete top-level progress component and its CSS are removed entirely. Progress remains inside cards and Downloads. Library action buttons use a fixed grid; narrow cards reduce repair to its labeled icon, keeping Play, repair and folder on one row. Dedicated regressions cover narrow Russian cards at 120% type size, sidebar-only skins, provider changes, late skin responses, explicit save/upload, and active installations on other pages. New screenshots are stored under `.qa/collection-regressions` in browser CI artifacts. Earlier green CI is not evidence for this follow-up; use the checks on the latest PR head.
+
+## Branch integration and blur policy
+
+The collection branch incorporates all four dependency branches present at integration: Cargo/ZIP 9, frontend packages, gateway Wrangler and pinned GitHub Actions updates. App version 0.1.9 and the collection branch's rusqlite/font/tray dependencies are retained; the rustls security fix is not rolled back.
+
+Low quality, Reduce transparency and Focus mode disable modal scrim blur and frost as well as surface blur. For a desktop background they temporarily request the native Solid material and cover the desktop immediately, while preserving the chosen Acrylic/Mica/Transparent preference. Turning the mode off restores that preference. A zero surface blur also disables the modal scrim blur.
+
+Browser regressions exercise all three live policy transitions, persistence and zero blur. Windows native QA checks the opaque policies through the real material IPC and compositor, and verifies that Low quality uses Solid while fullscreen. Results must be taken from the integrated head, not from the previous verification run.

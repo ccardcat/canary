@@ -40,7 +40,7 @@ mockIPC((command,args)=>{
  if(command==='content_versions')return [{id:'sodium-v1',name:'Sodium 1',version_number:'1',version_type:'release'}];
  if(command==='storage_usage')return {path:'C:/Users/CanaryPlayer/AppData/Roaming/Canary/instances/very-long-folder-name-without-spaces-for-responsive-validation',used:1073741824,free:10737418240,available:true,breakdown:{instances:1073741824,cache:1073741824,java:1073741824,logs:1048576,total:3222274048}};
  if(command==='window_material_capabilities')return globalThis.__startupQA?.nativeCaps||{platform:'windows',build:22621,supported:['solid']};
- if(command==='apply_window_material')return {requested:args.requested,actual:'solid',fallback:false};
+ if(command==='apply_window_material')return {requested:args.requested,actual:globalThis.__startupQA?.nativeMaterials?args.requested:'solid',fallback:false};
  if(command==='minecraft_versions')return [{id:'1.21.1'}];
  if(command==='loader_versions')return [{loader:{version:'0.16.0'}}];
  if(command==='update_instance'){Object.assign(state.instances.find(i=>i.id===args.instance.id),args.instance);return args.instance;}

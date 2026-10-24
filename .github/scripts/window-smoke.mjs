@@ -105,15 +105,25 @@ try{
  await choose('Titlebar branding','Text');assert.equal(await evaluate(`document.querySelectorAll('.window-brand img').length`),0);await screenshot('centered-text-brand');
  await click(`[...document.querySelectorAll('button[role="combobox"]')].find(b=>b.getAttribute('aria-label')==='Titlebar branding')`);await screenshot('glass-dropdown');await key('Escape',27);assert.equal(await evaluate(`!!document.querySelector('.settings-modal')`),true);
  await materialPresetQA({evaluate,choose,click,textButton,call,win,until,delay,screenshot,report,reloadWithPreferences});
+ // Opaque preferences must suspend the actual Windows material without deleting it.
+ report.opaquePolicies=[];
+ for(const policy of ['reduceTransparency','focus']){
+  await reloadWithPreferences(`(()=>{const old=JSON.parse(localStorage.getItem('canary-visual')||'{}');localStorage.setItem('canary-visual',JSON.stringify({...old,quality:'high',backgroundSource:'desktop',material:reportMaterial,reduceTransparency:false,focus:false,[reportPolicy]:true,frost:true}));})()`.replace('reportMaterial',JSON.stringify(report.capabilities.supported.includes('acrylic')?'acrylic':'solid')).replace('reportPolicy',JSON.stringify(policy)));
+  await until(()=>evaluate(`document.documentElement.dataset.windowMaterial==='solid'&&document.documentElement.dataset.startup==='ready'`),'opaque native policy');
+  await click(textButton('.sidebar button','Settings'));await until(()=>evaluate(`!!document.querySelector('.settings-modal')`),'opaque settings');
+  const filters=await evaluate(`['.sidebar','.settings-modal','.modal-backdrop'].map(s=>getComputedStyle(document.querySelector(s)).backdropFilter)`);
+  assert.deepEqual(filters,['none','none','none']);assert.equal(await evaluate(`getComputedStyle(document.querySelector('.settings-modal'),'::before').display`),'none');
+  report.opaquePolicies.push({policy,actual:'solid',filters});await screenshot('opaque-'+policy);
+ }
  // Sample the real compositor with desktop material, glass, ambient motion and
  // Hero enabled. Record runner timings, without inventing a hardware FPS result.
  report.performance=[];
  for(const quality of ['high','low']){
-  await reloadWithPreferences(`(()=>{const old=JSON.parse(localStorage.getItem('canary-visual')||'{}');localStorage.setItem('canary-visual',JSON.stringify({...old,quality:${JSON.stringify(quality)},backgroundSource:'desktop',material:${JSON.stringify(report.capabilities.supported.includes('acrylic')?'acrylic':'solid')},ambient:'autumn',effectPreset:'high',density:24,heroRotation:true,heroSpeed:9,glassIntensity:55,surfaceOpacity:82,surfaceBlur:24}));localStorage.setItem('canary-mode','dark');})()`);
+  await reloadWithPreferences(`(()=>{const old=JSON.parse(localStorage.getItem('canary-visual')||'{}');localStorage.setItem('canary-visual',JSON.stringify({...old,reduceTransparency:false,focus:false,quality:${JSON.stringify(quality)},backgroundSource:'desktop',material:${JSON.stringify(report.capabilities.supported.includes('acrylic')?'acrylic':'solid')},ambient:'autumn',effectPreset:'high',density:24,heroRotation:true,heroSpeed:9,glassIntensity:55,surfaceOpacity:82,surfaceBlur:24}));localStorage.setItem('canary-mode','dark');})()`);
   await until(()=>evaluate(`!!document.querySelector('.home-hero')&&document.documentElement.dataset.quality===${JSON.stringify(quality)}&&document.documentElement.dataset.windowTransition==='false'`),'performance UI');
   await call('Page.bringToFront');await key('F11',122);await until(()=>win('is_fullscreen'),'performance fullscreen');await finished();await delay(500);
   const timing=await evaluate(`new Promise(resolve=>{const samples=[];const start=performance.now();let last=start,complete=false;function finish(){if(complete)return;complete=true;const sorted=[...samples].sort((a,b)=>a-b);resolve({quality:${JSON.stringify(quality)},durationMs:performance.now()-start,frames:samples.length,medianMs:sorted[Math.floor(sorted.length*.5)]??null,p95Ms:sorted[Math.floor(sorted.length*.95)]??null,over50ms:samples.filter(n=>n>50).length,particles:[...document.querySelectorAll('.ambient-particles i')].filter(e=>getComputedStyle(e).display!=='none').length,sidebarBlur:getComputedStyle(document.querySelector('.sidebar')).backdropFilter,material:document.documentElement.dataset.windowMaterial,fullscreen:document.documentElement.dataset.windowFullscreen});}function frame(now){if(complete)return;samples.push(now-last);last=now;if(now-start>=4000)finish();else requestAnimationFrame(frame);}setTimeout(finish,6000);requestAnimationFrame(frame);})`);
-  assert.ok(timing.frames>0,'Real WebView2 must paint frames');if(quality==='low'){assert.ok(timing.particles<=6);assert.equal(timing.sidebarBlur,'none');}report.performance.push(timing);await screenshot(`performance-${quality}-fullscreen`);
+  assert.ok(timing.frames>0,'Real WebView2 must paint frames');if(quality==='low'){assert.ok(timing.particles<=6);assert.equal(timing.sidebarBlur,'none');assert.equal(timing.material,'solid');}report.performance.push(timing);await screenshot(`performance-${quality}-fullscreen`);
   await key('Escape',27);await until(async()=>!await win('is_fullscreen'),'performance restore');await finished();
  }
  // Close the actual process, reopen with the same WebView2 profile and verify

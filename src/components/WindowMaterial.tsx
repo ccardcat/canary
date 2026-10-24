@@ -18,7 +18,8 @@ interface Applied {requested:Material;actual:Material;fallback:boolean;reason?:s
 const fallbackCaps:Capabilities={platform:"browser",build:0,supported:["solid"]};
 const names:Record<Material,string>={solid:"Solid",transparent:"Transparent",acrylic:"Acrylic",mica:"Mica","mica-alt":"Mica Alt"};
 
-export function useNativeMaterial(value:WindowPreferences) {
+type MaterialPolicy = {reduceTransparency:boolean;focus:boolean;quality:string};
+export function useNativeMaterial(value:WindowPreferences & MaterialPolicy) {
   const [capsReady,setCapsReady]=useState(!isTauri());const [ready,setReady]=useState(!isTauri());
   const [caps,setCaps]=useState(fallbackCaps);
   const [applied,setApplied]=useState<Applied>({requested:"solid",actual:"solid",fallback:false});
@@ -33,7 +34,8 @@ export function useNativeMaterial(value:WindowPreferences) {
   useEffect(()=>{
     if(!capsReady)return;
     const current=++sequence.current;
-    const requested=value.backgroundSource==="desktop"?value.material:"solid";
+    const opaque=value.reduceTransparency||value.focus||value.quality==="low";
+    const requested=value.backgroundSource==="desktop"&&!opaque?value.material:"solid";
     if(!isTauri()){setApplied({requested,actual:"solid",fallback:requested!=="solid",reason:"unsupported-platform-version"});return;}
     const signature=JSON.stringify([requested,theme,requested==="solid"?null:value.tint,requested==="solid"?null:value.windowTransparency,requested==="solid"?null:fullscreen]);
     if(lastApplied.current===signature&&!inFlight.current)return;
@@ -48,7 +50,7 @@ export function useNativeMaterial(value:WindowPreferences) {
       });
     },160);
     return()=>{clearTimeout(timer);sequence.current++;};
-  },[capsReady,value.backgroundSource,value.material,value.tint,value.windowTransparency,theme,fullscreen]);
+  },[capsReady,value.backgroundSource,value.material,value.tint,value.windowTransparency,value.reduceTransparency,value.focus,value.quality,theme,fullscreen]);
   useEffect(()=>{document.documentElement.dataset.windowMaterial=applied.actual;},[applied.actual]);
   return {caps,applied,ready};
 }

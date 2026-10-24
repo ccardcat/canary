@@ -44,7 +44,7 @@
 :root .content-manager .library-empty{margin:20px auto;padding:24px;min-height:150px}
 @media(max-width:700px){:root :is(.project-grid,.content-project-grid){grid-template-columns:minmax(0,1fr)}:root .compact-project-card{min-height:200px}}
 
-:root .runtime-dialog::backdrop,:root .modal-backdrop{background:color-mix(in srgb,var(--bg) 24%,transparent);backdrop-filter:blur(3px)}
+:root .runtime-dialog::backdrop,:root .modal-backdrop{background:color-mix(in srgb,var(--bg) 24%,transparent);-webkit-backdrop-filter:var(--modal-backdrop-filter,none);backdrop-filter:var(--modal-backdrop-filter,none)}
 :root .runtime-account .popover-action{background:transparent;border:0;box-shadow:none}
 
 :root .compact-project-card .card-body{gap:8px}
