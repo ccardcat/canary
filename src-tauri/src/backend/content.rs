@@ -29,7 +29,7 @@ pub fn inspect(path:&Path,instance:&Instance)->Result<Inspection>{
     let extension=path.extension().unwrap_or_default().to_string_lossy().to_ascii_lowercase();if !matches!(extension.as_str(),"jar"|"zip"){return Err(BackendError::new("content_archive","Unsupported file type"));}
     let mut zip=zip::ZipArchive::new(crate::backend::protected_fs::open(path)?).map_err(|_|BackendError::new("content_archive","Invalid content archive"))?;
     if zip.len()>100_000{return Err(BackendError::new("content_archive","Archive has too many entries"));}
-    let names=zip.file_names().map(str::to_owned).collect::<Vec<_>>();
+    let names=zip.file_names().map(|name|name.map(|name|name.into_owned()).map_err(|e|BackendError::new("content_archive",e.to_string()))).collect::<Result<Vec<_>>>()?;
     for name in &names {let rel=name.trim_end_matches('/');if !rel.is_empty(){storage::safe_join(Path::new("validation"),rel)?;}}
     let fabric=entry_json(&mut zip,"fabric.mod.json");let quilt=entry_json(&mut zip,"quilt.mod.json");
     let pack=entry_json(&mut zip,"pack.mcmeta");
