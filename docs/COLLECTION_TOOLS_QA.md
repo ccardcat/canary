@@ -41,3 +41,5 @@ The collection branch incorporates all four dependency branches present at integ
 Low quality, Reduce transparency and Focus mode disable modal scrim blur and frost as well as surface blur. For a desktop background they temporarily request the native Solid material and cover the desktop immediately, while preserving the chosen Acrylic/Mica/Transparent preference. Turning the mode off restores that preference. A zero surface blur also disables the modal scrim blur.
 
 Browser regressions exercise all three live policy transitions, persistence and zero blur. Windows native QA checks the opaque policies through the real material IPC and compositor, and verifies that Low quality uses Solid while fullscreen. Results must be taken from the integrated head, not from the previous verification run.
+
+The integration audit also updates ctutils to 0.4.4, rustls-webpki to 0.103.16 and webpki-roots to 1.0.10 for October 19–23 RustSec advisories. The gateway pins Undici 7.30.1 through an override until Miniflare updates its exact dependency. Locked installs, tests, npm audit and cargo audit remain enabled; no vulnerability is suppressed.
