@@ -171,8 +171,7 @@ fn read(path: &Path) -> Result<(Index, Preview, u64)> {
         if entry.unix_mode().is_some_and(|m| m & 0o170000 == 0o120000) {
             return Err(archive_error("Archive symbolic links are not supported"));
         }
-        let decoded_name = entry.name().map_err(|_| archive_error("Invalid archive filename"))?;
-        let name = decoded_name.trim_end_matches('/');
+        let name = entry.name().trim_end_matches('/');
         if name.is_empty() {
             continue;
         }
@@ -246,8 +245,8 @@ fn overrides(archive: &Path, stage: &Path, job: &Job) -> Result<()> {
             let mut entry = zip
                 .by_index(n)
                 .map_err(|_| archive_error("Cannot read override"))?;
-            let decoded_name = entry.name().map_err(|_| archive_error("Invalid archive filename"))?;
-            let Some(rel) = decoded_name
+            let Some(rel) = entry
+                .name()
                 .strip_prefix(prefix)
                 .map(|s| s.trim_end_matches('/').to_owned())
             else {

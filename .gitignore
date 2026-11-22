@@ -23,6 +23,3 @@ Thumbs.db
 playwright-report/
 test-results/
 .qa/
-
-# Local task scratch files
-work/

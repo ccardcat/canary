@@ -1,4 +1,3 @@
-import {AnimatedDetails} from "./AnimatedDetails";
 import {InlineError} from "./InlineError";
 import {useLiveTasks} from "../services/taskStore";
 import {EmptyState} from "./EmptyState";
@@ -21,7 +20,6 @@ import {
 import { activityMessages, stageLabel } from "../locales/activity";
 import "./TaskActivity.css";
 const icons: Record<TaskKind, typeof Activity> = {
-  copy: Activity, export: ArrowDownToLine, backup: Wrench, import: ArrowDownToLine,
   download: ArrowDownToLine,
   install: ArrowDownToLine,
   update: RefreshCw,
@@ -141,6 +139,11 @@ export function TaskRow({
     </article>
   );
 }
+export function PackDownloads({russian}:{russian:boolean}){
+ const tasks=useLiveTasks().filter(t=>t.kind==="install"&&t.projectId&&!isTerminal(t));
+ if(!tasks.length)return null;
+ return <section className="pack-downloads" aria-label={russian?"Текущая установка":"Current installation"}>{tasks.map(task=><TaskRow key={task.id} task={task} russian={russian}/>)}</section>;
+}
 export function ActivityTasks({ russian,showRecent=true }: { russian: boolean;showRecent?:boolean }) {
   const tasks=useLiveTasks();
   const text = activityMessages[russian ? "ru" : "en"];
@@ -156,12 +159,12 @@ export function ActivityTasks({ russian,showRecent=true }: { russian: boolean;sh
         ))}
       </div>
       {showRecent && recent.length > 0 && (
-        <AnimatedDetails className="activity-recent">
+        <details className="activity-recent">
           <summary>{text.recent}</summary>
           {recent.map((task) => (
             <TaskRow key={task.id} task={task} russian={russian} />
           ))}
-        </AnimatedDetails>
+        </details>
       )}
     </section>
   );
