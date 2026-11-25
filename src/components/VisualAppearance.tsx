@@ -26,9 +26,9 @@ export {backgrounds} from "../services/backgrounds";
 import {isTauri,convertFileSrc} from "@tauri-apps/api/core";
 import {useBackend} from "../services/backend";
 import {windowDefaults,useNativeMaterial,WindowMaterialSettings,WindowControlsSettings,type WindowPreferences} from "./WindowMaterial";
-const fonts = ["Nunito", "Manrope", "Plus Jakarta Sans", "Rubik", "Monocraft"];
-export type Preferences = SidebarPreferences & CatalogPreferences & DiscordPreferences & PolishPreferences & WindowPreferences & MaterialPreferences & LayoutPreferences & { app: string; sidebar: string; intensity: number; blur: number; sidebarBlur: number; font: string; fontScale: 90 | 100 | 110 | 120; minecraft: "headings" | "full"; showCommunity:boolean; backgroundVersion:number;compactCardsVersion:number; ambient: "off" | "automatic" | "sakura" | "snow" | "autumn" | "embers" };
-const defaults: Preferences = { ...sidebarDefaults,...catalogDefaults,...discordDefaults, ...polishDefaults,...windowDefaults,...layoutDefaults,...materialDefaults, app: "meadow", sidebar: "meadow", intensity: 85, blur: 8, sidebarBlur: 12, font: "Nunito", fontScale:100, minecraft: "headings", showCommunity:true, backgroundVersion:1, compactCardsVersion:1, ambient: "off" };
+const fonts = ["Nunito", "Manrope", "Plus Jakarta Sans", "Rubik", "Monocraft", "system"];
+export type Preferences = SidebarPreferences & CatalogPreferences & DiscordPreferences & PolishPreferences & WindowPreferences & MaterialPreferences & LayoutPreferences & { app: string; sidebar: string; intensity: number; blur: number; sidebarBlur: number; font: string; fontScale: 90 | 100 | 110 | 120; minecraft: "headings" | "full"; showCommunity:boolean; backgroundVersion:number;compactCardsVersion:number; navigationMotion:"calm"|"expressive"; ambient: "off" | "automatic" | "sakura" | "snow" | "autumn" | "embers" };
+const defaults: Preferences = { ...sidebarDefaults,...catalogDefaults,...discordDefaults, ...polishDefaults,...windowDefaults,...layoutDefaults,...materialDefaults, app: "meadow", sidebar: "meadow", intensity: 85, blur: 8, sidebarBlur: 12, font: "Nunito", fontScale:100, minecraft: "headings", showCommunity:true, backgroundVersion:1, compactCardsVersion:1, navigationMotion:"calm", ambient: "off" };
 const freshDefaults:Preferences={...defaults,...materialPresetPatch("solid"),backgroundSource:"solid",materialRadius:14,cursor:"system",showCommunity:false};
 export function normalizePreferences(input:unknown):Preferences {
  const saved=input&&typeof input==="object"?input as Record<string,unknown>:{};
@@ -36,7 +36,7 @@ export function normalizePreferences(input:unknown):Preferences {
  const result={...base,...normalizeSidebar(saved),...normalizeCatalog(saved),...normalizeMaterials(Object.keys(saved).length?saved:base),...normalizeLayout(Object.keys(saved).length?saved:base),globalTreatment:{...base.globalTreatment},sidebarTreatment:{...base.sidebarTreatment}};
  const fields=result as unknown as Record<string,unknown>;
  for(const key of Object.keys(defaults).filter(key=>!(key in materialDefaults)&&!(key in layoutDefaults)&&!(key in catalogDefaults)&&!(key in sidebarDefaults))){const value=saved[key];if(typeof value===typeof fields[key]&&(typeof value!=="number"||Number.isFinite(value)))fields[key]=value;}
- const enums:Record<string,string[]>={backgroundSource:["canary","desktop","solid"],material:["solid","transparent","acrylic","mica","mica-alt"],tint:["neutral","theme","strong"],vibrancyPreset:["off","subtle","balanced","glass","custom"],titlebarBranding:["icon","text","icon-text","hidden"],windowControls:["windows","minimal","compact","traffic-lights"],controlsPosition:["left","right"],effectPreset:["off","low","medium","high","custom"],ambient:["off","automatic","sakura","snow","autumn","embers"],quality:["low","balanced","high"],sidebarSide:["left","right"],cursor:["system","custom"],minecraft:["headings","full"],font:fonts};
+ const enums:Record<string,string[]>={backgroundSource:["canary","desktop","solid"],material:["solid","transparent","acrylic","mica","mica-alt"],tint:["neutral","theme","strong"],vibrancyPreset:["off","subtle","balanced","glass","custom"],titlebarBranding:["icon","text","icon-text","hidden"],windowControls:["windows","minimal","compact","traffic-lights"],controlsPosition:["left","right"],effectPreset:["off","low","medium","high","custom"],ambient:["off","automatic","sakura","snow","autumn","embers"],quality:["low","balanced","high"],sidebarSide:["left","right"],cursor:["system","custom"],minecraft:["headings","full"],navigationMotion:["calm","expressive"],font:fonts};
  for(const [key,allowed] of Object.entries(enums))if(!allowed.includes(String(fields[key])))fields[key]=(defaults as unknown as Record<string,unknown>)[key];
  const ranges:Record<string,[number,number]>={windowTransparency:[0,100],surfaceOpacity:[20,100],surfaceBlur:[0,32],glassIntensity:[0,70],heroSpeed:[7,20],particleWind:[0,200],density:[4,24],particleSpeed:[40,180],particleOpacity:[5,70],particleSize:[50,160],glass:[5,35],intensity:[0,100],blur:[0,32],sidebarBlur:[0,20],sidebarIntensity:[0,100]};
  for(const [key,[min,max]] of Object.entries(ranges))fields[key]=Math.min(max,Math.max(min,Number(fields[key])));
@@ -85,7 +85,7 @@ export function VisualAppearanceProvider({ children }: { children: ReactNode }) 
     } catch { return freshDefaults; }
   });
   const [reduced, setReduced] = useState(false);
-  const native=useNativeMaterial(value);
+  const native=useNativeMaterial(value,value.focus||value.reduceTransparency||value.quality==="low");
   useEffect(() => { const media=matchMedia("(prefers-reduced-motion: reduce)");const sync=()=>setReduced(media.matches||document.documentElement.dataset.motion==="reduced");const observer=new MutationObserver(sync);observer.observe(document.documentElement,{attributes:true,attributeFilter:["data-motion"]});sync();media.addEventListener("change",sync);return()=>{observer.disconnect();media.removeEventListener("change",sync);}; }, []);
   useLayoutEffect(() => {
 
@@ -97,6 +97,7 @@ export function VisualAppearanceProvider({ children }: { children: ReactNode }) 
     root.style.setProperty("--ui-font-scale", String(value.fontScale / 100));
     root.dataset.uiFont = value.font; root.dataset.minecraft = value.minecraft;
     root.dataset.ambient = value.ambient;
+    root.dataset.navigationMotion = value.focus || value.quality === "low" ? "calm" : value.navigationMotion;
     root.dataset.sidebarSide = value.sidebarSide; root.dataset.cursor = value.cursor;
     root.dataset.focus = String(value.focus); root.dataset.quality = value.quality;
     root.dataset.backgroundSource=value.backgroundSource;root.dataset.frost=String(value.frost);
@@ -104,8 +105,9 @@ export function VisualAppearanceProvider({ children }: { children: ReactNode }) 
     root.style.setProperty("--material-blur",`${value.quality==="low"?0:value.focus?Math.min(value.surfaceBlur,4):value.surfaceBlur}px`);
     root.style.setProperty("--glass-strength",String(value.glassIntensity/100));
     root.style.setProperty("--glass-opacity", (100-value.glass)+"%");
-    root.style.setProperty("--ui-font", value.font === "Monocraft" && value.minecraft === "headings" ? "Nunito" : `"${value.font}"`);
-    root.style.setProperty("--heading-font", `"${value.font}"`);
+    const font = value.font === "system" ? "system-ui" : `"${value.font}"`;
+    root.style.setProperty("--ui-font", value.font === "Monocraft" && value.minecraft === "headings" ? "Nunito" : font);
+    root.style.setProperty("--heading-font", font);
     root.style.setProperty("--sidebar-art", `url("${registry.find(p => p.id === value.sidebar)?.sidebar || defaultSidebarImage}")`);
     root.style.setProperty("--sidebar-blur", `${value.sidebarBlur}px`);
   }, [value,custom]);
@@ -123,7 +125,6 @@ export function VisualAppearanceProvider({ children }: { children: ReactNode }) 
   },[]);
   useEffect(()=>()=>cancelAnimationFrame(previewFrame.current),[]);
   useLayoutEffect(()=>{localStorage.setItem("canary-visual",JSON.stringify(value));},[value]);
-  useEffect(()=>{const flush=()=>localStorage.setItem("canary-visual",JSON.stringify(savedRef.current));window.addEventListener("pagehide",flush);return()=>{window.removeEventListener("pagehide",flush);flush();};},[]);
   const update=useCallback((patch:Partial<Preferences>)=>{cancelAnimationFrame(previewFrame.current);previewFrame.current=0;pendingPreview.current={};setValue(old=>({...old,...patch,...(!("materialPreset" in patch)&&Object.keys(patch).some(key=>key in materialDefaults||["surfaceOpacity","surfaceBlur","glassIntensity"].includes(key))?{materialPreset:"custom"}:{})}));},[]);
   useEffect(()=>observeWindowVisibility(visible=>{
    const root=document.documentElement;
@@ -151,9 +152,10 @@ export function VisualPreferences({ russian,group="all",effectsControls }: { rus
     {(group==="all"||group==="layout")&&<div className="visual-appearance-group"><MaterialLayoutSettings russian={russian} value={value} update={update} group="cards"/><CatalogSettings russian={russian} value={value} update={update}/><PolishControls russian={russian} value={value} update={update} group="interface"/>{group==="all"&&native&&<details className="material-disclosure"><summary>{russian?"Материал окна Windows":"Windows window material"}</summary><WindowMaterialSettings russian={russian} value={value} update={update} preview={preview} nativeOnly {...native}/></details>}</div>}
     {(group==="all"||group==="background")&&<BackgroundSettings russian={russian} target={group==="background"?"app":undefined}/>}
     {group==="all"&&<EffectsPreferences russian={russian}>{effectsControls}</EffectsPreferences>}
-    {(group==="all"||group==="typography")&&<div className="visual-typography-group"><h3>{russian?"Типографика":"Typography"}</h3><h4>{text["Interface font"]}</h4><div className="font-options">{fonts.map(font => <button key={font} style={{ fontFamily: `"${font}", Nunito, sans-serif` }} className={value.font === font ? "selected" : ""} aria-pressed={value.font === font} onClick={() => update({ font })}>{font}</button>)}</div>
+    {(group==="all"||group==="typography")&&<div className="visual-typography-group"><h3>{russian?"Типографика":"Typography"}</h3><h4>{text["Interface font"]}</h4><div className="font-options">{fonts.map(font => <button key={font} style={{ fontFamily: font === "system" ? "system-ui" : `"${font}", Nunito, sans-serif` }} className={value.font === font ? "selected" : ""} aria-pressed={value.font === font} onClick={() => update({ font })}>{font === "system" ? (russian ? "Системный" : "System font") : font}</button>)}</div>
     <h4>{text["Interface size"]}</h4><div className="font-options">{([90,100,110,120] as const).map(fontScale=><button key={fontScale} aria-pressed={value.fontScale===fontScale} className={value.fontScale===fontScale?"selected":""} onClick={()=>update({fontScale})}>{fontScale}%</button>)}</div>
     {value.font === "Monocraft" && <><h4>{text["Minecraft style"]}</h4><div className="font-options">{(["headings", "full"] as const).map(minecraft => <button key={minecraft} aria-pressed={value.minecraft === minecraft} className={value.minecraft === minecraft ? "selected" : ""} onClick={() => update({ minecraft })}>{minecraft === "headings" ? text["Headings"] : text["Full interface"]}</button>)}</div></>}
+    <div className="typography-preview"><h4>{russian ? "Мой мир Minecraft" : "My Minecraft world"}</h4><p>{russian ? "Библиотека · Мир 01 · Версия 1.21" : "Library · World 01 · Version 1.21"}</p></div>
     </div>}
   </section>;
 }
@@ -173,6 +175,8 @@ export function EffectsPreferences({russian,children}:{russian:boolean;children?
  <p className="settings-note" role="status" hidden={!effectsPaused||value.ambient==="off"}>{effectsPaused==="focus"?(russian?"Частицы приостановлены режимом фокуса. Отключите его в разделе «Интерфейс и карточки», чтобы увидеть эффект.":"Focus mode pauses particles. Turn it off in Interface & cards to see the effect."):(russian?"Частицы приостановлены настройкой «Уменьшить анимацию» в лаунчере или системе. Выбранный эффект сохранён.":"Reduced motion in the launcher or system pauses particles. Your selected effect is saved.")}</p>
  <label>{russian?"Пресет частиц":"Effect preset"}<GlassSelect aria-label={russian?"Пресет частиц":"Effect preset"} value={value.effectPreset} onChange={e=>preset(e.target.value)}>{["off","low","medium","high","custom"].map(p=><option key={p} value={p}>{russian?({off:"Выключено",low:"Низкий",medium:"Средний",high:"Высокий",custom:"Свой"})[p as "off"]:p[0].toUpperCase()+p.slice(1)}</option>)}</GlassSelect></label>
  <div className="polish-range-grid">{range(russian?"Количество частиц":"Particle count",value.density,4,24,density=>update({density,effectPreset:"custom"}),"density")}{range(russian?"Размер частиц":"Particle size",value.particleSize,60,160,particleSize=>update({particleSize,effectPreset:"custom"}),"particleSize")}{range(russian?"Скорость частиц":"Particle speed",value.particleSpeed,50,150,particleSpeed=>update({particleSpeed,effectPreset:"custom"}),"particleSpeed")}{range(russian?"Непрозрачность частиц":"Particle opacity",value.particleOpacity,5,50,particleOpacity=>update({particleOpacity,effectPreset:"custom"}),"particleOpacity")}{range(russian?"Ветер":"Particle wind",value.particleWind,0,180,particleWind=>update({particleWind,effectPreset:"custom"}),"particleWind")}</div>
+ <h4>{russian?"Переходы интерфейса":"Interface transitions"}</h4>
+ <div className="font-options">{(["calm","expressive"] as const).map(navigationMotion=><button key={navigationMotion} aria-pressed={value.navigationMotion===navigationMotion} onClick={()=>update({navigationMotion})}>{navigationMotion==="expressive"?(russian?"Выразительные":"Expressive"):(russian?"Спокойные":"Calm")}</button>)}</div>
  <PolishControls russian={russian} value={value} update={update} group="effects"/>{children}</section>;
 }
 export function VisualQuality({ russian }: { russian: boolean }) {

@@ -16,7 +16,7 @@ async function settings(page: Page) {
 async function choose(page: Page, name: string, option: string) {
  if(await page.locator(".settings-modal").isVisible()){if(["Material preset","Shared material","Button style","Card material"].includes(name))await settingsSection(page,"materials");if(name==="Sidebar layout")await settingsSection(page,"sidebar");}
 
-  await page.getByRole("combobox", { name, exact: true }).evaluate(el=>{for(let details=el.closest("details");details;details=details.parentElement?.closest("details")??null)details.open=true;});
+  await page.getByRole("combobox", { name, exact: true, includeHidden:true }).evaluate(el=>{for(let details=el.closest("details");details;details=details.parentElement?.closest("details")??null)details.open=true;});
   await page.getByRole("combobox", { name, exact: true }).click();
   await page.getByRole("option", { name: option, exact: true }).click();
 }
@@ -209,7 +209,8 @@ test("community visibility is searchable, applies live, persists and preserves a
   await nativeFixture(page);
   await catalog(page);
   await page.addInitScript(() => {
-    if (!localStorage.getItem("canary-visual"))
+    if (sessionStorage.getItem("community-initial")) return;
+    sessionStorage.setItem("community-initial", "true");
       localStorage.setItem(
         "canary-visual",
         JSON.stringify({
@@ -288,10 +289,9 @@ test("RU Monocraft particle labels have a real gap and regrouped settings retain
     .getByRole("button", { name: "Настройки", exact: true })
     .first()
     .click();
-  const headings = await page.locator(".settings-content h3").allTextContents();
-  expect(headings).toEqual(
-    expect.arrayContaining(["Оформление", "Поверхности"]),
-  );
+  await expect(page.locator(".settings-content h3").first()).toHaveText("Тема и цвета");
+  await settingsSection(page,"materials");
+  await expect(page.locator(".settings-content h3").first()).toHaveText("Поверхности");
   for(const section of ["Фон","Эффекты","Типографика"]){await settingsSection(page,section);await expect(page.locator(".settings-content h3").first()).toContainText(section);}
   await settingsSection(page,"Эффекты");
   const preset = page.getByRole("combobox", {

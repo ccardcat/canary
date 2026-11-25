@@ -29,7 +29,7 @@ test('all seven presets and reset preserve every sidebar layout, unrelated setti
   localStorage.setItem('canary-compact',compact!);localStorage.setItem('canary-mode','amoled');localStorage.setItem('canary-accent','purple');
  });
  for(const side of ['left','right'])for(const mode of ['attached','floating'])for(const compact of [false,true]){
-  // Initialize before React mounts; pagehide deliberately flushes its live state.
+  // Initialize before React mounts.
   await page.goto(`/?qaSidebarSide=${side}&qaSidebarMode=${mode}&qaCompact=${compact}`);
   await page.evaluate(()=>history.replaceState(null,'','/'));
   await nav(page,'Settings').click();
@@ -95,7 +95,22 @@ async function discover(page:Page,holdVersion?:(route:Route)=>void){
  });
  await page.goto('/');await nav(page,'Discover').click();await expect(page.locator('.discover-page .project-card')).toHaveCount(5);
 }
-async function start(page:Page,index=0){await expect(page.locator('.page-transition')).toHaveCSS('opacity','1');await card(page,index).getByRole('button',{name:'Install',exact:true}).scrollIntoViewIfNeeded();const geometry=await card(page,index).boundingBox();await card(page,index).getByRole('button',{name:'Install',exact:true}).dblclick();await expect(card(page,index)).toContainText('Installing');expect(await card(page,index).boundingBox()).toEqual(geometry);await expect(page.locator('.detail-page')).toHaveCount(0);await expect.poll(()=>page.evaluate(()=>(globalThis as any).__materialQA.installs?.length??0)).toBe(1);}
+async function start(page:Page,index=0){
+ await expect(page.locator('.page-transition')).toHaveCSS('opacity','1');
+ const project=card(page,index);
+ const geometry=()=>project.evaluate(el=>{
+  const card=el as HTMLElement,grid=card.parentElement!;
+  const bounds=card.getBoundingClientRect(),origin=grid.getBoundingClientRect();
+  return {x:Math.round(bounds.x-origin.x),y:Math.round(bounds.y-origin.y),width:card.offsetWidth,height:card.offsetHeight};
+ });
+ await project.getByRole('button',{name:'Install',exact:true}).scrollIntoViewIfNeeded();
+ const before=await geometry();
+ await project.getByRole('button',{name:'Install',exact:true}).dblclick();
+ await expect(project).toContainText('Installing');
+ expect(await geometry()).toEqual(before);
+ await expect(page.locator('.detail-page')).toHaveCount(0);
+ await expect.poll(()=>page.evaluate(()=>(globalThis as any).__materialQA.installs?.length??0)).toBe(1);
+}
 async function scoped(page:Page,index=0){await expect(page.locator('.discover-page .project-card').filter({hasText:'Installing'})).toHaveCount(1);await expect(card(page,index)).toContainText('Installing');for(let i=0;i<projects.length;i++)if(i!==index)await expect(card(page,i)).not.toContainText('Installing');}
 
 test('one install stays scoped through progress, search, filter, sort, pagination, scroll and navigation; Downloads cancellation clears it',async({page})=>{
@@ -166,9 +181,21 @@ test('changing layout and corner radius keeps the selected material preset',asyn
 
 test('material rendering retains independent sidebar background treatment controls',async({page})=>{
  await page.goto('/');await nav(page,'Settings').click();await preset(page,4);
- const change=(patch:Record<string,unknown>)=>reloadWithPreferences(page,patch);
- const rendered=()=>page.locator('.sidebar-art').evaluate(e=>({filter:getComputedStyle(e).filter,overlay:getComputedStyle(e,'::after').backgroundImage}));
- const before=await rendered();await change({sidebarBlur:2,sidebarTreatment:{brightness:110,saturation:60,overlay:35,vignette:10,zoom:100,position:'center'}});const after=await rendered();expect(after.filter).toContain('blur(2px)');expect(after.filter).toContain('brightness(1.1)');expect(after.overlay).not.toBe(before.overlay);
- await nav(page,'Settings').click();await preset(page,5);expect(await page.evaluate(()=>JSON.parse(localStorage.getItem('canary-visual')!))).toMatchObject({sidebarBlur:2,sidebarTreatment:{brightness:110,saturation:60,overlay:35,vignette:10}});
+ const rendered=()=>page.locator('.sidebar-art').evaluate(e=>({filter:getComputedStyle(e).filter,overlay:getComputedStyle(e.closest('.sidebar')!,'::after').backgroundImage}));
+ const before=await rendered();
+ await settingsSection(page,"sidebar");
+ const section=page.locator(".sidebar-settings .background-settings");
+ const adjust=async(name:string,value:string)=>{
+  const slider=section.getByRole("slider",{name,exact:true});
+  await slider.fill(value);await slider.press("Tab");
+ };
+ await adjust("Wallpaper blur","2");
+ await adjust("Sidebar tint","35");
+ await section.getByText("Color and framing",{exact:true}).click();
+ await adjust("Brightness","110");
+ await adjust("Saturation","60");
+ await expect.poll(async()=>(await rendered()).filter).toContain("blur(2px)");
+ const after=await rendered();expect(after.filter).toContain("brightness(1.1)");expect(after.overlay).not.toBe(before.overlay);
+ await preset(page,5);
+ expect(await page.evaluate(()=>JSON.parse(localStorage.getItem('canary-visual')!))).toMatchObject({sidebarBlur:2,sidebarTreatment:{brightness:110,saturation:60,overlay:35}});
 });
-

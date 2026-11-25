@@ -44,7 +44,7 @@
 :root .content-manager .library-empty{margin:20px auto;padding:24px;min-height:150px}
 @media(max-width:700px){:root :is(.project-grid,.content-project-grid){grid-template-columns:minmax(0,1fr)}:root .compact-project-card{min-height:200px}}
 
-:root .runtime-dialog::backdrop,:root .modal-backdrop{background:color-mix(in srgb,var(--bg) 24%,transparent);backdrop-filter:blur(3px)}
+:root .runtime-dialog::backdrop,:root .modal-backdrop{background:var(--backdrop-overlay);-webkit-backdrop-filter:var(--modal-backdrop-filter,none);backdrop-filter:var(--modal-backdrop-filter,none)}
 :root .runtime-account .popover-action{background:transparent;border:0;box-shadow:none}
 
 :root .compact-project-card .card-body{gap:8px}
@@ -67,3 +67,7 @@
 :root .content-type-count{font-size:.65rem;color:var(--muted);padding:1px 5px;border-radius:5px;background:color-mix(in srgb,var(--text) 8%,transparent)}
 :root .content-types,:root .content-actions{margin-block:10px}
 
+
+:root .project-card .card-body>p,:root .project-card .card-provider {
+  color:color-mix(in srgb,var(--text) 36%,var(--muted));
+}

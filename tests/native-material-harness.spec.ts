@@ -17,7 +17,7 @@ test('Windows preset QA harness exercises actual renderer controls before native
   textButton:(scope:string,text:string)=>`[...document.querySelectorAll(${JSON.stringify(scope)})].find(b=>b.textContent.trim()===${JSON.stringify(text)})`,
   call:async(method:string)=>{expect(method).toBe('Page.reload');await page.reload();},
   win:async(command:string,args:any)=>{expect(command).toBe('set_size');await page.setViewportSize(args.value.Physical);},
-  until:async(fn:()=>Promise<boolean>)=>{await expect.poll(fn,{timeout:10000}).toBe(true);},
+  until:async(fn:()=>Promise<boolean>,message?:string)=>{await expect.poll(fn,{timeout:10000,message}).toBe(true);},
   delay:(ms:number)=>page.waitForTimeout(ms),
   screenshot:async(name:string)=>{await page.locator('.material-preview').screenshot({path:`.qa/native-material-harness/${name}.png`});},
   report,

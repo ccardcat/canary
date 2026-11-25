@@ -27,7 +27,7 @@ import {CatalogControls} from "./components/CatalogControls";
 import {CatalogFilters} from "./components/CatalogFilters";
 import {activeFilterCount, type DiscoveryFilters} from "./services/discovery";
 import {DiscoverModInstall} from "./components/DiscoverModInstall";
-import {providerAvailable,providerDetail,providerVersions,providerName,providerSite,type Provider} from "./services/providers";
+import {providerAvailable,providerDetail,providerVersions,providerName,providerSite,useProviderAvailability,type Provider} from "./services/providers";
 import { useDiscovery } from "./hooks/useDiscovery";
 import {useStartupReady} from "./services/startup";
 import { type Progress } from "./services/installation";
@@ -88,6 +88,9 @@ import {
   type Version,
 } from "./services/modrinth";
 
+import {AppearanceScenes} from "./components/AppearanceScenes";
+import {accessibleAccent, amoledPalettes, darkPalettes, lightPalettes, normalizeAccentColor, readPalettes, type PaletteMode} from "./services/theme";
+
 type Page =
   | "Home"
   | "Discover"
@@ -108,6 +111,7 @@ type Accent =
   | "purple"
   | "rose"
   | "orange";
+type SelectedAccent = Accent | "custom";
 const nav: Record<Page, typeof House> = {
   Home: House,
   Discover: Compass,
@@ -136,8 +140,6 @@ const accentColors: Record<Accent, string> = {
   rose: "#ed9bad",
   orange: "#e8ae79",
 };
-const lightPalettes = ["white", "softLight", "frost", "warm"] as const;
-const darkPalettes = ["graphite", "black", "softDark", "midnight"] as const;
 const modes: Mode[] = ["dark", "light", "amoled", "system"];
 function getInitialLanguage() {
   const saved = localStorage.getItem("canary-language");
@@ -185,9 +187,15 @@ function App() {
   const [mode, setMode] = useState<Mode>(
     () => {const saved=localStorage.getItem("canary-mode");return ["light","dark","amoled","system"].includes(saved||"")?saved as Mode:"amoled";},
   );
-  const [accent, setAccent] = useState<Accent>(
-    () => (localStorage.getItem("canary-accent") as Accent) || "monochrome",
-  );
+  const [accent, setAccent] = useState<SelectedAccent>(() => {
+    const saved = localStorage.getItem("canary-accent");
+    return saved === "custom" || Object.prototype.hasOwnProperty.call(accentColors, saved ?? "") ? saved as SelectedAccent : "monochrome";
+  });
+  const [accentColor, setAccentColor] = useState(() => normalizeAccentColor(localStorage.getItem("canary-accent-color")));
+  const changeAccentColor = (color: string) => {
+    setAccentColor(normalizeAccentColor(color));
+    setAccent("custom");
+  };
   const [compact, setCompact] = useState(
     () => localStorage.getItem("canary-compact") === "true",
   );
@@ -203,14 +211,18 @@ function App() {
   const [expandNarrow, setExpandNarrow] = useState(
     () => localStorage.getItem("canary-sidebar-expanded-narrow") === "true",
   );
-  const [preset, setPreset] = useState(
-    () => localStorage.getItem("canary-preset") || "graphite",
-  );
-  const resolvedMode =
-    mode === "system" ? (systemLight ? "light" : "dark") : mode;
-  // Resolve the visible palette without discarding the saved other-mode choice.
-  const palettes: readonly string[] = resolvedMode === "light" ? lightPalettes : darkPalettes;
-  const resolvedPreset = palettes.includes(preset) ? preset : palettes[0];
+  const [palettes, setPalettes] = useState(() => readPalettes(localStorage));
+  const resolvedMode = mode === "system" ? (systemLight ? "light" : "dark") : mode;
+  const paletteMode = resolvedMode;
+  const resolvedPreset = palettes[paletteMode];
+  const setPreset = (value: string) => {
+    const light = lightPalettes.find(palette => palette === value);
+    const dark = darkPalettes.find(palette => palette === value);
+    if (paletteMode === "light" && light) setPalettes(old => ({ ...old, light }));
+    if (paletteMode === "dark" && dark) setPalettes(old => ({ ...old, dark }));
+    const amoled = amoledPalettes.find(palette => palette === value);
+    if (paletteMode === "amoled" && amoled) setPalettes(old => ({ ...old, amoled }));
+  };
   const sidebarOpen = !compact && (!narrow || expandNarrow);
   const accountRef = useRef<HTMLDivElement>(null);
   const filterRef = useRef<HTMLDivElement>(null);
@@ -230,16 +242,18 @@ function App() {
   useLayoutEffect(() => {
     document.documentElement.dataset.mode = resolvedMode;
     document.documentElement.dataset.accent = accent;
+    document.documentElement.style.setProperty("--chosen-accent", accessibleAccent(accentColor, resolvedMode === "light"));
     document.documentElement.dataset.preset = resolvedPreset;
     document.documentElement.dataset.motion = reduceMotion ? "reduced" : "full";
     document.documentElement.lang = lang;
     localStorage.setItem("canary-language", lang);
     localStorage.setItem("canary-mode", mode);
     localStorage.setItem("canary-accent", accent);
-    localStorage.setItem("canary-preset", preset);
+    localStorage.setItem("canary-palettes", JSON.stringify(palettes));
+    localStorage.setItem("canary-accent-color", accentColor);
     localStorage.setItem("canary-compact", String(compact));
     localStorage.setItem("canary-motion", reduceMotion ? "reduced" : "full");
-  }, [mode, resolvedMode, resolvedPreset, accent, preset, compact, reduceMotion, lang]);
+  }, [mode, resolvedMode, resolvedPreset, accent, accentColor, palettes, compact, reduceMotion, lang]);
   useEffect(() => {
     if(!startupReady||!visual.showCommunity)return;
     const controller = new AbortController();
@@ -396,6 +410,7 @@ function App() {
     setFilterOpen(false);
   };
   const activeNav = settingsOpen ? "Settings" : page;
+  const expressiveMotion = visual.navigationMotion === "expressive" && !visual.focus && visual.quality !== "low";
   return (
     <MotionConfig
       reducedMotion={reduceMotion ? "always" : "user"}
@@ -520,10 +535,10 @@ function App() {
             <motion.div
               className="page-transition"
               key={detail ? `project-${detail.provider || "modrinth"}-${detail.id}` : page}
-              initial={{ opacity: 0, y: 8 }}
-              animate={{ opacity: 1, y: 0 }}
+              initial={{ opacity: 0, y: expressiveMotion ? 14 : 4, scale: expressiveMotion ? 0.99 : 1 }}
+              animate={{ opacity: 1, y: 0, scale: 1 }}
               exit={{ opacity: 0, transition: { duration: 0.1 } }}
-              transition={{ duration: 0.24 }}
+              transition={{ duration: expressiveMotion ? 0.34 : 0.18 }}
             >
               {modProject&&<DiscoverModInstall project={modProject} russian={lang==="ru"} onClose={()=>setModProject(null)} onQueued={()=>navigation("Downloads")}/>}
               {detail ? (
@@ -620,6 +635,9 @@ function App() {
               setMode={setMode}
               accent={accent}
               setAccent={setAccent}
+              accentColor={accentColor}
+              setAccentColor={changeAccentColor}
+              paletteMode={paletteMode}
               compact={compact}
               setCompact={setCompact}
               reduceMotion={reduceMotion}
@@ -1458,6 +1476,9 @@ function SettingsModal({
   setMode,
   accent,
   setAccent,
+  accentColor,
+  setAccentColor,
+  paletteMode,
   compact,
   setCompact,
   reduceMotion,
@@ -1474,8 +1495,11 @@ function SettingsModal({
   setLang: (x: "en" | "ru") => void;
   mode: Mode;
   setMode: (x: Mode) => void;
-  accent: Accent;
-  setAccent: (x: Accent) => void;
+  accent: SelectedAccent;
+  setAccent: (x: SelectedAccent) => void;
+  accentColor: string;
+  setAccentColor: (color: string) => void;
+  paletteMode: PaletteMode;
   compact: boolean;
   setCompact: (x: boolean) => void;
   reduceMotion: boolean;
@@ -1554,14 +1578,7 @@ function SettingsModal({
             <SettingsNavigation groups={groups} tab={tab} onSelect={id=>{setSearch("");setTab(id);}}/>
           </nav>
           <div className="settings-content" ref={content}>
-            <AnimatePresence mode="wait" initial={false}>
-              <motion.div
-                key={tab}
-                initial={{ opacity: 0, y: 6 }}
-                animate={{ opacity: 1, y: 0 }}
-                exit={{ opacity: 0, transition: { duration: 0.1 } }}
-                transition={{duration:.22}}
-              >
+            <div key={tab} className="settings-section-entry">
                 {!search.trim()&&selected&&<div className="settings-breadcrumb"><span>{selected.group}<ChevronRight size={12}/>{selected.label}</span><p>{selected.description}</p></div>}
                 {search.trim()?<div className="settings-results">{results.length?results.map(section=>{const Icon=section.icon;return <button key={section.id} data-settings-result={section.id} onClick={()=>{setTab(section.id);setSearch("");}}><Icon size={17}/><span><b>{section.label}</b><small>{section.group} · {section.description}</small></span></button>;}):<p>{russian?"Настройки не найдены":"No settings found"}</p>}</div>:tab === "discord" ? <DiscordSettings russian={russian} status={discordStatus}/> :tab === "window" ? <WindowPreferencesPanel russian={russian}/> :tab === "background" ? <><VisualPreferences russian={russian} group="background"/><HeroSettings russian={russian}/></> :tab === "effects" ? <EffectsPreferences russian={russian}><MotionPreference t={t} reduceMotion={reduceMotion} setReduceMotion={setReduceMotion}/></EffectsPreferences> :tab === "typography" ? <VisualPreferences russian={russian} group="typography"/> :tab === "materials" ? <MaterialPreferencesPanel russian={russian}/> :tab === "sidebar" ? <SidebarSettings russian={russian} compact={compact} setCompact={setCompact}/> :tab === "layout" ? <><VisualPreferences russian={russian} group="layout"/><InterfaceVisibilityPanel russian={russian}/></> :tab === "quality" ? <VisualQuality russian={russian}/> :tab === "storage" ? <StorageSettings russian={russian}/> :tab === "minecraft"?<RuntimeSettingsPanel russian={russian} section="minecraft"/> :tab === "downloads"?<RuntimeSettingsPanel russian={russian} section="downloads"/> :tab === "appearance" ? (
                   <Appearance
@@ -1570,6 +1587,9 @@ function SettingsModal({
                     setMode={setMode}
                     accent={accent}
                     setAccent={setAccent}
+                    accentColor={accentColor}
+                    setAccentColor={setAccentColor}
+                    paletteMode={paletteMode}
                     preset={preset}
                     setPreset={setPreset}
                   />
@@ -1610,8 +1630,7 @@ function SettingsModal({
                     }
                   />
                 )}
-              </motion.div>
-            </AnimatePresence>
+            </div>
           </div>
         </div>
       </motion.div>
@@ -1624,22 +1643,26 @@ function Appearance({
   setMode,
   accent,
   setAccent,
+  accentColor,
+  setAccentColor,
+  paletteMode,
   preset,
   setPreset,
 }: {
   t: T;
   mode: Mode;
   setMode: (x: Mode) => void;
-  accent: Accent;
-  setAccent: (x: Accent) => void;
+  accent: SelectedAccent;
+  setAccent: (x: SelectedAccent) => void;
+  accentColor: string;
+  setAccentColor: (color: string) => void;
+  paletteMode: PaletteMode;
   preset: string;
   setPreset: (x: string) => void;
 }) {
   const modeIcon = { dark: Moon, light: Sun, amoled: Moon, system: Monitor };
-  const presets: Key[] =
-    (mode === "light" || (mode === "system" && matchMedia("(prefers-color-scheme: light)").matches))
-      ? [...lightPalettes]
-      : [...darkPalettes];
+  const presets: readonly Key[] = paletteMode === "light" ? lightPalettes : paletteMode === "amoled" ? amoledPalettes : darkPalettes;
+  const russian = t("home") === "Главная";
   return (
     <div className="appearance-settings">
       <div className="setting-intro">
@@ -1690,6 +1713,12 @@ function Appearance({
           </button>
         ))}
       </div>
+      <div className="custom-accent">
+        <label>{russian ? "Свой акцент" : "Custom accent"} <input type="color" value={accentColor} onChange={event => setAccentColor(event.target.value)} /></label>
+        <button className="quiet-button" type="button" aria-pressed={accent === "custom"} onClick={() => setAccent("custom")}>{russian ? "Использовать" : "Use color"}</button>
+        <span className="accent-sample">{russian ? "Пример" : "Preview"}</span>
+      </div>
+      <AppearanceScenes russian={russian}/>
       <p className="settings-note">{t("storedLocally")}</p>
     </div>
   );
@@ -1776,6 +1805,11 @@ function SettingsInfo({
   title: string;
   text: string;
 }) {
+  const curseForge = useProviderAvailability();
+  const russian = t("home") === "Главная";
+  const providerStatus = curseForge === "available"
+    ? (russian ? "CurseForge подключён" : "CurseForge connected")
+    : (russian ? "CurseForge недоступен" : "CurseForge unavailable");
   return (
     <div className={`settings-info ${about ? "about-card" : ""}`}>
       <Icon size={28} />
@@ -1784,7 +1818,7 @@ function SettingsInfo({
         <h3>{title}</h3>
         <p>{text}</p>
       </div>
-      {about ? <div className="about-meta"><span>{t("version")} {appVersion}</span></div> : <span className="planned-badge">{t("planned")}</span>}
+      {about ? <div className="about-meta"><span>{t("version")} {appVersion}</span><span>{providerStatus}</span></div> : <span className="planned-badge">{t("planned")}</span>}
     </div>
   );
 }

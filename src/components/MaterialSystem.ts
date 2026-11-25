@@ -91,13 +91,14 @@ const depth:Record<MaterialCategory,number>={cards:1,buttons:.55,sidebar:1.1,pop
 export function applyMaterialTokens(root:HTMLElement,value:TokenPreferences){
   root.dataset.materialPreset=value.materialPreset;
   root.dataset.reduceTransparency=String(value.reduceTransparency);
+  const fallback=value.quality==='low'||value.reduceTransparency||value.focus;
+  root.style.setProperty('--modal-backdrop-filter',fallback||value.surfaceBlur===0?'none':`blur(${Math.min(3,value.surfaceBlur)}px)`);
   for(const category of materialCategories){
     const style=value.materialLinked?value.materialStyle:value.materialCategories[category];
     root.dataset[`material${category[0].toUpperCase()}${category.slice(1)}`]=style;
     const p=materialProfiles[style],d=depth[category];
     const multiplier=category==='sidebar'?value.sidebarMaterialIntensity/100:category==='titlebar'?value.titlebarMaterialIntensity/100:1;
     const strength=clamp(value.materialIntensity/100*multiplier,0,1.5);
-    const fallback=value.quality==='low'||value.reduceTransparency||value.focus;
     const foreground=category==='buttons'||category==='inputs';
     // Native desktop material already supplies depth below the WebView. Keep
     // foreground surfaces translucent instead of masking it with a second veil.

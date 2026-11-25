@@ -59,6 +59,8 @@ pub const COMMANDS:&[&str]=&[
     "content_inventory",
     "content_worlds",
     "content_search",
+    "suggest_pack_mods",
+    "chatgpt_account",
     "content_project",
     "content_versions",
     "content_preview",

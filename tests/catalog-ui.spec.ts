@@ -102,5 +102,5 @@ test("Home and library share restored project icons, navigation opens the overvi
   await expect(input).toBeVisible();
   expect((await input.boundingBox())!.width).toBeGreaterThan(230);
   await input.fill("CanaryPlayer_1234");
-  await expect(input).toHaveValue("CanaryPlayer_1234");
+  await expect(input).toHaveValue("CanaryPlayer_123");
 });

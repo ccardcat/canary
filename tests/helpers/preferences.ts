@@ -1,6 +1,6 @@
 import type {Page} from '@playwright/test';
 
-// Seed the new document after pagehide flushes the old renderer's preferences.
+// Let the new document start from test preferences before React mounts.
 // Remove the initializer so subsequent reloads test real persisted settings.
 export async function reloadWithSeed(page:Page,source:string){
   const session=await page.context().newCDPSession(page);

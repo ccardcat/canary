@@ -219,6 +219,27 @@ async fn provider_request<T>(backend:&B,id:Option<String>,future:impl std::futur
     }
 }
 #[tauri::command]
+pub async fn suggest_pack_mods(
+    backend: State<'_, B>, id: String, prompt: String, model: Option<String>,
+    engine: Option<String>, request_id: Option<String>,
+) -> Result<Vec<String>> {
+    provider_request(&backend, request_id, async {
+        let instance = backend.instance(&id)?;
+        match engine.as_deref().unwrap_or("ollama") {
+            "ollama" => super::pack_assistant::suggest(&instance, &prompt, model.as_deref().unwrap_or_default()).await,
+            "chatgpt" => super::chatgpt::suggest(&backend.root, &instance, &prompt).await,
+            _ => Err(BackendError::new("pack_ai_input", "Unknown pack assistant")),
+        }
+    }).await
+}
+
+#[tauri::command]
+pub async fn chatgpt_account(
+    backend: State<'_, B>, app: AppHandle, action: super::chatgpt::AccountAction, request_id: Option<String>,
+) -> Result<bool> {
+    provider_request(&backend, request_id, super::chatgpt::account(&backend.root, &app, action)).await
+}
+#[tauri::command]
 pub async fn content_search(backend:State<'_,B>,id:String,kind:String,query:String,sort:String,offset:u32,strict:bool,provider:Option<String>,request_id:Option<String>)->Result<serde_json::Value>{provider_request(&backend,request_id,async{let i=backend.instance(&id)?;match provider.as_deref().unwrap_or("modrinth"){"modrinth"=>super::content_provider::search(&backend,&i,&kind,&query,&sort,offset,strict).await,"curseforge"=>super::curseforge_content::search(&backend,&kind,&query,&sort,offset,20,if strict{&i.minecraft}else{""},if strict{&i.loader}else{""},"").await,_=>Err(BackendError::new("provider","Unknown provider"))}}).await}
 #[tauri::command]
 pub async fn content_project(backend:State<'_,B>,project:String,provider:Option<String>,request_id:Option<String>)->Result<serde_json::Value>{provider_request(&backend,request_id,async{if provider.as_deref()==Some("curseforge"){super::curseforge_content::detail(&backend,&project).await}else{super::content_provider::detail(&backend,&project).await}}).await}

@@ -38,7 +38,7 @@ mockIPC((command,args)=>{
   if(command==='install_curseforge_pack'){const instance={...state.instances[0],id:'curseforge-100-200',provider:'curseforge',project_id:'100',version_id:'200',name:'CurseForge contract pack',directory:'C:/Canary/instances/curseforge-100-200'};state.instances.push(instance);return instance;}
   if(command==='content_inventory')return structuredClone(inventory);
   if(command==='content_worlds')return [];
-  if(command==='content_search'){const data={hits:[{project_id:'sodium',title:'Sodium',author:'Author',description:'A compatible optimization mod',downloads:123,versions:['1.21.1'],categories:['fabric']}],total_hits:1};return globalThis.__backendTest.slowContent?new Promise(resolve=>setTimeout(()=>resolve(data),600)):data;}
+  if(command==='content_search'){const data={hits:[{project_id:'sodium',title:'Sodium',author:'Author',description:'A compatible optimization mod',downloads:123,versions:['1.21.1'],categories:['fabric']}],total_hits:1};return globalThis.__backendTest.slowContent&&args.query==="pending"?new Promise(resolve=>{globalThis.__backendTest.finishContent=()=>resolve(data);}):data;}
   if(command==='content_project')return {id:'sodium',title:'Sodium',description:'Optimized rendering',body:'**Safe description**',game_versions:['1.21.1'],loaders:['fabric']};
   if(command==='content_versions'&&args.provider==='curseforge')return [{id:'200',name:'Compatible CF mod',version_number:'1',version_type:'release'}];
   if(command==='content_versions')return [{id:'sodium-v1',name:'Sodium 1',version_number:'1',version_type:'release'}];
@@ -144,7 +144,8 @@ test("native account, Play/Stop and human error details connect to the backend",
   await page.getByRole("button",{name:"Check / repair",exact:true}).click();
   const error=page.getByRole("dialog",{name:"File verification failed"});await expect(error).toContainText("integrity check");
   await expect(error.locator(".error-technical-message")).not.toBeVisible();
-  await error.locator("summary").click();
+  await error.getByText("For support",{exact:true}).click();
+  await error.getByText("Technical details",{exact:true}).click();
   await expect(error.locator(".error-technical-message")).toContainText("Technical checksum contract details");
   const calls=await page.evaluate(()=> (globalThis as unknown as {__backendTest:{calls:{command:string;args:{id?:string}}[]}}).__backendTest.calls);
   expect(calls.find(call=>call.command==="launch_instance")?.args.id).toBe("contract-instance");
@@ -293,6 +294,8 @@ test("switching providers cancels pending Content requests and discards stale Mo
  expect(request.args.requestId).toMatch(/^provider-/);
  expect(calls.some((c:any)=>c.command==="cancel_operation"&&c.args.id===request.args.requestId)).toBe(true);
  expect(calls.some((c:any)=>c.args?.provider==="curseforge")).toBe(false);
+ await page.evaluate(()=>{const qa=(globalThis as any).__backendTest;qa.slowContent=false;qa.finishContent();});
+ await expect(page.locator(".card-title")).toHaveCount(0);
  await page.getByRole("combobox",{name:"Provider",exact:true}).click();await page.getByRole("option",{name:"Modrinth",exact:true}).click();
  await expect(page.locator(".card-title")).toHaveText("Sodium");
 });

@@ -123,7 +123,7 @@ test("every Settings section and main page is contained across materials and mod
   for(const material of ["Solid","Soft","Vibrancy","Glass","Clear Glass","Liquid Glass","Transparent"]) {
     await nav(page,"Settings").click();await settingsSection(page,"materials");await choose(page,"Material preset","Vibrancy");await page.getByText("Advanced materials",{exact:true}).click();await choose(page,"Shared material",material);
     for(const mode of ["Light","Dark","AMOLED"]) {
-      await settingsSection(page,"appearance");await settingsSection(page,"appearance");await page.locator(".mode-grid").getByRole("button",{name:mode,exact:true}).click();await page.waitForTimeout(300);
+      await settingsSection(page,"appearance");await page.locator(".mode-grid").getByRole("button",{name:mode,exact:true}).click();await page.waitForTimeout(300);
       await layout(page,page.locator(".settings-content"));
       await page.screenshot({path:`${directory}/material-${material.replaceAll(" ","-")}-${mode}.png`});
       results.push({material,mode});

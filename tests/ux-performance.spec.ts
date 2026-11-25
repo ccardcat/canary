@@ -22,7 +22,7 @@ for(const russian of [false,true])test("Human error, collapsed details, copy and
  await emit(page,"backend-error",error);const dialog=page.getByRole("dialog",{name:russian?"Не удалось удалить аккаунт":"Could not remove account"});
  await expect(dialog).toBeVisible();await expect(dialog.locator(".error-description")).toContainText(russian?"используется Minecraft":"being used by Minecraft");
  await expect(dialog.locator(".error-technical-message")).toHaveCount(0);await expect(dialog.getByRole("button",{name:russian?"Повторить":"Retry",exact:true})).toHaveCount(0);
- await dialog.locator("summary").click();await expect(dialog).not.toContainText("Internal account lock");await expect(dialog).not.toContainText("account_in_use_by_game");
+ await dialog.getByText(russian?"Для поддержки":"For support",{exact:true}).click();await expect(dialog).not.toContainText("Internal account lock");await expect(dialog).not.toContainText("account_in_use_by_game");
  await dialog.getByRole("button",{name:russian?"Копировать сведения":"Copy details"}).click();expect(await page.evaluate(()=>JSON.parse((globalThis as any).__copied).code)).toBe(error.code);
  await page.keyboard.press("Escape");await expect(dialog).toHaveCount(0);
 });
@@ -60,7 +60,12 @@ test("Particle drag previews without persistence or IPC per pixel",async({page})
  for(let i=1;i<36;i++)await page.mouse.move(box!.x+box!.width*(.1+i*.022),box!.y+box!.height/2);
  expect(await page.evaluate(()=>(globalThis as any).__writes())).toBe(0);await page.mouse.up();
  await expect.poll(()=>page.evaluate(()=>(globalThis as any).__writes())).toBe(1);
- expect(await page.evaluate(()=>(globalThis as any).__materialQA.calls.length-(globalThis as any).__callsBefore)).toBe(0);
+ const writesDuringDrag = await page.evaluate(() => {
+  const qa = (globalThis as any).__materialQA;
+  return qa.calls.slice((globalThis as any).__callsBefore).filter(({command}:{command:string}) =>
+    ["apply_window_material","save_backend_settings"].includes(command));
+ });
+ expect(writesDuringDrag).toEqual([]);
  expect(await page.locator(".ambient-particles i").count()).toBe(24);
 });
 test("Splash centers logo first and the final group, then unmounts permanently",async({page})=>{

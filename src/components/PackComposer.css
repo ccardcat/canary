@@ -1,0 +1,16 @@
+.pack-composer { display:grid; gap:14px; }
+.pack-composer > p,.pack-results h4,.pack-results p { margin:0; }
+.pack-recipes { display:grid; grid-template-columns:repeat(auto-fit,minmax(min(100%,9rem),1fr)); gap:8px; }
+.pack-recipes button { display:flex; justify-content:center; align-items:center; gap:7px; min-width:0; overflow-wrap:anywhere; }
+.pack-recipes svg { flex-shrink:0; color:var(--accent); }
+.pack-prompt,.pack-results { display:grid; gap:9px; }
+.pack-prompt label { display:grid; gap:6px; min-width:0; }
+.pack-prompt :is(input,textarea) { min-width:0; max-width:100%; width:100%; }
+.pack-prompt textarea { resize:vertical; }
+.pack-prompt button,.pack-results button { justify-self:start; }
+.pack-results :is(label,p) { display:flex; align-items:center; gap:8px; flex-wrap:wrap; overflow-wrap:anywhere; }
+.pack-results label { padding:5px 0; }
+.pack-results small { color:var(--muted); }
+.pack-results { animation:canary-view-in var(--view-enter-duration) var(--view-enter-ease); }
+:root[data-motion="reduced"] .pack-results { animation:none; }
+@media (prefers-reduced-motion:reduce) { .pack-results { animation:none; } }

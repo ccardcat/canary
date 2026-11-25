@@ -10,6 +10,8 @@ pub mod content_compatibility;
 pub mod mod_failure;
 pub mod content_provider;
 pub mod pack_update;
+pub mod pack_assistant;
+mod chatgpt;
 pub mod accounts;
 pub mod account_resources;
 pub mod artwork;

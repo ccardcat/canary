@@ -7,9 +7,9 @@ import {nativeFixture} from './helpers/nativeFixture';
 const nav=(page:Page,name:string)=>page.locator('.sidebar nav').getByRole('button',{name,exact:true});
 async function choose(page:Page,label:string,name:string){
  if(await page.locator(".settings-modal").isVisible()){if(["Material preset","Shared material","Button style","Card material"].includes(label))await settingsSection(page,"materials");if(label==="Sidebar layout")await settingsSection(page,"sidebar");}
-await page.getByRole('combobox',{name:label,exact:true}).evaluate(el=>{for(let details=el.closest('details');details;details=details.parentElement?.closest('details')??null)details.open=true;});await page.getByRole('combobox',{name:label,exact:true}).click();await page.getByRole('option',{name,exact:true}).click();}
-const palettes=[['light','white'],['light','softLight'],['light','frost'],['light','warm'],['dark','graphite'],['dark','black'],['dark','softDark'],['dark','midnight'],['amoled','graphite']];
-const accents=['monochrome','white','winter-island','mint','emerald','aqua','blue','purple','rose','orange'];
+await page.getByRole('combobox',{name:label,exact:true,includeHidden:true}).evaluate(el=>{for(let details=el.closest('details');details;details=details.parentElement?.closest('details')??null)details.open=true;});await page.getByRole('combobox',{name:label,exact:true}).click();await page.getByRole('option',{name,exact:true}).click();}
+const palettes=[['light','white'],['light','softLight'],['light','frost'],['light','warm'],['dark','graphite'],['dark','black'],['dark','softDark'],['dark','midnight'],['amoled','pureBlack'],['amoled','softAmoled']];
+const accents=['monochrome','white','gray','mint','emerald','aqua','blue','purple','rose','orange'];
 const materials=['Solid','Soft','Vibrancy','Glass','Clear Glass','Liquid Glass','Transparent'];
 test.beforeEach(async({page})=>{mkdirSync('.qa/theme-contrast',{recursive:true});await nativeFixture(page);await page.emulateMedia({reducedMotion:'reduce'});});
 
