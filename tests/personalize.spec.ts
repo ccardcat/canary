@@ -38,6 +38,11 @@ test("named looks switch theme and heading font with undo and keep accessibility
   await expect(motion).toHaveAttribute("aria-checked","true");
 
   await page.keyboard.press("Control+k");
+  await search(page).fill("Sunrise");
+  await search(page).press("Enter");
+  await expect(html).toHaveAttribute("data-mode","light");
+
+  await page.keyboard.press("Control+k");
   await search(page).fill("undo look");
   await search(page).press("Enter");
   await expect(html).toHaveAttribute("data-mode","dark");

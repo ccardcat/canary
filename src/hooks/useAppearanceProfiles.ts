@@ -10,12 +10,12 @@ export function useAppearanceProfiles(current:AppearanceSnapshot,apply:(snapshot
   const [profiles,setProfiles] = useState(readAppearanceProfiles);
   const [previous,setPrevious] = useState<AppearanceSnapshot | null>(null);
   const [lastAppliedId,setLastAppliedId] = useState<string | null>(null);
-  const activeId=useMemo(()=>{
+  const matchingProfiles=useMemo(()=>{
     const currentTheme=JSON.stringify(current.theme),currentVisual=JSON.stringify(current.visual);
-    const matches=(profile:AppearanceProfile)=>JSON.stringify(profile.theme)===currentTheme &&
-      JSON.stringify(profile.visual)===currentVisual;
-    return profiles.find(profile=>profile.id===lastAppliedId && matches(profile))?.id ?? profiles.find(matches)?.id ?? null;
-  },[current,lastAppliedId,profiles]);
+    return profiles.filter(profile=>JSON.stringify(profile.theme)===currentTheme &&
+      JSON.stringify(profile.visual)===currentVisual);
+  },[current,profiles]);
+  const activeId=matchingProfiles.find(profile=>profile.id===lastAppliedId)?.id ?? matchingProfiles[0]?.id ?? null;
 
   function save(next:AppearanceProfile[]):Result {
     try {
@@ -51,8 +51,9 @@ export function useAppearanceProfiles(current:AppearanceSnapshot,apply:(snapshot
       return result;
     },
     apply(profile:AppearanceProfile) {
-      setPrevious(current);
       setLastAppliedId(profile.id);
+      if (matchingProfiles.includes(profile)) return;
+      setPrevious(current);
       apply(profile);
     },
     undo() {
