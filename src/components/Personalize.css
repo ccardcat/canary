@@ -46,7 +46,7 @@
 .appearance-undo { justify-self:start; }
 .appearance-transfer .appearance-profile-actions { margin-top:8px; }
 
-.topbar-tools { display:flex; max-width:100%; min-width:0; align-items:center; gap:8px; }
+.topbar-tools { display:flex; flex:none; align-items:center; gap:8px; }
 :root .quick-search-trigger {
   display:inline-flex; align-items:center; justify-content:center; flex-shrink:0; width:40px; height:40px;
 }
