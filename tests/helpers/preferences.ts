@@ -1,12 +1,9 @@
 import type {Page} from '@playwright/test';
 
-// Let the new document start from test preferences before React mounts.
-// Remove the initializer so subsequent reloads test real persisted settings.
+// Set the fixture before the next renderer mounts and reads localStorage.
 export async function reloadWithSeed(page:Page,source:string){
-  const session=await page.context().newCDPSession(page);
-  const {identifier}=await session.send('Page.addScriptToEvaluateOnNewDocument',{source});
-  try{await page.reload();}
-  finally{await session.send('Page.removeScriptToEvaluateOnNewDocument',{identifier});await session.detach();}
+  await page.evaluate(source);
+  await page.reload();
 }
 
 export async function reloadWithPreferences(page:Page,patch:Record<string,unknown>){

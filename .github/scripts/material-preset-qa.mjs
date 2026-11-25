@@ -15,8 +15,9 @@ export async function materialPresetQA({evaluate,choose,click,textButton,call,wi
  const settings=async()=>{
   await until(()=>evaluate(`document.documentElement.dataset.startup==='ready'&&!!document.querySelector('.home-hero')&&getComputedStyle(document.querySelector('.page-transition')).opacity==='1'`),'material QA Home');
   await click(textButton('.sidebar button','Settings'));
-  await until(()=>evaluate(`!!document.querySelector('.settings-modal')&&getComputedStyle(document.querySelector('.settings-modal')).opacity==='1'`),'material QA Settings');
+  await until(()=>evaluate(`(document.querySelector('.settings-modal')?.getBoundingClientRect().width??0)>0`),'material QA Settings');
   await section('materials','.material-settings');
+  await delay(300);
  };
  await win('set_size',{value:{Physical:{width:1200,height:760}}});await delay(300);
  report.surfaceMaterials=[];

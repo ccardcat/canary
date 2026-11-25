@@ -153,7 +153,9 @@ test('page headings keep the wallpaper visible across pages, themes and quality 
         return points.map(({x,y})=>[...ctx.getImageData(x,y,1,1).data].slice(0,3));
       },{png:png.toString('base64'),points});
       metrics.push({mode,name,pixels});
-      expect(pixels[0],`${mode}/${name} heading matches the surrounding wallpaper`).toEqual(pixels[1]);
+      // Compositing the launcher gradient can shift adjacent samples by a color step.
+      const difference=Math.max(...pixels[0].map((channel,index)=>Math.abs(channel-pixels[1][index])));
+      expect(difference,`${mode}/${name} heading matches the surrounding wallpaper`).toBeLessThanOrEqual(2);
     }
   }
   writeFileSync('.qa/theme-contrast/unboxed-headings.json',JSON.stringify(metrics,null,2));
