@@ -71,3 +71,15 @@
 :root .project-card .card-body>p,:root .project-card .card-provider {
   color:color-mix(in srgb,var(--text) 36%,var(--muted));
 }
+
+/* Keep the artwork visible around the card while protecting its foreground on
+   bright wallpapers and native desktop backgrounds. */
+:root:not([data-background-source="solid"]):is([data-material-cards="clear"],[data-material-cards="liquid"],[data-material-cards="transparent"]) .compact-project-card::before {
+  content:"";
+  position:absolute;
+  inset:0;
+  z-index:-1;
+  pointer-events:none;
+  border-radius:inherit;
+  background:linear-gradient(180deg, color-mix(in srgb,var(--surface) 48%,transparent), color-mix(in srgb,var(--surface) 62%,transparent));
+}
