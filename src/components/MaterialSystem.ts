@@ -53,7 +53,8 @@ export function normalizeLayout(saved:Record<string,unknown>):LayoutPreferences 
   const result={...layoutDefaults};
   for (const key of ['sidebarMode','instanceLayout','instanceArtwork','buttonDensity'] as const) {
     const allowed={sidebarMode:['attached','floating'],instanceLayout:['comfortable','compact'],instanceArtwork:['full','ambient','off'],buttonDensity:['comfortable','compact']}[key];
-    if (allowed.includes(String(saved[key]))) (result as unknown as Record<string,unknown>)[key]=saved[key];
+    const value=saved[key];
+    if (typeof value==='string'&&allowed.includes(value)) (result as unknown as Record<string,unknown>)[key]=value;
   }
   if(typeof saved.materialRadius==='number'&&Number.isFinite(saved.materialRadius))result.materialRadius=Math.min(28,Math.max(8,saved.materialRadius));
   return result;
@@ -70,7 +71,7 @@ export function normalizeMaterials(saved:Record<string,unknown>):MaterialPrefere
   for(const [key,[min,max]] of Object.entries({materialIntensity:[0,100],materialSaturation:[50,160],materialBrightness:[80,120],materialContrast:[80,120],materialHighlight:[0,160],materialBorder:[0,160],materialShadow:[0,160],sidebarMaterialIntensity:[0,150],titlebarMaterialIntensity:[0,150]})){
     const n=fields[key];fields[key]=typeof n==='number'&&Number.isFinite(n)?clamp(n,min,max):(materialDefaults as unknown as Record<string,unknown>)[key];
   }
-  if(result.materialPreset!=='custom'&&!(result.materialPreset in materialPresets))result.materialPreset='canary';
+  if(result.materialPreset!=='custom'&&!Object.keys(materialPresets).includes(result.materialPreset))result.materialPreset='canary';
   // Clear Glass used to be a lower-opacity Glass preset. Preserve explicit layout and artwork.
   if(result.materialPreset==='clear'&&result.materialLinked&&result.materialStyle==='glass')result.materialStyle='clear';
   return result;

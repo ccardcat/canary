@@ -15,8 +15,10 @@ import {
   useCallback,
   useEffect,
   useLayoutEffect,
+  useMemo,
   useRef,
   useState,
+  type ReactNode,
 } from "react";
 import { AnimatePresence, MotionConfig, motion } from "motion/react";
 import {isTerminal,projectInstallTask} from "./services/activity";
@@ -88,8 +90,12 @@ import {
   type Version,
 } from "./services/modrinth";
 
+import {AppearanceProfiles} from "./components/AppearanceProfiles";
+import {QuickSearch, type QuickResult} from "./components/QuickSearch";
+import {useAppearanceProfiles} from "./hooks/useAppearanceProfiles";
+import {profileVisuals} from "./services/appearanceProfiles";
 import {AppearanceScenes} from "./components/AppearanceScenes";
-import {accessibleAccent, amoledPalettes, darkPalettes, lightPalettes, normalizeAccentColor, readPalettes, type PaletteMode} from "./services/theme";
+import {accessibleAccent, amoledPalettes, darkPalettes, lightPalettes, normalizeAccentColor, readPalettes, accentColors, modes, normalizeAccent, type PaletteMode, type Mode, type SelectedAccent} from "./services/theme";
 
 type Page =
   | "Home"
@@ -99,19 +105,6 @@ type Page =
   | "Screenshots"
   | "Activity"
   | "Settings";
-type Mode = "dark" | "light" | "amoled" | "system";
-type Accent =
-  | "monochrome"
-  | "white"
-  | "gray"
-  | "mint"
-  | "emerald"
-  | "aqua"
-  | "blue"
-  | "purple"
-  | "rose"
-  | "orange";
-type SelectedAccent = Accent | "custom";
 const nav: Record<Page, typeof House> = {
   Home: House,
   Discover: Compass,
@@ -128,19 +121,6 @@ const types: { id: ContentType; icon: typeof Boxes; key: Key }[] = [
   { id: "datapack", icon: Package, key: "datapack" },
   { id: "shader", icon: GalleryHorizontalEnd, key: "shader" },
 ];
-const accentColors: Record<Accent, string> = {
-  monochrome: "#e9efec",
-  white: "#ffffff",
-  gray: "#aeb9b5",
-  mint: "#72d6ac",
-  emerald: "#47c98b",
-  aqua: "#61cfe0",
-  blue: "#83a8ed",
-  purple: "#b29aed",
-  rose: "#ed9bad",
-  orange: "#e8ae79",
-};
-const modes: Mode[] = ["dark", "light", "amoled", "system"];
 function getInitialLanguage() {
   const saved = localStorage.getItem("canary-language");
   if (saved === "ru" || saved === "en") return saved;
@@ -154,7 +134,8 @@ function App() {
   const dict = lang === "ru" ? ru : en;
   const t = useCallback<T>((key) => dict[key] ?? en[key], [dict]);
   const [page, setPage] = useState<Page>("Home");
-  const startupReady=useStartupReady();const {value:visual}=useVisualAppearance();
+  const startupReady=useStartupReady();const {value:visual,update:updateVisual,registry,wallpapersReady}=useVisualAppearance();
+  const russian=lang==="ru";
   const discovery = useDiscovery(startupReady&&page==="Discover");
   const [community, setCommunity] = useState<Project[]>([]);
   const [communityError, setCommunityError] = useState(false);
@@ -182,15 +163,15 @@ function App() {
   const detailAbort = useRef<AbortController | null>(null);
   const [settingsOpen, setSettingsOpen] = useState(false);
   const [settingsTab, setSettingsTab] = useState("appearance");
+  const [settingsRevision, setSettingsRevision] = useState(0);
+  const [quickSearchOpen,setQuickSearchOpen]=useState(false);
+  const closeQuickSearch=useCallback(()=>setQuickSearchOpen(false),[]);
   const [accountOpen, setAccountOpen] = useState(false);
   const discordStatus=useDiscordPresence({kind:settingsOpen?"settings":detail?"project":page==="Home"?"home":page==="Discover"?"discover":page==="Library"?"library":"idle",locale:lang,projectName:detail?.title??"",provider:detail?.provider??discovery.provider,category:detail?.project_type??discovery.type});
   const [mode, setMode] = useState<Mode>(
     () => {const saved=localStorage.getItem("canary-mode");return ["light","dark","amoled","system"].includes(saved||"")?saved as Mode:"amoled";},
   );
-  const [accent, setAccent] = useState<SelectedAccent>(() => {
-    const saved = localStorage.getItem("canary-accent");
-    return saved === "custom" || Object.prototype.hasOwnProperty.call(accentColors, saved ?? "") ? saved as SelectedAccent : "monochrome";
-  });
+  const [accent, setAccent] = useState(() => normalizeAccent(localStorage.getItem("canary-accent")));
   const [accentColor, setAccentColor] = useState(() => normalizeAccentColor(localStorage.getItem("canary-accent-color")));
   const changeAccentColor = (color: string) => {
     setAccentColor(normalizeAccentColor(color));
@@ -212,6 +193,21 @@ function App() {
     () => localStorage.getItem("canary-sidebar-expanded-narrow") === "true",
   );
   const [palettes, setPalettes] = useState(() => readPalettes(localStorage));
+  const appearanceSnapshot=useMemo(
+    ()=>({theme:{mode,accent,accentColor,palettes,compact},visual:profileVisuals(visual)}),
+    [mode,accent,accentColor,palettes,compact,visual],
+  );
+  const appearanceProfiles = useAppearanceProfiles(
+    appearanceSnapshot,
+    ({theme,visual:profile})=>{
+      setMode(theme.mode);setAccent(theme.accent);setAccentColor(theme.accentColor);
+      setPalettes(theme.palettes);setCompact(theme.compact);
+      updateVisual({...profile,
+        app:!wallpapersReady||registry.some(image=>image.id===profile.app&&image.app) ? profile.app : "meadow",
+        sidebar:!wallpapersReady||registry.some(image=>image.id===profile.sidebar&&image.sidebar) ? profile.sidebar : "meadow",
+      });
+    },
+  );
   const resolvedMode = mode === "system" ? (systemLight ? "light" : "dark") : mode;
   const paletteMode = resolvedMode;
   const resolvedPreset = palettes[paletteMode];
@@ -396,11 +392,17 @@ function App() {
     instances: backend.snapshot?.instances,
     cachedProjects: lib,
   });
+  function openSetting(id:string) {
+    setSettingsOpen(true);
+    setSettingsTab(id);
+    setSettingsRevision(old=>old+1);
+  }
+
   const navigation = (next: Page) => {
     if (next === "Settings") {
-      setSettingsOpen(true);
-      setSettingsTab("appearance");
+      openSetting("appearance");
     } else {
+      setSettingsOpen(false);
       detailAbort.current?.abort();
       setDetailLoading(false);
       setDetail(null);
@@ -409,6 +411,57 @@ function App() {
     setAccountOpen(false);
     setFilterOpen(false);
   };
+  useEffect(()=>{
+    function onSearchShortcut(event:KeyboardEvent) {
+      if (!startupReady || event.defaultPrevented || event.isComposing || event.repeat || event.altKey || event.shiftKey ||
+          !(event.ctrlKey||event.metaKey) || event.key.toLowerCase()!=="k" || document.querySelector("dialog[open]")) return;
+      event.preventDefault();
+      setAccountOpen(false);
+      setFilterOpen(false);
+      setQuickSearchOpen(true);
+    }
+    document.addEventListener("keydown",onSearchShortcut);
+    return ()=>document.removeEventListener("keydown",onSearchShortcut);
+  },[startupReady]);
+
+  let quickItems:QuickResult[]=[];
+  if (quickSearchOpen) {
+    const select=(action:()=>void)=>()=>{closeQuickSearch();action();};
+    const pages:Page[]=["Library","Discover","Downloads","Home","Screenshots","Activity","Settings"];
+    const pageItems=pages.map(target=>({
+      id:"page:"+target,title:t(target.toLowerCase() as Key),detail:russian?"Страница":"Page",
+      keywords:target,icon:nav[target],select:select(()=>navigation(target)),
+    }));
+    const settingsItems=settingsGroups(russian).flatMap(group=>group.sections.map(section=>({
+      id:"settings:"+section.id,title:section.label,detail:group.label,
+      keywords:section.keywords,description:section.description,icon:section.icon,select:select(()=>openSetting(section.id)),
+    })));
+    const instances=isTauri() ? (backend.snapshot?.instances??[]).filter(instance=>!instance.internal).sort((a,b)=>
+      Number(b.favorite)-Number(a.favorite)||(b.last_played??b.installed)-(a.last_played??a.installed)) : [];
+    const instanceItems=instances.map(instance=>({
+      id:"instance:"+instance.id,title:instance.name,detail:`Minecraft ${instance.minecraft} · ${instance.loader}`,
+      keywords:russian?"сборка библиотека instance library":"instance library сборка библиотека",
+      icon:Package,select:select(()=>{setLibrarySelectionId(instance.id);navigation("Library");}),
+    }));
+    const previewItems:QuickResult[]=isTauri()?[]:lib.map(project=>({
+      id:"preview:"+project.project_id,title:project.title,detail:russian?"Библиотека":"Library",
+      keywords:"instance library сборка библиотека",icon:Package,
+      select:select(()=>{navigation("Library");setLibraryQuery(project.title);}),
+    }));
+    const looksItems=appearanceProfiles.profiles.map(profile=>({
+      id:"look:"+profile.id,title:profile.name,detail:russian?"Оформление":"Appearance look",
+      keywords:"appearance profile look preset оформление профиль тема",
+      icon:Monitor,select:select(()=>appearanceProfiles.apply(profile)),
+    }));
+    const undoItem=appearanceProfiles.canUndo ? [{
+      id:"look:undo",title:russian?"Отменить смену оформления":"Undo look switch",
+      detail:russian?"Оформление":"Appearance look",keywords:"appearance profile look undo оформление профиль отмена",
+      icon:Monitor,select:select(appearanceProfiles.undo),
+    }] : [];
+    const recent=[...instanceItems,...previewItems];
+    quickItems=[...pageItems.slice(0,3),...recent.slice(0,3),...undoItem,...looksItems.slice(0,2),
+      ...pageItems.slice(3),...recent.slice(3),...looksItems.slice(2),...settingsItems];
+  }
   const activeNav = settingsOpen ? "Settings" : page;
   const expressiveMotion = visual.navigationMotion === "expressive" && !visual.focus && visual.quality !== "low";
   return (
@@ -501,6 +554,12 @@ function App() {
                 <p className="topbar-sub">{t("sub")}</p>
               )}
             </div>
+            <div className="topbar-tools">
+            <button type="button" className="quiet-button quick-search-trigger" onClick={()=>setQuickSearchOpen(true)}
+              aria-label={russian?"Быстрый поиск":"Quick search"} aria-haspopup="dialog" aria-keyshortcuts="Control+K Meta+K"
+              data-tooltip={russian?"Быстрый поиск (Ctrl+K)":"Quick search (Ctrl+K)"}>
+              <Search size={18}/>
+            </button>
             <div className="account-wrap" ref={accountRef}>
               <button
                 className="account-button"
@@ -523,6 +582,7 @@ function App() {
                   <AccountPopover t={t} onClose={() => setAccountOpen(false)} />
                 )}
               </AnimatePresence>
+            </div>
             </div>
           </header>
           {page!=="Downloads"&&<PackDownloads russian={lang==="ru"}/>}
@@ -621,9 +681,12 @@ function App() {
             </motion.div>
           </AnimatePresence>
         </main>
+        {quickSearchOpen&&<QuickSearch items={quickItems} russian={russian} onClose={closeQuickSearch}/>}
         <AnimatePresence>
           {settingsOpen && (
             <SettingsModal
+              key={settingsRevision}
+              profilePanel={<AppearanceProfiles russian={russian} book={appearanceProfiles}/>}
               t={t}
               tab={settingsTab}
               setTab={setSettingsTab}
@@ -1465,6 +1528,7 @@ function EmptyPage({
   );
 }
 function SettingsModal({
+  profilePanel,
   discordStatus,
   t,
   tab,
@@ -1486,6 +1550,7 @@ function SettingsModal({
   preset,
   setPreset,
 }: {
+  profilePanel:ReactNode;
   discordStatus:DiscordStatus;
   t: T;
   tab: string;
@@ -1580,7 +1645,7 @@ function SettingsModal({
           <div className="settings-content" ref={content}>
             <div key={tab} className="settings-section-entry">
                 {!search.trim()&&selected&&<div className="settings-breadcrumb"><span>{selected.group}<ChevronRight size={12}/>{selected.label}</span><p>{selected.description}</p></div>}
-                {search.trim()?<div className="settings-results">{results.length?results.map(section=>{const Icon=section.icon;return <button key={section.id} data-settings-result={section.id} onClick={()=>{setTab(section.id);setSearch("");}}><Icon size={17}/><span><b>{section.label}</b><small>{section.group} · {section.description}</small></span></button>;}):<p>{russian?"Настройки не найдены":"No settings found"}</p>}</div>:tab === "discord" ? <DiscordSettings russian={russian} status={discordStatus}/> :tab === "window" ? <WindowPreferencesPanel russian={russian}/> :tab === "background" ? <><VisualPreferences russian={russian} group="background"/><HeroSettings russian={russian}/></> :tab === "effects" ? <EffectsPreferences russian={russian}><MotionPreference t={t} reduceMotion={reduceMotion} setReduceMotion={setReduceMotion}/></EffectsPreferences> :tab === "typography" ? <VisualPreferences russian={russian} group="typography"/> :tab === "materials" ? <MaterialPreferencesPanel russian={russian}/> :tab === "sidebar" ? <SidebarSettings russian={russian} compact={compact} setCompact={setCompact}/> :tab === "layout" ? <><VisualPreferences russian={russian} group="layout"/><InterfaceVisibilityPanel russian={russian}/></> :tab === "quality" ? <VisualQuality russian={russian}/> :tab === "storage" ? <StorageSettings russian={russian}/> :tab === "minecraft"?<RuntimeSettingsPanel russian={russian} section="minecraft"/> :tab === "downloads"?<RuntimeSettingsPanel russian={russian} section="downloads"/> :tab === "appearance" ? (
+                {search.trim()?<div className="settings-results">{results.length?results.map(section=>{const Icon=section.icon;return <button key={section.id} data-settings-result={section.id} onClick={()=>{setTab(section.id);setSearch("");}}><Icon size={17}/><span><b>{section.label}</b><small>{section.group} · {section.description}</small></span></button>;}):<p>{russian?"Настройки не найдены":"No settings found"}</p>}</div>:tab === "appearanceProfiles" ? profilePanel :tab === "discord" ? <DiscordSettings russian={russian} status={discordStatus}/> :tab === "window" ? <WindowPreferencesPanel russian={russian}/> :tab === "background" ? <><VisualPreferences russian={russian} group="background"/><HeroSettings russian={russian}/></> :tab === "effects" ? <EffectsPreferences russian={russian}><MotionPreference t={t} reduceMotion={reduceMotion} setReduceMotion={setReduceMotion}/></EffectsPreferences> :tab === "typography" ? <VisualPreferences russian={russian} group="typography"/> :tab === "materials" ? <MaterialPreferencesPanel russian={russian}/> :tab === "sidebar" ? <SidebarSettings russian={russian} compact={compact} setCompact={setCompact}/> :tab === "layout" ? <><VisualPreferences russian={russian} group="layout"/><InterfaceVisibilityPanel russian={russian}/></> :tab === "quality" ? <VisualQuality russian={russian}/> :tab === "storage" ? <StorageSettings russian={russian}/> :tab === "minecraft"?<RuntimeSettingsPanel russian={russian} section="minecraft"/> :tab === "downloads"?<RuntimeSettingsPanel russian={russian} section="downloads"/> :tab === "appearance" ? (
                   <Appearance
                     t={t}
                     mode={mode}
@@ -1701,7 +1766,7 @@ function Appearance({
       </div>
       <h4>{t("accent")}</h4>
       <div className="accent-grid">
-        {(Object.keys(accentColors) as Accent[]).map((a) => (
+        {(Object.keys(accentColors) as (keyof typeof accentColors)[]).map((a) => (
           <button
             className={accent === a ? "selected" : ""}
             aria-pressed={accent === a}

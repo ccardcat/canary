@@ -1,7 +1,38 @@
+export type Mode = "dark" | "light" | "amoled" | "system";
+type Accent =
+  | "monochrome"
+  | "white"
+  | "gray"
+  | "mint"
+  | "emerald"
+  | "aqua"
+  | "blue"
+  | "purple"
+  | "rose"
+  | "orange";
+export type SelectedAccent = Accent | "custom";
+export const accentColors: Record<Accent, string> = {
+  monochrome: "#e9efec",
+  white: "#ffffff",
+  gray: "#aeb9b5",
+  mint: "#72d6ac",
+  emerald: "#47c98b",
+  aqua: "#61cfe0",
+  blue: "#83a8ed",
+  purple: "#b29aed",
+  rose: "#ed9bad",
+  orange: "#e8ae79",
+};
+export const modes: Mode[] = ["dark", "light", "amoled", "system"];
+export function normalizeAccent(value: unknown): SelectedAccent {
+  if (value === "custom") return "custom";
+  return (Object.keys(accentColors) as Accent[]).find(accent => accent === value) ?? "monochrome";
+}
+
 export const lightPalettes = ["white", "softLight", "frost", "warm"] as const;
 export const darkPalettes = ["graphite", "black", "softDark", "midnight"] as const;
 export const amoledPalettes = ["pureBlack", "softAmoled"] as const;
-type Palettes = {
+export type Palettes = {
   light: typeof lightPalettes[number];
   dark: typeof darkPalettes[number];
   amoled: typeof amoledPalettes[number];
@@ -9,9 +40,13 @@ type Palettes = {
 export type PaletteMode = keyof Palettes;
 
 export function readPalettes(storage: Storage): Palettes {
-  const legacy = storage.getItem("canary-preset");
-  let saved: Partial<Palettes> = {};
-  try { saved = JSON.parse(storage.getItem("canary-palettes") || "{}") ?? {}; } catch { /* Use the legacy value. */ }
+  let saved: unknown;
+  try { saved = JSON.parse(storage.getItem("canary-palettes") || "{}"); } catch { /* Use the legacy value. */ }
+  return normalizePalettes(saved, storage.getItem("canary-preset"));
+}
+
+export function normalizePalettes(value: unknown, legacy?: string | null): Palettes {
+  const saved = value && typeof value === "object" ? value as Partial<Palettes> : {};
   const light = lightPalettes.find(palette => palette === saved.light);
   const dark = darkPalettes.find(palette => palette === saved.dark);
   return {

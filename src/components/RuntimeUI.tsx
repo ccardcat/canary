@@ -93,7 +93,7 @@ function InstanceEditor({instance,russian}:{instance:RuntimeInstance;russian:boo
 }
 export function RuntimeLibrary({russian,initialInstanceId,onInitialOpened}:{russian:boolean;initialInstanceId?:string|null;onInitialOpened?:()=>void}) {
   const text=useText(russian);const {value:visual,update:visualUpdate}=useVisualAppearance();const {snapshot,run,tasks}=useBackend();const [query,setQuery]=useState("");const [favorites,setFavorites]=useState(false);const [create,setCreate]=useState(false);const [settingsInstanceId,setSettingsInstanceId]=useState<string|null>(null);const [panelTab,setPanelTab]=useState<"settings"|"content">("settings");const [browse,setBrowse]=useState(false);const [closing,setClosing]=useState(false);const [sort,setSort]=useState("installed");
-  useEffect(()=>{if(initialInstanceId&&snapshot?.instances.some(i=>i.id===initialInstanceId)){setSettingsInstanceId(initialInstanceId);setPanelTab("settings");onInitialOpened?.();}},[initialInstanceId,snapshot,onInitialOpened]);
+  useEffect(()=>{if(initialInstanceId&&snapshot?.instances.some(i=>i.id===initialInstanceId)){setClosing(false);setSettingsInstanceId(initialInstanceId);setPanelTab("settings");onInitialOpened?.();}},[initialInstanceId,snapshot,onInitialOpened]);
   const selected=snapshot?.instances.find(i=>i.id===settingsInstanceId);const ct=contentMessages[russian?"ru":"en"];
   const [highlighted,setHighlighted]=useState("");useEffect(()=>{if(!highlighted)return;const timer=setTimeout(()=>setHighlighted(""),5000);return()=>clearTimeout(timer);},[highlighted]);
   const close=()=>setClosing(true);
@@ -101,11 +101,46 @@ export function RuntimeLibrary({russian,initialInstanceId,onInitialOpened}:{russ
   useEffect(()=>{if(!settingsInstanceId)return;const key=(e:KeyboardEvent)=>{if(e.key==="Escape"&&!document.querySelector("dialog[open]"))close();};document.addEventListener("keydown",key);return()=>document.removeEventListener("keydown",key);},[settingsInstanceId]);
   useEffect(()=>{if(!closing)return;const timer=setTimeout(()=>{setSettingsInstanceId(null);setClosing(false);},180);return()=>clearTimeout(timer);},[closing]);
   const open=(id:string,tab:"settings"|"content")=>{setClosing(false);setSettingsInstanceId(id);setPanelTab(tab);setBrowse(tab==="content");};
-  const list=(snapshot?.instances||[]).filter(i=>!i.internal&&i.name.toLowerCase().includes(query.toLowerCase())&&(!favorites||i.favorite)).sort((a,b)=>sort==="name"?a.name.localeCompare(b.name):sort==="played"?(b.last_played||0)-(a.last_played||0):b.installed-a.installed);
+  const [minecraftFilter,setMinecraftFilter]=useState("");
+  const [loaderFilter,setLoaderFilter]=useState("");
+  const [attention,setAttention]=useState(false);
+  const label=(ru:string,en:string)=>russian?ru:en;
+  const instances=(snapshot?.instances??[]).filter(instance=>!instance.internal);
+  const versions=[...new Set(instances.map(instance=>instance.minecraft).filter(Boolean))].sort((a,b)=>b.localeCompare(a,undefined,{numeric:true}));
+  const loaders=[...new Set(instances.map(instance=>instance.loader).filter(Boolean))].sort();
+  const activeFilters=Number(!!minecraftFilter)+Number(!!loaderFilter)+Number(attention);
+  const nameQuery=query.trim().toLowerCase();
+  const list=instances.filter(instance=>
+    instance.name.toLowerCase().includes(nameQuery) && (!favorites||instance.favorite) &&
+    (!minecraftFilter||instance.minecraft===minecraftFilter) && (!loaderFilter||instance.loader===loaderFilter) &&
+    (!attention||instance.error||instance.update_available||["unavailable","crashed","failed"].includes(instance.status)),
+  ).sort((a,b)=>sort==="name"?a.name.localeCompare(b.name):sort==="played"?(b.last_played||0)-(a.last_played||0):b.installed-a.installed);
   return <section className="library-page">{!selected&&<div className="library-overview"><div className="library-intro"><div><h2>{text.all}</h2></div><button className="primary-button" onClick={()=>setCreate(!create)}><Plus size={17}/>{text.create}</button></div>
 
     <div className="library-toolbar"><input aria-label={text.name} placeholder={text.name} value={query} onChange={e=>setQuery(e.target.value)}/><GlassSelect aria-label={text.sort} value={sort} onChange={e=>setSort(e.target.value)}><option value="installed">{text.newest}</option><option value="played">{text.lastPlayed}</option><option value="name">{text.name}</option></GlassSelect><button className="quiet-button" aria-label={text.checkUpdates} data-tooltip={text.checkUpdates} onClick={()=>ignore(run("check_modpack_updates",{allowedProviders:availableProviders}))}><RefreshCw size={15}/><span className="density-label">{text.checkUpdates}</span></button><button className="quiet-button" aria-label={text.favorites} data-tooltip={text.favorites} onClick={()=>setFavorites(!favorites)} aria-pressed={favorites}><Star size={16}/><span className="density-label">{text.favorites}</span></button><GlassSelect aria-label={russian?"Карточки экземпляров":"Instance card layout"} value={visual.instanceLayout} onChange={e=>visualUpdate({instanceLayout:e.target.value as "comfortable"|"compact"})}><option value="comfortable">{russian?"Обычные":"Comfortable"}</option><option value="compact">{russian?"Компактные":"Compact"}</option></GlassSelect></div>
-    {!list.length&&<EmptyState className="library-empty" title={text.empty}/>}
+    {instances.length>0&&<details className="library-filters">
+      <summary>{label("Фильтры сборок","Instance filters")}{activeFilters>0&&<span> · {activeFilters}</span>}</summary>
+      <div className="library-filter-controls">
+        <label>{label("Версия Minecraft","Minecraft version")}
+          <GlassSelect aria-label={label("Фильтр по версии Minecraft","Filter by Minecraft version")} value={minecraftFilter} onChange={event=>setMinecraftFilter(event.target.value)}>
+            <option value="">{label("Все версии","All versions")}</option>
+            {[...new Set([...versions,...(minecraftFilter?[minecraftFilter]:[])])].map(version=><option key={version}>{version}</option>)}
+          </GlassSelect>
+        </label>
+        <label>{label("Загрузчик","Loader")}
+          <GlassSelect aria-label={label("Фильтр по загрузчику","Filter by loader")} value={loaderFilter} onChange={event=>setLoaderFilter(event.target.value)}>
+            <option value="">{label("Все загрузчики","All loaders")}</option>
+            {[...new Set([...loaders,...(loaderFilter?[loaderFilter]:[])])].map(loader=><option key={loader}>{loader}</option>)}
+          </GlassSelect>
+        </label>
+        <label className="library-attention"><input type="checkbox" checked={attention} onChange={event=>setAttention(event.target.checked)}/>
+          {label("Требуют внимания","Needs attention")}
+        </label>
+        {activeFilters>0&&<button type="button" className="quiet-button" onClick={()=>{setMinecraftFilter("");setLoaderFilter("");setAttention(false);}}>{label("Сбросить фильтры","Clear instance filters")}</button>}
+      </div>
+    </details>}
+    {!list.length&&<EmptyState className="library-empty" title={instances.length&&(nameQuery||favorites||activeFilters)
+      ?label("Подходящих сборок нет","No matching instances"):text.empty}/> }
     <div className="project-grid library-grid">{list.map(instance=>{const running=instance.status==="running";const stopping=instance.status==="stopping";const unavailable=instance.status==="unavailable";const active=tasks.some(t=>t.operationId===instance.id&&!isTerminal(t));return <article className={`project-card instance-card ${highlighted===instance.id?"instance-created":""}`} data-instance-id={instance.id} onPointerMove={cardSpotlight} key={instance.id}>
       <div className="instance-ambient" style={{backgroundImage:instance.icon?`url(${imageSrc(instance.icon)})`:undefined}}/>
       <div className="card-visual">{instance.icon&&<div className="card-bg blurred-icon" style={{backgroundImage:`url(${imageSrc(instance.icon)})`}}/>}<div className="card-icon-wrap"><InstanceIcon instance={instance}/></div></div>

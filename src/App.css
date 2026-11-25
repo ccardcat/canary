@@ -1672,7 +1672,7 @@ img {
   min-width: 0;
 }
 .topbar h1 {
-  font-size: clamp(24px, 2.7vw, 36px);
+  font-size: calc(clamp(24px, 2.7vw, 36px) * var(--ui-font-scale,1));
   line-height: 1.12;
   letter-spacing: -0.8px;
   overflow-wrap: anywhere;
@@ -2722,7 +2722,7 @@ pre,code,.toast-details,.selectable { font-family:Consolas,"Cascadia Mono",monos
 .project-card { transition:transform .2s,box-shadow .2s,border-color .2s; }
 .project-card:hover { transform:translateY(-3px); }
 img { -webkit-user-drag:none; }
-:root[data-ui-font="Monocraft"] h1 { font-size:clamp(24px,2.4vw,34px); line-height:1.4; }
+:root[data-heading-font="Monocraft"] h1 { font-size:calc(clamp(24px,2.4vw,34px) * var(--ui-font-scale,1)); line-height:1.4; }
 :root[data-ui-font="Monocraft"][data-minecraft="full"] { font-size:calc(13px * var(--ui-font-scale,1)); }
 :root[data-ui-font="Monocraft"][data-minecraft="full"] .nav-label { font-size:calc(12px * var(--ui-font-scale,1)); }
 :root[data-ui-font="Monocraft"][data-minecraft="full"] .type-tabs button { font-size:calc(11px * var(--ui-font-scale,1)); padding-inline:8px; }

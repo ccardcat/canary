@@ -26,9 +26,11 @@ export {backgrounds} from "../services/backgrounds";
 import {isTauri,convertFileSrc} from "@tauri-apps/api/core";
 import {useBackend} from "../services/backend";
 import {windowDefaults,useNativeMaterial,WindowMaterialSettings,WindowControlsSettings,type WindowPreferences} from "./WindowMaterial";
-const fonts = ["Nunito", "Manrope", "Plus Jakarta Sans", "Rubik", "Monocraft", "system"];
-export type Preferences = SidebarPreferences & CatalogPreferences & DiscordPreferences & PolishPreferences & WindowPreferences & MaterialPreferences & LayoutPreferences & { app: string; sidebar: string; intensity: number; blur: number; sidebarBlur: number; font: string; fontScale: 90 | 100 | 110 | 120; minecraft: "headings" | "full"; showCommunity:boolean; backgroundVersion:number;compactCardsVersion:number; navigationMotion:"calm"|"expressive"; ambient: "off" | "automatic" | "sakura" | "snow" | "autumn" | "embers" };
-const defaults: Preferences = { ...sidebarDefaults,...catalogDefaults,...discordDefaults, ...polishDefaults,...windowDefaults,...layoutDefaults,...materialDefaults, app: "meadow", sidebar: "meadow", intensity: 85, blur: 8, sidebarBlur: 12, font: "Nunito", fontScale:100, minecraft: "headings", showCommunity:true, backgroundVersion:1, compactCardsVersion:1, navigationMotion:"calm", ambient: "off" };
+const fonts = ["Nunito", "Manrope", "Plus Jakarta Sans", "Rubik", "Monocraft", "system"] as const;
+type HeadingFont = "inherit" | typeof fonts[number];
+const fontStack = (font: string) => font === "system" ? "system-ui" : `"${font}"`;
+export type Preferences = SidebarPreferences & CatalogPreferences & DiscordPreferences & PolishPreferences & WindowPreferences & MaterialPreferences & LayoutPreferences & { app: string; sidebar: string; intensity: number; blur: number; sidebarBlur: number; font: string; headingFont: HeadingFont; fontScale: 90 | 100 | 110 | 120; minecraft: "headings" | "full"; showCommunity:boolean; backgroundVersion:number;compactCardsVersion:number; navigationMotion:"calm"|"expressive"; ambient: "off" | "automatic" | "sakura" | "snow" | "autumn" | "embers" };
+const defaults: Preferences = { ...sidebarDefaults,...catalogDefaults,...discordDefaults, ...polishDefaults,...windowDefaults,...layoutDefaults,...materialDefaults, app: "meadow", sidebar: "meadow", intensity: 85, blur: 8, sidebarBlur: 12, font: "Nunito", headingFont: "inherit", fontScale:100, minecraft: "headings", showCommunity:true, backgroundVersion:1, compactCardsVersion:1, navigationMotion:"calm", ambient: "off" };
 const freshDefaults:Preferences={...defaults,...materialPresetPatch("solid"),backgroundSource:"solid",materialRadius:14,cursor:"system",showCommunity:false};
 export function normalizePreferences(input:unknown):Preferences {
  const saved=input&&typeof input==="object"?input as Record<string,unknown>:{};
@@ -36,20 +38,21 @@ export function normalizePreferences(input:unknown):Preferences {
  const result={...base,...normalizeSidebar(saved),...normalizeCatalog(saved),...normalizeMaterials(Object.keys(saved).length?saved:base),...normalizeLayout(Object.keys(saved).length?saved:base),globalTreatment:{...base.globalTreatment},sidebarTreatment:{...base.sidebarTreatment}};
  const fields=result as unknown as Record<string,unknown>;
  for(const key of Object.keys(defaults).filter(key=>!(key in materialDefaults)&&!(key in layoutDefaults)&&!(key in catalogDefaults)&&!(key in sidebarDefaults))){const value=saved[key];if(typeof value===typeof fields[key]&&(typeof value!=="number"||Number.isFinite(value)))fields[key]=value;}
- const enums:Record<string,string[]>={backgroundSource:["canary","desktop","solid"],material:["solid","transparent","acrylic","mica","mica-alt"],tint:["neutral","theme","strong"],vibrancyPreset:["off","subtle","balanced","glass","custom"],titlebarBranding:["icon","text","icon-text","hidden"],windowControls:["windows","minimal","compact","traffic-lights"],controlsPosition:["left","right"],effectPreset:["off","low","medium","high","custom"],ambient:["off","automatic","sakura","snow","autumn","embers"],quality:["low","balanced","high"],sidebarSide:["left","right"],cursor:["system","custom"],minecraft:["headings","full"],navigationMotion:["calm","expressive"],font:fonts};
+ const enums:Record<string,string[]>={backgroundSource:["canary","desktop","solid"],material:["solid","transparent","acrylic","mica","mica-alt"],tint:["neutral","theme","strong"],vibrancyPreset:["off","subtle","balanced","glass","custom"],titlebarBranding:["icon","text","icon-text","hidden"],windowControls:["windows","minimal","compact","traffic-lights"],controlsPosition:["left","right"],effectPreset:["off","low","medium","high","custom"],ambient:["off","automatic","sakura","snow","autumn","embers"],quality:["low","balanced","high"],sidebarSide:["left","right"],cursor:["system","custom"],minecraft:["headings","full"],navigationMotion:["calm","expressive"],font:[...fonts],headingFont:["inherit",...fonts]};
  for(const [key,allowed] of Object.entries(enums))if(!allowed.includes(String(fields[key])))fields[key]=(defaults as unknown as Record<string,unknown>)[key];
  const ranges:Record<string,[number,number]>={windowTransparency:[0,100],surfaceOpacity:[20,100],surfaceBlur:[0,32],glassIntensity:[0,70],heroSpeed:[7,20],particleWind:[0,200],density:[4,24],particleSpeed:[40,180],particleOpacity:[5,70],particleSize:[50,160],glass:[5,35],intensity:[0,100],blur:[0,32],sidebarBlur:[0,20],sidebarIntensity:[0,100]};
  for(const [key,[min,max]] of Object.entries(ranges))fields[key]=Math.min(max,Math.max(min,Number(fields[key])));
  result.fontScale=[90,100,110,120].includes(result.fontScale)?result.fontScale:100;
  for(const key of ["globalTreatment","sidebarTreatment"] as const){const input=saved[key]&&typeof saved[key]==="object"?saved[key] as Record<string,unknown>:{};const treatment={...defaults[key]};for(const [name,[min,max]] of Object.entries({brightness:[50,130],saturation:[0,130],overlay:[0,100],vignette:[0,90],zoom:[100,140]})){if(typeof input[name]==="number"&&Number.isFinite(input[name]))(treatment as unknown as Record<string,unknown>)[name]=Math.min(max,Math.max(min,input[name] as number));}treatment.position=["center","top","bottom","left","right"].includes(String(input.position))?String(input.position):"center";result[key]=treatment;}
- if(Number(saved.backgroundVersion??0)<1){
+ const isLegacy=(version:unknown)=>(typeof version!=="number"&&typeof version!=="string")||Number(version)<1;
+ if(isLegacy(saved.backgroundVersion)){
   if(result.app==="normal"&&result.backgroundSource==="canary")result.app="meadow";
   if(result.intensity===45)result.intensity=85;
   if(result.globalTreatment.overlay===65)result.globalTreatment.overlay=28;
   if(result.globalTreatment.vignette===55)result.globalTreatment.vignette=30;
   if(result.sidebarTreatment.overlay===80)result.sidebarTreatment.overlay=38;
  }
- if(Number(saved.compactCardsVersion??0)<1&&result.instanceLayout==='comfortable')result.instanceLayout='compact';
+ if(isLegacy(saved.compactCardsVersion)&&result.instanceLayout==='comfortable')result.instanceLayout='compact';
  result.compactCardsVersion=1;
  result.backgroundVersion=1;
  result.app=migrateBackgroundId(result.app,"app");result.sidebar=migrateBackgroundId(result.sidebar,"sidebar");
@@ -105,9 +108,10 @@ export function VisualAppearanceProvider({ children }: { children: ReactNode }) 
     root.style.setProperty("--material-blur",`${value.quality==="low"?0:value.focus?Math.min(value.surfaceBlur,4):value.surfaceBlur}px`);
     root.style.setProperty("--glass-strength",String(value.glassIntensity/100));
     root.style.setProperty("--glass-opacity", (100-value.glass)+"%");
-    const font = value.font === "system" ? "system-ui" : `"${value.font}"`;
+    const font = fontStack(value.font);
     root.style.setProperty("--ui-font", value.font === "Monocraft" && value.minecraft === "headings" ? "Nunito" : font);
-    root.style.setProperty("--heading-font", font);
+    root.style.setProperty("--heading-font", value.headingFont === "inherit" ? font : fontStack(value.headingFont));
+    root.dataset.headingFont = value.headingFont === "inherit" ? value.font : value.headingFont;
     root.style.setProperty("--sidebar-art", `url("${registry.find(p => p.id === value.sidebar)?.sidebar || defaultSidebarImage}")`);
     root.style.setProperty("--sidebar-blur", `${value.sidebarBlur}px`);
   }, [value,custom]);
@@ -155,6 +159,13 @@ export function VisualPreferences({ russian,group="all",effectsControls }: { rus
     {(group==="all"||group==="typography")&&<div className="visual-typography-group"><h3>{russian?"Типографика":"Typography"}</h3><h4>{text["Interface font"]}</h4><div className="font-options">{fonts.map(font => <button key={font} style={{ fontFamily: font === "system" ? "system-ui" : `"${font}", Nunito, sans-serif` }} className={value.font === font ? "selected" : ""} aria-pressed={value.font === font} onClick={() => update({ font })}>{font === "system" ? (russian ? "Системный" : "System font") : font}</button>)}</div>
     <h4>{text["Interface size"]}</h4><div className="font-options">{([90,100,110,120] as const).map(fontScale=><button key={fontScale} aria-pressed={value.fontScale===fontScale} className={value.fontScale===fontScale?"selected":""} onClick={()=>update({fontScale})}>{fontScale}%</button>)}</div>
     {value.font === "Monocraft" && <><h4>{text["Minecraft style"]}</h4><div className="font-options">{(["headings", "full"] as const).map(minecraft => <button key={minecraft} aria-pressed={value.minecraft === minecraft} className={value.minecraft === minecraft ? "selected" : ""} onClick={() => update({ minecraft })}>{minecraft === "headings" ? text["Headings"] : text["Full interface"]}</button>)}</div></>}
+    <label className="heading-font-control">{russian ? "Шрифт заголовков" : "Heading font"}
+      <GlassSelect aria-label={russian ? "Шрифт заголовков" : "Heading font"} value={value.headingFont}
+        onChange={event=>update({headingFont:event.target.value as HeadingFont})}>
+        <option value="inherit">{russian ? "Как в интерфейсе" : "Follow interface font"}</option>
+        {fonts.map(font=><option key={font} value={font}>{font === "system" ? (russian ? "Системный" : "System font") : font}</option>)}
+      </GlassSelect>
+    </label>
     <div className="typography-preview"><h4>{russian ? "Мой мир Minecraft" : "My Minecraft world"}</h4><p>{russian ? "Библиотека · Мир 01 · Версия 1.21" : "Library · World 01 · Version 1.21"}</p></div>
     </div>}
   </section>;

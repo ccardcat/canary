@@ -29,7 +29,9 @@ See the [implementation and QA report](docs/FOLLOWUP_INTEGRATION_QA.md) for curr
 
 Appearance includes Dark, Light, AMOLED and live System mode, seven independent surface materials (Solid, Soft, Vibrancy, Glass, Clear Glass, Liquid Glass, Transparent), native Windows Acrylic/Mica/Mica Alt with supported fallbacks, titlebar branding/control styles, glass dropdowns, rotating application artwork in Home, snow/sakura/autumn effects and persisted typography sizing. Low quality disables UI backdrop blur/frost and limits particles; reduced motion and focus mode stop ambient motion. Linux reports a Solid fallback for Windows-only materials. Project descriptions/changelogs use safe Markdown or sanitized CurseForge HTML. Custom backgrounds use a native image picker and managed copies. F11 toggles real launcher fullscreen and restores previous geometry/maximized state, independently of Minecraft fullscreen.
 
-**Settings → Theme & colors** remembers separate Light, Dark, and AMOLED palettes. A custom accent adapts to the active theme for contrast. Appearance scenes combine a launcher wallpaper, materials, and ambient effects, with an undo button. **Typography** previews the current font, including the system font. **Effects** offers calm and expressive interface transitions, both of which respect reduced motion.
+**Settings → Theme & colors** remembers separate Light, Dark, and AMOLED palettes. A custom accent adapts to the active theme for contrast. Appearance scenes combine a launcher wallpaper, materials, and ambient effects, with an undo button. **Typography** supports separate interface and heading fonts with a live preview. **My looks** saves named combinations of appearance settings that you can switch, undo, or share as JSON. **Effects** offers calm and expressive interface transitions, both of which respect reduced motion.
+
+Use **Ctrl+K** (or the search button next to the account menu) to find a page, settings section, instance, or saved look. **Library → Instance filters** narrows your collection by Minecraft version, loader, or instances with an error, unavailable files, or an available update.
 
 ## After moving or renaming the checkout
 
