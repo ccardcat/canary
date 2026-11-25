@@ -5,7 +5,7 @@ import {nativeFixture} from "./helpers/nativeFixture";
 test("Wallpaper gallery scrolls independently, expands all thumbnails and preserves selection",async({page})=>{
  await nativeFixture(page);await page.addInitScript(()=>{if(!localStorage.getItem('canary-visual'))localStorage.setItem('canary-visual',JSON.stringify({app:'meadow',backgroundSource:'canary',backgroundVersion:1}));});
  await page.goto('/');await page.locator('.sidebar nav').getByRole('button',{name:'Settings',exact:true}).click();await settingsSection(page,'background');
- const gallery=page.getByRole('region',{name:'Wallpaper gallery'});await expect(gallery.locator('.background-options button')).toHaveCount(18);await expect(gallery.locator('.background-options')).toHaveText('');
+ const gallery=page.getByRole('region',{name:'Wallpaper gallery'});await expect(gallery.locator('.background-options button')).toHaveCount(19);await expect(gallery.locator('.background-options')).toHaveText('');
  expect(await gallery.evaluate(element=>element.scrollHeight>element.clientHeight)).toBe(true);
  const contentScroll=await page.locator('.settings-content').evaluate(element=>element.scrollTop);await gallery.evaluate(element=>element.scrollTop=200);
  expect(await gallery.evaluate(element=>element.scrollTop)).toBeGreaterThan(0);expect(await page.locator('.settings-content').evaluate(element=>element.scrollTop)).toBe(contentScroll);

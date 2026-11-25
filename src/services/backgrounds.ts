@@ -21,6 +21,7 @@ export const backgrounds:Background[]=[
  {"id": "starlit-castle", "name": "Starlit Castle", "ambient": "snow", "app": "/backgrounds/starlit-castle.webp", "sidebar": "/backgrounds/starlit-castle.webp", "thumbnail": "/backgrounds/thumbnails/starlit-castle.webp"},
  {id:"garden",name:"Garden Awakens",ambient:"autumn",app:"/backgrounds/gardenawakens-background.png",sidebar:"/backgrounds/gardenawakens-background.png"},
  {id:"newyear",name:"Minecraft New Year",ambient:"snow",app:"/backgrounds/minecraftnewyear-background.png",sidebar:"/backgrounds/minecraftnewyear-background.png"},
+ {id:"vice-city",name:"Vice City",ambient:"off",app:"/backgrounds/vice-city.webp",sidebar:"/backgrounds/vice-city.webp",thumbnail:"/backgrounds/thumbnails/vice-city.webp"},
 ];
 // Retired built-in selections migrate once; imported IDs and retained backgrounds stay intact.
 const retired=new Set(["normal","darkblue","gray","green","sakura1","sakura2","axolotl","bees","pink","green2"]);

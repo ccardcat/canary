@@ -13,6 +13,8 @@ import { Play, Square, FolderOpen, Plus, RefreshCw, Check, X, Pencil, Trash2, St
 import { useBackend,defaultAccount, type Java, type RuntimeInstance, type RuntimeSettings } from "../services/backend";
 import { backendMessages } from "../locales/backend";
 import {InstanceIcon} from "./InstanceIcon";
+import {InstanceSummary} from "./InstanceSummary";
+import {defaultLibraryFilters,readLibraryFilters,storeLibraryFilters} from "../services/libraryFilters";
 import {LoaderLabel} from "./ProjectTags";
 import AccountAvatar from "./AccountAvatar";
 import {MicrosoftLogo} from "./MicrosoftLogo";
@@ -88,11 +90,22 @@ function InstanceEditor({instance,russian}:{instance:RuntimeInstance;russian:boo
     <label>{text.fullScreen}<GlassSelect value={value.overrides.fullscreen===undefined||value.overrides.fullscreen===null?"inherit":String(value.overrides.fullscreen)} onChange={e=>patch("fullscreen",e.target.value==="inherit"?null:e.target.value==="true")}><option value="inherit">{text.inherit}</option><option value="true">{russian?"Включён":"On"}</option><option value="false">{russian?"Выключен":"Off"}</option></GlassSelect></label>
     <div className="runtime-inline">{["mods","saves","screenshots","logs"].map(folder=><button key={folder} className="quiet-button" onClick={()=>ignore(run("open_instance_folder",{id:instance.id,folder}))}><FolderOpen size={14}/>{text[folder as "mods"]}</button>)}</div>
     <div className="runtime-inline"><button className="quiet-button" onClick={()=>ignore(run("update_instance",{instance:value}))}>{text.save}</button><button className="quiet-button" onClick={()=>setLogs(!logs)}>{text.logs}</button><button className="quiet-button destructive" onClick={()=>setConfirm(!confirm)}>{text.delete}</button></div>
+    <InstanceSummary key={instance.id} instance={instance} russian={russian}/>
     {confirm&&<RuntimeDialog title={text.delete} closeLabel={text.close} onClose={()=>setConfirm(false)}><p>{text.deleteWarning}</p><div className="runtime-inline"><button className="quiet-button destructive" onClick={()=>{setConfirm(false);ignore(run("delete_instance",{id:instance.id,confirmed:true}));}}>{text.confirm}</button><button className="quiet-button" onClick={()=>setConfirm(false)}>{text.cancel}</button></div></RuntimeDialog>}{logs&&<GameLogs russian={russian} initialInstanceId={instance.id}/>}
   </div>;
 }
 export function RuntimeLibrary({russian,initialInstanceId,onInitialOpened}:{russian:boolean;initialInstanceId?:string|null;onInitialOpened?:()=>void}) {
-  const text=useText(russian);const {value:visual,update:visualUpdate}=useVisualAppearance();const {snapshot,run,tasks}=useBackend();const [query,setQuery]=useState("");const [favorites,setFavorites]=useState(false);const [create,setCreate]=useState(false);const [settingsInstanceId,setSettingsInstanceId]=useState<string|null>(null);const [panelTab,setPanelTab]=useState<"settings"|"content">("settings");const [browse,setBrowse]=useState(false);const [closing,setClosing]=useState(false);const [sort,setSort]=useState("installed");
+  const text=useText(russian);const {value:visual,update:visualUpdate}=useVisualAppearance();const {snapshot,run,tasks}=useBackend();
+  const [create,setCreate]=useState(false);const [settingsInstanceId,setSettingsInstanceId]=useState<string|null>(null);const [panelTab,setPanelTab]=useState<"settings"|"content">("settings");const [browse,setBrowse]=useState(false);const [closing,setClosing]=useState(false);
+  const [savedFilters] = useState(readLibraryFilters);
+  const [filters,setFilters] = useState(savedFilters??defaultLibraryFilters);
+  const {query,favorites,sort,minecraftFilter,loaderFilter,attention} = filters;
+  const [rememberFilters,setRememberFilters] = useState(!!savedFilters);
+  const [filterStorageError,setFilterStorageError] = useState(false);
+  const changeFilters=(patch:Partial<typeof filters>)=>setFilters(current=>({...current,...patch}));
+  useEffect(()=>{
+    setFilterStorageError(!storeLibraryFilters(rememberFilters?filters:null));
+  },[rememberFilters,filters]);
   useEffect(()=>{if(initialInstanceId&&snapshot?.instances.some(i=>i.id===initialInstanceId)){setClosing(false);setSettingsInstanceId(initialInstanceId);setPanelTab("settings");onInitialOpened?.();}},[initialInstanceId,snapshot,onInitialOpened]);
   const selected=snapshot?.instances.find(i=>i.id===settingsInstanceId);const ct=contentMessages[russian?"ru":"en"];
   const [highlighted,setHighlighted]=useState("");useEffect(()=>{if(!highlighted)return;const timer=setTimeout(()=>setHighlighted(""),5000);return()=>clearTimeout(timer);},[highlighted]);
@@ -101,9 +114,6 @@ export function RuntimeLibrary({russian,initialInstanceId,onInitialOpened}:{russ
   useEffect(()=>{if(!settingsInstanceId)return;const key=(e:KeyboardEvent)=>{if(e.key==="Escape"&&!document.querySelector("dialog[open]"))close();};document.addEventListener("keydown",key);return()=>document.removeEventListener("keydown",key);},[settingsInstanceId]);
   useEffect(()=>{if(!closing)return;const timer=setTimeout(()=>{setSettingsInstanceId(null);setClosing(false);},180);return()=>clearTimeout(timer);},[closing]);
   const open=(id:string,tab:"settings"|"content")=>{setClosing(false);setSettingsInstanceId(id);setPanelTab(tab);setBrowse(tab==="content");};
-  const [minecraftFilter,setMinecraftFilter]=useState("");
-  const [loaderFilter,setLoaderFilter]=useState("");
-  const [attention,setAttention]=useState(false);
   const label=(ru:string,en:string)=>russian?ru:en;
   const instances=(snapshot?.instances??[]).filter(instance=>!instance.internal);
   const versions=[...new Set(instances.map(instance=>instance.minecraft).filter(Boolean))].sort((a,b)=>b.localeCompare(a,undefined,{numeric:true}));
@@ -117,26 +127,30 @@ export function RuntimeLibrary({russian,initialInstanceId,onInitialOpened}:{russ
   ).sort((a,b)=>sort==="name"?a.name.localeCompare(b.name):sort==="played"?(b.last_played||0)-(a.last_played||0):b.installed-a.installed);
   return <section className="library-page">{!selected&&<div className="library-overview"><div className="library-intro"><div><h2>{text.all}</h2></div><button className="primary-button" onClick={()=>setCreate(!create)}><Plus size={17}/>{text.create}</button></div>
 
-    <div className="library-toolbar"><input aria-label={text.name} placeholder={text.name} value={query} onChange={e=>setQuery(e.target.value)}/><GlassSelect aria-label={text.sort} value={sort} onChange={e=>setSort(e.target.value)}><option value="installed">{text.newest}</option><option value="played">{text.lastPlayed}</option><option value="name">{text.name}</option></GlassSelect><button className="quiet-button" aria-label={text.checkUpdates} data-tooltip={text.checkUpdates} onClick={()=>ignore(run("check_modpack_updates",{allowedProviders:availableProviders}))}><RefreshCw size={15}/><span className="density-label">{text.checkUpdates}</span></button><button className="quiet-button" aria-label={text.favorites} data-tooltip={text.favorites} onClick={()=>setFavorites(!favorites)} aria-pressed={favorites}><Star size={16}/><span className="density-label">{text.favorites}</span></button><GlassSelect aria-label={russian?"Карточки экземпляров":"Instance card layout"} value={visual.instanceLayout} onChange={e=>visualUpdate({instanceLayout:e.target.value as "comfortable"|"compact"})}><option value="comfortable">{russian?"Обычные":"Comfortable"}</option><option value="compact">{russian?"Компактные":"Compact"}</option></GlassSelect></div>
+    <div className="library-toolbar"><input aria-label={text.name} placeholder={text.name} maxLength={160} value={query} onChange={e=>changeFilters({query:e.target.value})}/><GlassSelect aria-label={text.sort} value={sort} onChange={e=>changeFilters({sort:e.target.value})}><option value="installed">{text.newest}</option><option value="played">{text.lastPlayed}</option><option value="name">{text.name}</option></GlassSelect><button className="quiet-button" aria-label={text.checkUpdates} data-tooltip={text.checkUpdates} onClick={()=>ignore(run("check_modpack_updates",{allowedProviders:availableProviders}))}><RefreshCw size={15}/><span className="density-label">{text.checkUpdates}</span></button><button className="quiet-button" aria-label={text.favorites} data-tooltip={text.favorites} onClick={()=>changeFilters({favorites:!favorites})} aria-pressed={favorites}><Star size={16}/><span className="density-label">{text.favorites}</span></button><GlassSelect aria-label={russian?"Карточки экземпляров":"Instance card layout"} value={visual.instanceLayout} onChange={e=>visualUpdate({instanceLayout:e.target.value as "comfortable"|"compact"})}><option value="comfortable">{russian?"Обычные":"Comfortable"}</option><option value="compact">{russian?"Компактные":"Compact"}</option></GlassSelect></div>
     {instances.length>0&&<details className="library-filters">
       <summary>{label("Фильтры сборок","Instance filters")}{activeFilters>0&&<span> · {activeFilters}</span>}</summary>
       <div className="library-filter-controls">
         <label>{label("Версия Minecraft","Minecraft version")}
-          <GlassSelect aria-label={label("Фильтр по версии Minecraft","Filter by Minecraft version")} value={minecraftFilter} onChange={event=>setMinecraftFilter(event.target.value)}>
+          <GlassSelect aria-label={label("Фильтр по версии Minecraft","Filter by Minecraft version")} value={minecraftFilter} onChange={event=>changeFilters({minecraftFilter:event.target.value})}>
             <option value="">{label("Все версии","All versions")}</option>
             {[...new Set([...versions,...(minecraftFilter?[minecraftFilter]:[])])].map(version=><option key={version}>{version}</option>)}
           </GlassSelect>
         </label>
         <label>{label("Загрузчик","Loader")}
-          <GlassSelect aria-label={label("Фильтр по загрузчику","Filter by loader")} value={loaderFilter} onChange={event=>setLoaderFilter(event.target.value)}>
+          <GlassSelect aria-label={label("Фильтр по загрузчику","Filter by loader")} value={loaderFilter} onChange={event=>changeFilters({loaderFilter:event.target.value})}>
             <option value="">{label("Все загрузчики","All loaders")}</option>
             {[...new Set([...loaders,...(loaderFilter?[loaderFilter]:[])])].map(loader=><option key={loader}>{loader}</option>)}
           </GlassSelect>
         </label>
-        <label className="library-attention"><input type="checkbox" checked={attention} onChange={event=>setAttention(event.target.checked)}/>
+        <label className="library-attention"><input type="checkbox" checked={attention} onChange={event=>changeFilters({attention:event.target.checked})}/>
           {label("Требуют внимания","Needs attention")}
         </label>
-        {activeFilters>0&&<button type="button" className="quiet-button" onClick={()=>{setMinecraftFilter("");setLoaderFilter("");setAttention(false);}}>{label("Сбросить фильтры","Clear instance filters")}</button>}
+        <label className="library-attention"><input type="checkbox" checked={rememberFilters} onChange={event=>setRememberFilters(event.target.checked)}/>
+          {label("Запоминать фильтры","Remember filters")}
+        </label>
+        {activeFilters>0&&<button type="button" className="quiet-button" onClick={()=>changeFilters({minecraftFilter:"",loaderFilter:"",attention:false})}>{label("Сбросить фильтры","Clear instance filters")}</button>}
+        {filterStorageError&&<span role="status">{label("Не удалось обновить сохранённые фильтры.","Could not update saved filters.")}</span>}
       </div>
     </details>}
     {!list.length&&<EmptyState className="library-empty" title={instances.length&&(nameQuery||favorites||activeFilters)
@@ -150,7 +164,7 @@ export function RuntimeLibrary({russian,initialInstanceId,onInitialOpened}:{russ
       <div className="instance-links"><button className="quiet-button" aria-label={text.details} data-tooltip={text.details} onClick={()=>settingsInstanceId===instance.id&&panelTab==="settings"?close():open(instance.id,"settings")}><Info size={14}/><span className="density-label">{text.details}</span></button><button className="quiet-button" aria-label={ct.content} data-tooltip={ct.content} onClick={()=>open(instance.id,"content")}><Plus size={14}/><span className="density-label">{ct.content}</span></button></div>
         {instance.error&&<p>{text[instance.error.code==="loader_unsupported"?"loaderUnsupported":instance.error.code==="java_missing"?"javaMissing":"failed"]}</p>}</div></article>;})}</div>
     </div>}
-    {create&&<CreateInstance russian={russian} onClose={()=>setCreate(false)} onCreated={id=>{setHighlighted(id);setSettingsInstanceId(null);setQuery("");setFavorites(false);setSort("installed");}}/>}
+    {create&&<CreateInstance russian={russian} onClose={()=>setCreate(false)} onCreated={id=>{setHighlighted(id);setSettingsInstanceId(null);setFilters(defaultLibraryFilters);}}/>}
     {selected&&<aside className={`instance-surface ${closing?"closing":""}`} aria-label={`${ct.settings} — ${selected.name}`}><div className="runtime-heading"><div><small>Minecraft {selected.minecraft} · {selected.loader}</small><h3>{selected.name}</h3></div><div className="header-actions"><button className="primary-button" onClick={()=>setCreate(true)}><Plus size={17}/>{text.create}</button><button className="quiet-button" aria-label={text.close} onClick={close}><X size={18}/></button></div></div><div className="font-options"><button aria-pressed={panelTab==="settings"} onClick={()=>setPanelTab("settings")}>{ct.settings}</button><button aria-pressed={panelTab==="content"} onClick={()=>{setBrowse(false);setPanelTab("content");}}>{ct.content}</button></div><div className="instance-surface-body" key={selected.id+panelTab}>{panelTab==="settings"?<InstanceEditor key={selected.id} instance={selected} russian={russian}/>:<ContentManager key={selected.id} instance={selected} russian={russian} initialBrowse={browse}/>}</div></aside>}
   </section>;
 }

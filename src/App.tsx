@@ -95,6 +95,8 @@ import {QuickSearch, type QuickResult} from "./components/QuickSearch";
 import {useAppearanceProfiles} from "./hooks/useAppearanceProfiles";
 import {profileVisuals} from "./services/appearanceProfiles";
 import {AppearanceScenes} from "./components/AppearanceScenes";
+import {ButtonStyles} from "./components/ButtonStyles";
+import {ViceCityLook, viceCityLook, viceCityWallpaper} from "./components/ViceCityLook";
 import {accessibleAccent, amoledPalettes, darkPalettes, lightPalettes, normalizeAccentColor, readPalettes, accentColors, modes, normalizeAccent, type PaletteMode, type Mode, type SelectedAccent} from "./services/theme";
 
 type Page =
@@ -211,6 +213,12 @@ function App() {
   const resolvedMode = mode === "system" ? (systemLight ? "light" : "dark") : mode;
   const paletteMode = resolvedMode;
   const resolvedPreset = palettes[paletteMode];
+  const viceCityActive = mode==="dark" && resolvedPreset==="viceCity" && accent==="custom" && accentColor==="#f995c8" &&
+    visual.app===viceCityWallpaper && visual.backgroundSource==="canary" && visual.buttonStyle==="neon" &&
+    visual.materialPreset==="glass" && visual.headingFont==="Rubik" && visual.showHero && visual.heroFollowWallpaper;
+  const applyViceCity = () => {
+    if (!viceCityActive) appearanceProfiles.applyLook(viceCityLook(appearanceSnapshot));
+  };
   const setPreset = (value: string) => {
     const light = lightPalettes.find(palette => palette === value);
     const dark = darkPalettes.find(palette => palette === value);
@@ -458,9 +466,12 @@ function App() {
       detail:russian?"Оформление":"Appearance look",keywords:"appearance profile look undo оформление профиль отмена",
       icon:Monitor,select:select(appearanceProfiles.undo),
     }] : [];
+    const featuredLook = {id:"look:vice-city",title:"Vice City",
+      detail:russian?"Готовая тема":"Featured theme",keywords:"miami neon гта gta вайс сити майами неон тема",
+      icon:Monitor,select:select(()=>openSetting("appearance"))};
     const recent=[...instanceItems,...previewItems];
     quickItems=[...pageItems.slice(0,3),...recent.slice(0,3),...undoItem,...looksItems.slice(0,2),
-      ...pageItems.slice(3),...recent.slice(3),...looksItems.slice(2),...settingsItems];
+      ...pageItems.slice(3),...recent.slice(3),...looksItems.slice(2),featuredLook,...settingsItems];
   }
   const activeNav = settingsOpen ? "Settings" : page;
   const expressiveMotion = visual.navigationMotion === "expressive" && !visual.focus && visual.quality !== "low";
@@ -686,6 +697,8 @@ function App() {
           {settingsOpen && (
             <SettingsModal
               key={settingsRevision}
+              featuredLook={<ViceCityLook russian={russian} active={viceCityActive} onApply={applyViceCity}
+                onUndo={appearanceProfiles.canUndo?appearanceProfiles.undo:undefined}/>}
               profilePanel={<AppearanceProfiles russian={russian} book={appearanceProfiles}/>}
               t={t}
               tab={settingsTab}
@@ -1528,6 +1541,7 @@ function EmptyPage({
   );
 }
 function SettingsModal({
+  featuredLook,
   profilePanel,
   discordStatus,
   t,
@@ -1550,6 +1564,7 @@ function SettingsModal({
   preset,
   setPreset,
 }: {
+  featuredLook:ReactNode;
   profilePanel:ReactNode;
   discordStatus:DiscordStatus;
   t: T;
@@ -1645,8 +1660,9 @@ function SettingsModal({
           <div className="settings-content" ref={content}>
             <div key={tab} className="settings-section-entry">
                 {!search.trim()&&selected&&<div className="settings-breadcrumb"><span>{selected.group}<ChevronRight size={12}/>{selected.label}</span><p>{selected.description}</p></div>}
-                {search.trim()?<div className="settings-results">{results.length?results.map(section=>{const Icon=section.icon;return <button key={section.id} data-settings-result={section.id} onClick={()=>{setTab(section.id);setSearch("");}}><Icon size={17}/><span><b>{section.label}</b><small>{section.group} · {section.description}</small></span></button>;}):<p>{russian?"Настройки не найдены":"No settings found"}</p>}</div>:tab === "appearanceProfiles" ? profilePanel :tab === "discord" ? <DiscordSettings russian={russian} status={discordStatus}/> :tab === "window" ? <WindowPreferencesPanel russian={russian}/> :tab === "background" ? <><VisualPreferences russian={russian} group="background"/><HeroSettings russian={russian}/></> :tab === "effects" ? <EffectsPreferences russian={russian}><MotionPreference t={t} reduceMotion={reduceMotion} setReduceMotion={setReduceMotion}/></EffectsPreferences> :tab === "typography" ? <VisualPreferences russian={russian} group="typography"/> :tab === "materials" ? <MaterialPreferencesPanel russian={russian}/> :tab === "sidebar" ? <SidebarSettings russian={russian} compact={compact} setCompact={setCompact}/> :tab === "layout" ? <><VisualPreferences russian={russian} group="layout"/><InterfaceVisibilityPanel russian={russian}/></> :tab === "quality" ? <VisualQuality russian={russian}/> :tab === "storage" ? <StorageSettings russian={russian}/> :tab === "minecraft"?<RuntimeSettingsPanel russian={russian} section="minecraft"/> :tab === "downloads"?<RuntimeSettingsPanel russian={russian} section="downloads"/> :tab === "appearance" ? (
+                {search.trim()?<div className="settings-results">{results.length?results.map(section=>{const Icon=section.icon;return <button key={section.id} data-settings-result={section.id} onClick={()=>{setTab(section.id);setSearch("");}}><Icon size={17}/><span><b>{section.label}</b><small>{section.group} · {section.description}</small></span></button>;}):<p>{russian?"Настройки не найдены":"No settings found"}</p>}</div>:tab === "buttonStyles" ? <ButtonStyles russian={russian}/> :tab === "appearanceProfiles" ? profilePanel :tab === "discord" ? <DiscordSettings russian={russian} status={discordStatus}/> :tab === "window" ? <WindowPreferencesPanel russian={russian}/> :tab === "background" ? <><VisualPreferences russian={russian} group="background"/><HeroSettings russian={russian}/></> :tab === "effects" ? <EffectsPreferences russian={russian}><MotionPreference t={t} reduceMotion={reduceMotion} setReduceMotion={setReduceMotion}/></EffectsPreferences> :tab === "typography" ? <VisualPreferences russian={russian} group="typography"/> :tab === "materials" ? <MaterialPreferencesPanel russian={russian}/> :tab === "sidebar" ? <SidebarSettings russian={russian} compact={compact} setCompact={setCompact}/> :tab === "layout" ? <><VisualPreferences russian={russian} group="layout"/><InterfaceVisibilityPanel russian={russian}/></> :tab === "quality" ? <VisualQuality russian={russian}/> :tab === "storage" ? <StorageSettings russian={russian}/> :tab === "minecraft"?<RuntimeSettingsPanel russian={russian} section="minecraft"/> :tab === "downloads"?<RuntimeSettingsPanel russian={russian} section="downloads"/> :tab === "appearance" ? (
                   <Appearance
+                    featuredLook={featuredLook}
                     t={t}
                     mode={mode}
                     setMode={setMode}
@@ -1703,6 +1719,7 @@ function SettingsModal({
   );
 }
 function Appearance({
+  featuredLook,
   t,
   mode,
   setMode,
@@ -1714,6 +1731,7 @@ function Appearance({
   preset,
   setPreset,
 }: {
+  featuredLook:ReactNode;
   t: T;
   mode: Mode;
   setMode: (x: Mode) => void;
@@ -1783,6 +1801,7 @@ function Appearance({
         <button className="quiet-button" type="button" aria-pressed={accent === "custom"} onClick={() => setAccent("custom")}>{russian ? "Использовать" : "Use color"}</button>
         <span className="accent-sample">{russian ? "Пример" : "Preview"}</span>
       </div>
+      {featuredLook}
       <AppearanceScenes russian={russian}/>
       <p className="settings-note">{t("storedLocally")}</p>
     </div>

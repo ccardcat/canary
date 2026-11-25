@@ -118,3 +118,7 @@
 .storage-breakdown { display:grid;grid-template-columns:repeat(auto-fit,minmax(110px,1fr));gap:12px;margin:16px 0; }
 .storage-breakdown dt { color:var(--muted);font-size:.85em; }
 .storage-breakdown dd { margin:4px 0 0; }
+.instance-summary { display:grid; gap:8px; min-width:0; }
+.instance-summary summary { cursor:pointer; width:fit-content; }
+.instance-summary textarea { display:block; resize:vertical; width:100%; margin-block:8px; }
+.instance-summary .quiet-button { display:inline-flex; align-items:center; gap:6px; }

@@ -1,0 +1,42 @@
+.vice-city-preview {
+  position:relative; isolation:isolate; overflow:hidden; min-height:210px;
+  margin-top:20px; padding:clamp(16px,3vw,30px); display:grid; align-items:center;
+  border:1px solid #cba2de79; border-radius:var(--mat-cards-radius);
+  background:#1c142b; color:#fff6fc;
+}
+.vice-city-preview-image,.vice-city-preview::before { position:absolute; inset:0; width:100%; height:100%; z-index:-1; }
+.vice-city-preview-image { object-fit:cover; object-position:70% 53%; }
+.vice-city-preview::before {
+  content:""; z-index:0; pointer-events:none;
+  background:linear-gradient(95deg,#180f2af5 0%,#1a102cde 38%,#1a102c42 100%);
+}
+.vice-city-preview-copy { position:relative; max-width:28rem; }
+:root .vice-city-preview h4 {
+  margin:0; font-family:Rubik,Nunito,sans-serif; font-weight:800; letter-spacing:-.035em;
+  font-size:calc(clamp(30px,4vw,48px) * var(--ui-font-scale,1)); color:#fff6fc;
+}
+.vice-city-preview p { color:#f4d9f7; margin-block:5px 15px; overflow-wrap:anywhere; }
+.vice-city-preview-actions { display:flex; flex-wrap:wrap; gap:8px; }
+:root[data-button-style] .vice-city-preview button.primary-button { background:linear-gradient(120deg,#ffc6a4,#f69dcf); border-color:#ffd5e6; color:#241329; }
+:root[data-button-style] .vice-city-preview button.primary-button:hover { background:linear-gradient(120deg,#ffdbc4,#ffc0e0); }
+:root[data-button-style] .vice-city-preview button.quiet-button { background:#2b1c3e; color:#fff6fc; border-color:#e2b1ef84; }
+:root[data-button-style] .vice-city-preview button.quiet-button:hover { background:#423052; }
+:root .vice-city-preview button:focus-visible { outline-color:#fff6fc; }
+
+:root[data-preset="viceCity"] .topbar {
+  border-image:linear-gradient(90deg,var(--accent),#7be5ef78,transparent 93%) 1;
+}
+:root[data-preset="viceCity"] .home-hero {
+  border-color:color-mix(in srgb,var(--accent) 45%,var(--line));
+  box-shadow:0 12px 40px #0c071f77,inset 0 1px #f9c5ff38;
+}
+:root[data-preset="viceCity"] .window-titlebar {
+  box-shadow:inset 0 -1px color-mix(in srgb,var(--accent) 36%,var(--line));
+}
+:root[data-preset="viceCity"][data-button-style="neon"]:not([data-focus="true"],[data-quality="low"],[data-reduce-transparency="true"]) .home-hero .primary-button {
+  background:linear-gradient(115deg,#ffbf97,#f594ca 70%,#e0b6fa);
+  border-color:#ffdaeb; color:#251426;
+}
+:root[data-preset="viceCity"][data-button-style="neon"]:not([data-focus="true"],[data-quality="low"],[data-reduce-transparency="true"]) .home-hero .primary-button:hover {
+  background:linear-gradient(115deg,#ffdbc4,#ffbfdc 70%,#eed8fc);
+}

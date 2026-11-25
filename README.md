@@ -33,6 +33,10 @@ Appearance includes Dark, Light, AMOLED and live System mode, seven independent 
 
 Use **Ctrl+K** (or the search button next to the account menu) to find a page, settings section, instance, or saved look. **Library → Instance filters** narrows your collection by Minecraft version, loader, or instances with an error, unavailable files, or an available update.
 
+**Settings → Theme & colors → Vice City** applies an original Miami waterfront wallpaper, a pink-accented dark palette, glass surfaces and neon controls in one step. **Settings → Button style** offers Classic, Capsules, Frosted glass, Outline, Retro and Neon independently of the palette. Under **Background**, the Home banner can follow the launcher wallpaper.
+
+**Library → Instance filters → Remember filters** keeps your current view across restarts. Each instance's **Details → Instance summary** offers a shareable copy of its name, Minecraft version, loader and pack release.
+
 ## After moving or renaming the checkout
 
 Cargo build output can retain absolute paths to the old directory, including Tauri-generated plugin permissions and native dependency libraries. If a build references the old path, regenerate the local build cache from the repository root:

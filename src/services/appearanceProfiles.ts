@@ -5,12 +5,12 @@ const keys = [
   "backgroundVersion", "compactCardsVersion", "font", "headingFont", "fontScale", "minecraft", "cursor",
   "backgroundSource", "app", "intensity", "blur", "globalTreatment", "sidebar", "sidebarIntensity",
   "sidebarBlur", "sidebarTreatment", "sidebarBackgroundSource", "sidebarColor", "sidebarColorOpacity",
-  "sidebarSide", "sidebarMode", "materialRadius", "instanceLayout", "instanceArtwork", "buttonDensity",
+  "sidebarSide", "sidebarMode", "materialRadius", "instanceLayout", "instanceArtwork", "buttonDensity", "buttonStyle",
   "materialPreset", "materialLinked", "materialStyle", "materialCategories", "materialIntensity", "materialSaturation",
   "materialBrightness", "materialContrast", "materialHighlight", "materialBorder", "materialShadow", "materialAccent",
   "sidebarMaterialIntensity", "titlebarMaterialIntensity", "surfaceOpacity", "surfaceBlur", "glassIntensity", "glass", "frost",
   "ambient", "effectPreset", "density", "particleSpeed", "particleSize", "particleOpacity", "particleWind",
-  "showHero", "heroSpeed", "heroRotation", "navigationMotion",
+  "showHero", "heroSpeed", "heroRotation", "heroFollowWallpaper", "navigationMotion",
   "material", "tint", "vibrancyPreset", "windowTransparency", "titlebarBranding", "windowControls", "controlsPosition",
 ] as const satisfies readonly (keyof Preferences)[];
 

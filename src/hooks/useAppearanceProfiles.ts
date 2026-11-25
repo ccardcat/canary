@@ -56,6 +56,11 @@ export function useAppearanceProfiles(current:AppearanceSnapshot,apply:(snapshot
       setPrevious(current);
       apply(profile);
     },
+    applyLook(snapshot:AppearanceSnapshot) {
+      setPrevious(current);
+      setLastAppliedId(null);
+      apply(snapshot);
+    },
     undo() {
       if (!previous) return;
       apply(previous);

@@ -30,7 +30,7 @@ export function normalizeAccent(value: unknown): SelectedAccent {
 }
 
 export const lightPalettes = ["white", "softLight", "frost", "warm"] as const;
-export const darkPalettes = ["graphite", "black", "softDark", "midnight"] as const;
+export const darkPalettes = ["graphite", "black", "softDark", "midnight", "viceCity"] as const;
 export const amoledPalettes = ["pureBlack", "softAmoled"] as const;
 export type Palettes = {
   light: typeof lightPalettes[number];
