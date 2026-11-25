@@ -6,8 +6,15 @@ const nav=(p:Page,name:string)=>p.locator(".sidebar nav").getByRole("button",{na
 const choose=async(p:Page,name:string,value:string)=>{await p.getByRole("combobox",{name,exact:true}).click();await p.getByRole("option",{name:value,exact:true}).click();};
 
 test("Incompatible catalog entries stay blocked and missing releases explain the project and instance",async({page})=>{
- await start(page);await page.evaluate(()=>{const q=(globalThis as any).__materialQA;q.state.instances[0].minecraft="26.2";q.overrides.content_versions=()=>[];q.overrides.content_project=()=>({id:"mod-0",title:"Wrong MC mod",description:"Fixture",body:"",game_versions:["1.21.1"],loaders:["forge"]});});
- await content(page);const card=page.locator(".compact-project-card").first();await expect(card.getByRole("checkbox")).toBeDisabled();await expect(card.locator(".install-action")).toBeDisabled();
+ await start(page);await page.evaluate(async()=>{
+  const q=(globalThis as any).__materialQA;
+  q.state.instances[0].minecraft="26.2";
+  q.overrides.content_versions=()=>[];
+  q.overrides.content_project=()=>({id:"mod-0",title:"Wrong MC mod",description:"Fixture",body:"",game_versions:["1.21.1"],loaders:["forge"]});
+  const {emit}=await import("/node_modules/@tauri-apps/api/event.js");
+  await emit("instances-changed");
+ });
+ await content(page,"26.2");const card=page.locator(".compact-project-card").first();await expect(card.getByRole("checkbox")).toBeDisabled();await expect(card.locator(".install-action")).toBeDisabled();
  await card.locator(".card-title").click();await expect(page.locator(".content-detail .inline-error>p").first()).toContainText("Wrong MC mod");await expect(page.locator(".content-detail .inline-error>p").first()).toContainText("Minecraft 26.2 / Fabric");await expect(page.locator(".content-detail .compact-action")).toBeDisabled();
  expect(await page.evaluate(()=>(globalThis as any).__materialQA.calls.some((c:any)=>c.command==="install_content"||c.command==="bulk_install_content"))).toBe(false);
 });
@@ -29,7 +36,13 @@ async function start(page:Page){
   };
  });
 }
-async function content(page:Page){await nav(page,"Library").click();await page.locator(".instance-card").first().getByRole("button",{name:"Content",exact:true}).click();await expect(page.locator(".content-manager")).toBeVisible();}
+async function content(page:Page,minecraft?:string){
+ await nav(page,"Library").click();
+ const instance=page.locator(".instance-card").first();
+ if(minecraft)await expect(instance).toContainText(`Minecraft ${minecraft}`);
+ await instance.getByRole("button",{name:"Content",exact:true}).click();
+ await expect(page.locator(".content-manager")).toBeVisible();
+}
 test.beforeAll(()=>mkdirSync(".qa/unified-content",{recursive:true}));
 
 test("Microsoft account shows a skin head, branded capitalized provider and no Signed in label",async({page})=>{
