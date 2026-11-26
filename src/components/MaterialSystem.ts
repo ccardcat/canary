@@ -21,7 +21,7 @@ export type LayoutPreferences = {
   buttonDensity: 'comfortable' | 'compact';
 };
 export const layoutDefaults: LayoutPreferences = {
-  sidebarMode:'attached', materialRadius:19, instanceLayout:'compact', instanceArtwork:'full', buttonDensity:'comfortable',
+  sidebarMode:'attached', materialRadius:24, instanceLayout:'compact', instanceArtwork:'full', buttonDensity:'comfortable',
 };
 const categories: MaterialPreferences['materialCategories'] = {cards:'glass', buttons:'soft', sidebar:'vibrancy', popovers:'glass', dialogs:'glass', inputs:'soft', titlebar:'transparent', floating:'glass'};
 export const materialDefaults: MaterialPreferences = {
@@ -35,12 +35,12 @@ export type MaterialValues = MaterialPreferences & {surfaceOpacity:number; surfa
 export const materialPresets = {
   canary:{materialCategories:{...categories}, surfaceOpacity:82, surfaceBlur:16},
   solid:{materialStyle:'solid',materialLinked:true,materialIntensity:40,surfaceOpacity:100,surfaceBlur:0},
-  soft:{materialStyle:'soft',materialLinked:true,materialIntensity:40,surfaceOpacity:82,surfaceBlur:8},
-  vibrancy:{materialStyle:'vibrancy',materialLinked:true,materialIntensity:60,surfaceOpacity:76,surfaceBlur:28},
-  glass:{materialStyle:'glass',materialLinked:true,materialIntensity:50,surfaceOpacity:82,surfaceBlur:18},
-  clear:{materialStyle:'clear',materialLinked:true,materialIntensity:50,surfaceOpacity:72,surfaceBlur:18},
-  liquid:{materialStyle:'liquid',materialLinked:true,materialIntensity:55,surfaceOpacity:82,surfaceBlur:18},
-  transparent:{materialStyle:'transparent',materialLinked:true,materialIntensity:40,surfaceOpacity:60,surfaceBlur:0},
+  soft:{materialStyle:'soft',materialLinked:true,materialIntensity:40,surfaceOpacity:85,surfaceBlur:8},
+  vibrancy:{materialStyle:'vibrancy',materialLinked:true,materialIntensity:55,surfaceOpacity:73,surfaceBlur:24},
+  glass:{materialStyle:'glass',materialLinked:true,materialIntensity:50,surfaceOpacity:79,surfaceBlur:18},
+  clear:{materialStyle:'clear',materialLinked:true,materialIntensity:50,surfaceOpacity:69,surfaceBlur:22},
+  liquid:{materialStyle:'liquid',materialLinked:true,materialIntensity:55,surfaceOpacity:76,surfaceBlur:20},
+  transparent:{materialStyle:'transparent',materialLinked:true,materialIntensity:40,surfaceOpacity:57,surfaceBlur:0},
   // Old preset IDs remain valid; loading never reapplies them over a user's settings.
   graphite:{materialStyle:'soft',materialLinked:true,materialIntensity:40,surfaceOpacity:82,surfaceBlur:8},
   minimal:{materialStyle:'solid',materialLinked:true,materialIntensity:40,surfaceOpacity:100,surfaceBlur:0},
@@ -91,13 +91,13 @@ export type TokenPreferences=MaterialPreferences & {surfaceOpacity:number;surfac
 // Profiles share one token pipeline. Depth belongs to the semantic category,
 // not the page. Controls use a foreground variant to avoid nested backdrop work.
 export const materialProfiles:Record<SurfaceMaterial,{opacity:number;blur:number;saturation:number;light:number;edge:number;shadow:number;influence:number}>={
-  solid:{opacity:100,blur:0,saturation:1,light:0,edge:.065,shadow:.025,influence:0},
-  soft:{opacity:86,blur:.12,saturation:1,light:.012,edge:.045,shadow:.04,influence:.16},
-  vibrancy:{opacity:70,blur:1.3,saturation:1.18,light:0,edge:.018,shadow:.07,influence:.88},
-  glass:{opacity:72,blur:1,saturation:1,light:.03,edge:.065,shadow:.065,influence:.55},
-  clear:{opacity:48,blur:1,saturation:1,light:.018,edge:.04,shadow:.045,influence:.92},
-  liquid:{opacity:58,blur:.9,saturation:1.08,light:.055,edge:.06,shadow:.075,influence:.72},
-  transparent:{opacity:8,blur:0,saturation:1,light:0,edge:.025,shadow:0,influence:1},
+  solid:{opacity:100,blur:0,saturation:1,light:0,edge:.045,shadow:.022,influence:0},
+  soft:{opacity:88,blur:.25,saturation:1,light:.01,edge:.03,shadow:.035,influence:.16},
+  vibrancy:{opacity:58,blur:1.18,saturation:1.27,light:0,edge:.014,shadow:.04,influence:.88},
+  glass:{opacity:68,blur:1,saturation:1.04,light:.024,edge:.045,shadow:.045,influence:.55},
+  clear:{opacity:39,blur:.92,saturation:1.01,light:.014,edge:.028,shadow:.025,influence:.92},
+  liquid:{opacity:51,blur:.84,saturation:1.11,light:.042,edge:.041,shadow:.041,influence:.72},
+  transparent:{opacity:5,blur:0,saturation:1,light:0,edge:.018,shadow:0,influence:1},
 };
 const depth:Record<MaterialCategory,number>={cards:1,buttons:.55,sidebar:1.1,popovers:1.25,dialogs:1.3,inputs:.35,titlebar:.4,floating:1.15};
 export function applyMaterialTokens(root:HTMLElement,value:TokenPreferences){
@@ -145,7 +145,7 @@ export function applyMaterialTokens(root:HTMLElement,value:TokenPreferences){
     const outer=`0 ${Math.round((style==='soft'?4:8)*d)}px ${Math.round((style==='soft'?20:28)*d)}px rgb(0 0 0 / calc(${shadow.toFixed(3)} * var(--material-shadow-strength)))`;
     token('shadow',style==='transparent'?'none':style==='liquid'?`inset 0 1px 0 var(${prefix}light), ${outer}`:outer);
     token('tint',value.materialAccent?'color-mix(in srgb, var(--accent) 6%, transparent)':style==='vibrancy'?'color-mix(in srgb, var(--surface-secondary) 8%, transparent)':'transparent');
-    token('sheen',style==='liquid'?`linear-gradient(155deg, var(${prefix}glow), transparent 38%, rgb(255 255 255 / ${(light*.16).toFixed(3)}) 76%, transparent)`:
+    token('sheen',style==='liquid'?`linear-gradient(150deg, var(${prefix}light), transparent 46%)`:
       style==='glass'||style==='clear'?`linear-gradient(180deg, var(${prefix}glow), transparent 28%)`:'linear-gradient(transparent,transparent)');
   }
 }
@@ -155,7 +155,9 @@ export function applyLayoutTokens(root:HTMLElement,value:LayoutPreferences) {
   root.dataset.instanceArtwork=value.instanceArtwork;root.dataset.buttonDensity=value.buttonDensity;
   for(const category of materialCategories){
     const foreground=category==='buttons'||category==='inputs';
-    root.style.setProperty(`--mat-${category}-radius`,`${foreground?clamp(value.materialRadius*.55,8,16):category==='titlebar'?0:clamp(value.materialRadius*depth[category],8,32)}px`);
+    const radius=foreground?clamp(value.materialRadius*.66,8,19):
+      category==='titlebar'?0:clamp(value.materialRadius*depth[category]+2,8,36);
+    root.style.setProperty(`--mat-${category}-radius`,`${radius}px`);
   }
 }
 

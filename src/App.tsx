@@ -822,7 +822,7 @@ function HomePage({
     <section className="home-page">
       {value.showHero && <HeroCarousel russian={russian}>
             <div className="hero-content" data-vice-city={viceCity||undefined}>
-              <h2>{viceCity?"Vice City":russian?"Каталог Minecraft":"Minecraft catalog"}</h2>
+              {!viceCity&&<h2>{russian?"Каталог Minecraft":"Minecraft catalog"}</h2>}
               <button className="primary-button" onClick={onDiscover}>
                 <Compass size={17} />
                 {t("browse")}

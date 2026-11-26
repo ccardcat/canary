@@ -27,12 +27,7 @@
   margin-block:14px 20px;
   padding:14px 16px;
 }
-:root .vice-city-preview.appearance-vice-tile h4 {
-  font-size:calc(23px * var(--ui-font-scale,1));
-  margin:0;
-}
 .appearance-vice-tile .vice-city-preview-image { object-position:75% 55%; }
-.appearance-vice-tile .vice-city-preview-actions { margin-top:7px; }
 .appearance-disclosure > summary { cursor:pointer; }
 :root .settings-breadcrumb .appearance-back {
   color:var(--text-primary);
