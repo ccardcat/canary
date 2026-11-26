@@ -1,4 +1,4 @@
-import {ArrowRight, Check, Play} from "lucide-react";
+import {ArrowRight, Check} from "lucide-react";
 import {buttonStyles, type ButtonStyle} from "../services/buttonStyles";
 import {useVisualAppearance} from "./VisualAppearance";
 
@@ -23,7 +23,7 @@ export function ButtonStyles({russian}: {russian: boolean}) {
         return <button key={buttonStyle} type="button" className="button-style-option" aria-pressed={selected}
           onClick={() => update({buttonStyle})}>
           <span className="button-style-samples" data-button-style={buttonStyle} aria-hidden="true">
-            <span className="button-look button-look-primary"><Play size={13}/></span>
+            <span className="button-look button-look-primary">{russian?"Играть":"Play"}</span>
             <span className="button-look"><ArrowRight size={13}/></span>
           </span>
           <strong>{names[buttonStyle][russian ? 0 : 1]}</strong>

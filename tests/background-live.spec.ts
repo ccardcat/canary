@@ -35,16 +35,16 @@ test("Background drag changes the real wallpaper before release without disk or 
 });
 test("Shading and visibility span their full range; main image pixels and sidebar tint really change",async({page})=>{
  await start(page);await background(page);
- await commit(page,"Background shading","20");const first=await page.locator(".wallpaper-veil").evaluate(el=>getComputedStyle(el).backgroundImage);
- await commit(page,"Background shading","60");const second=await page.locator(".wallpaper-veil").evaluate(el=>getComputedStyle(el).backgroundImage);expect(first).not.toBe(second);
+ await commit(page,"Background shading","20");const first=await page.locator(".wallpaper-veil").evaluate(el=>getComputedStyle(el).background);
+ await commit(page,"Background shading","60");const second=await page.locator(".wallpaper-veil").evaluate(el=>getComputedStyle(el).background);expect(first).not.toBe(second);
  await commit(page,"Wallpaper visibility","0");await expect(page.locator(".global-wallpaper")).toHaveCSS("opacity","0");
  await page.keyboard.press("Escape");await nav(page,"Activity").click();await page.mouse.move(1270,790);
  const hidden=await page.screenshot({clip:{x:300,y:620,width:250,height:100}});
  await nav(page,"Settings").click();await background(page);await commit(page,"Wallpaper visibility","100");await commit(page,"Background shading","20");await commit(page,"Wallpaper blur","0");
  await page.keyboard.press("Escape");await page.mouse.move(1270,790);const visible=await page.screenshot({clip:{x:300,y:620,width:250,height:100}});expect(hidden.equals(visible)).toBe(false);
  await nav(page,"Settings").click();await background(page);await settingsSection(page,"sidebar");
- await commit(page,"Sidebar tint","15");const faint=await page.locator(".sidebar").evaluate(el=>getComputedStyle(el,"::after").backgroundImage);
- await commit(page,"Sidebar tint","75");expect(await page.locator(".sidebar").evaluate(el=>getComputedStyle(el,"::after").backgroundImage)).not.toBe(faint);
+ await commit(page,"Sidebar tint","15");const faint=await page.locator(".sidebar").evaluate(el=>getComputedStyle(el,"::after").background);
+ await commit(page,"Sidebar tint","75");expect(await page.locator(".sidebar").evaluate(el=>getComputedStyle(el,"::after").background)).not.toBe(faint);
  await expect(page.locator(".sidebar nav")).toHaveCSS("background-color","rgba(0, 0, 0, 0)");
 });
 test("Surface opacity and blur are live; Solid explains its disabled sliders",async({page})=>{

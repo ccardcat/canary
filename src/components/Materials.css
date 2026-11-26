@@ -441,7 +441,7 @@
   box-shadow:0 8px 28px rgb(0 0 0 / .10);
 }
 :root .canary-app>.sidebar::after {
-  background:linear-gradient(color-mix(in srgb,var(--surface-sidebar) var(--sidebar-overlay,38%),transparent),color-mix(in srgb,var(--surface-sidebar) var(--sidebar-overlay,38%),transparent)),radial-gradient(ellipse,transparent 30%,color-mix(in srgb,var(--surface-sidebar) var(--sidebar-vignette,30%),transparent));
+  background:radial-gradient(ellipse,transparent 30%,color-mix(in srgb,var(--surface-sidebar) var(--sidebar-vignette,30%),transparent)),var(--sidebar-veil-fill);
 }
 :root:is([data-reduce-transparency="true"],[data-focus="true"],[data-quality="low"]) .canary-app>.sidebar::after {
   background:var(--surface-sidebar);

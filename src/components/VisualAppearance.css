@@ -1,9 +1,7 @@
 /* A single artwork layer sits below all existing application surfaces. */
 .visual-backdrop { position: fixed; inset: 0; z-index: -1; overflow: hidden; pointer-events: none; background: var(--bg); }
 .global-wallpaper { position: absolute; inset: -48px; background-position: center; background-size: cover; opacity: var(--wallpaper-opacity); filter: blur(var(--wallpaper-blur)) saturate(.72); }
-.wallpaper-veil { position: absolute; inset: 0; background: linear-gradient(120deg, color-mix(in srgb,var(--bg) 50%,transparent),color-mix(in srgb,var(--bg) 72%,transparent)),radial-gradient(ellipse at center,transparent 20%,var(--bg)); }
-:root[data-mode="light"] .wallpaper-veil { background: linear-gradient(120deg,#fff9,#f7f8faaf),radial-gradient(ellipse,transparent,#f7f8fa99); }
-:root[data-mode="amoled"] .wallpaper-veil { background: linear-gradient(120deg,#0009,#000c),radial-gradient(ellipse,transparent,#000); }
+.wallpaper-veil { position:absolute; inset:0; }
 .background-options { display: grid; grid-template-columns: repeat(4,minmax(0,1fr)); gap: 10px; }
 .background-gallery-scroll {position:relative;overflow-y:auto;overflow-x:hidden;height:236px;overscroll-behavior:contain;scrollbar-gutter:stable;padding:4px;transition:height .32s var(--ease,cubic-bezier(.2,.8,.2,1));}
 .background-gallery-toggle {display:flex;align-items:center;justify-content:center;gap:8px;margin:10px auto 0;}
@@ -42,8 +40,23 @@
 .global-wallpaper .artwork-layer { background-position:var(--wallpaper-position,center); transform:scale(var(--wallpaper-scale,1)); }
 .sidebar-art { opacity:var(--sidebar-opacity,.85); filter:blur(var(--sidebar-blur,12px)) brightness(var(--sidebar-brightness,1)) saturate(var(--sidebar-saturation,.75)); }
 .sidebar-art .artwork-layer { background-position:var(--sidebar-position,center); transform:scale(var(--sidebar-scale,1)); }
-.wallpaper-veil { background:linear-gradient(120deg,color-mix(in srgb,var(--bg) var(--wallpaper-overlay,28%),transparent),color-mix(in srgb,var(--bg) var(--wallpaper-overlay,28%),transparent)),radial-gradient(ellipse,transparent 30%,color-mix(in srgb,var(--bg) var(--wallpaper-vignette,55%),transparent)); }
-:root[data-mode="light"] .wallpaper-veil,:root[data-mode="amoled"] .wallpaper-veil { background:linear-gradient(120deg,color-mix(in srgb,var(--bg) var(--wallpaper-overlay,28%),transparent),color-mix(in srgb,var(--bg) var(--wallpaper-overlay,28%),transparent)),radial-gradient(ellipse,transparent 25%,color-mix(in srgb,var(--bg) var(--wallpaper-vignette,55%),transparent)); }
+:root {
+  --wallpaper-contrast-floor:.8;
+  --sidebar-contrast-floor:.84;
+  --wallpaper-veil-fill:color-mix(in srgb,var(--bg) calc(100% * var(--wallpaper-contrast-floor) + var(--wallpaper-overlay,28%) * (1 - var(--wallpaper-contrast-floor))),transparent);
+  --sidebar-veil-fill:color-mix(in srgb,var(--surface-sidebar) calc(100% * var(--sidebar-contrast-floor) + var(--sidebar-overlay,38%) * (1 - var(--sidebar-contrast-floor))),transparent);
+}
+:root[data-mode="light"] {
+  --wallpaper-contrast-floor:.86;
+  --sidebar-contrast-floor:.87;
+}
+:root[data-preset="viceCity"] {
+  --wallpaper-contrast-floor:.72;
+  --sidebar-contrast-floor:.76;
+}
+.wallpaper-veil,.launcher-preview .background-live-veil {
+  background:radial-gradient(ellipse,transparent 30%,color-mix(in srgb,var(--bg) var(--wallpaper-vignette,55%),transparent)),var(--wallpaper-veil-fill);
+}
 .sidebar::after { background:linear-gradient(180deg,color-mix(in srgb,var(--surface) var(--sidebar-overlay,80%),transparent),color-mix(in srgb,var(--surface) var(--sidebar-overlay,80%),transparent)),radial-gradient(ellipse,transparent 30%,color-mix(in srgb,var(--surface) var(--sidebar-vignette,55%),transparent)); }
 :root[data-sidebar-side="right"] .canary-app { flex-direction:row-reverse; }
 :root[data-sidebar-side="right"] .sidebar { border-right:0; border-left:1px solid var(--line-strong); box-shadow:inset 1px 0 var(--highlight),-12px 0 40px #00000016; }
@@ -97,9 +110,9 @@ button:disabled { opacity:.5; cursor:not-allowed!important; }
 .background-target{margin:16px 0}
 .background-live-preview{position:relative;isolation:isolate;overflow:hidden;height:165px;border-radius:16px;background:var(--bg);margin:18px 0}
 .background-live-art{position:absolute;inset:-42px;background-size:cover;background-position:var(--wallpaper-position,center);opacity:var(--wallpaper-opacity);filter:blur(var(--wallpaper-blur)) brightness(var(--wallpaper-brightness)) saturate(var(--wallpaper-saturation));transform:scale(var(--wallpaper-scale))}
-.background-live-veil{position:absolute;inset:0;background:linear-gradient(color-mix(in srgb,var(--bg) var(--wallpaper-overlay),transparent),color-mix(in srgb,var(--bg) var(--wallpaper-overlay),transparent)),radial-gradient(ellipse,transparent 30%,color-mix(in srgb,var(--bg) var(--wallpaper-vignette),transparent))}
+.background-live-veil{position:absolute;inset:0}
 .sidebar-preview .background-live-art{opacity:var(--sidebar-opacity);filter:blur(var(--sidebar-blur)) brightness(var(--sidebar-brightness)) saturate(calc(var(--sidebar-saturation) * var(--mat-sidebar-saturation)));background-position:var(--sidebar-position);transform:scale(var(--sidebar-scale))}
-.sidebar-preview .background-live-veil{background:linear-gradient(color-mix(in srgb,var(--surface-sidebar) var(--sidebar-overlay),transparent),color-mix(in srgb,var(--surface-sidebar) var(--sidebar-overlay),transparent)),radial-gradient(ellipse,transparent 30%,color-mix(in srgb,var(--surface-sidebar) var(--sidebar-vignette),transparent))}
+.sidebar-preview .background-live-veil{background:radial-gradient(ellipse,transparent 30%,color-mix(in srgb,var(--surface-sidebar) var(--sidebar-vignette),transparent)),var(--sidebar-veil-fill)}
 .background-live-copy{position:absolute;inset:auto 18px 18px;display:flex;justify-content:space-between;align-items:center;padding:12px 16px;border-radius:12px;background:var(--mat-dialogs-fill);font-size:.85rem}
 .background-live-copy span{color:var(--muted);font-size:.75rem}
 .background-primary-controls{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));column-gap:20px}

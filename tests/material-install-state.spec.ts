@@ -181,7 +181,7 @@ test('changing layout and corner radius keeps the selected material preset',asyn
 
 test('material rendering retains independent sidebar background treatment controls',async({page})=>{
  await page.goto('/');await nav(page,'Settings').click();await preset(page,4);
- const rendered=()=>page.locator('.sidebar-art').evaluate(e=>({filter:getComputedStyle(e).filter,overlay:getComputedStyle(e.closest('.sidebar')!,'::after').backgroundImage}));
+ const rendered=()=>page.locator('.sidebar-art').evaluate(e=>({filter:getComputedStyle(e).filter,overlay:getComputedStyle(e.closest('.sidebar')!,'::after').background}));
  const before=await rendered();
  await settingsSection(page,"sidebar");
  const section=page.locator(".sidebar-settings .background-settings");

@@ -10,9 +10,20 @@
   --button-look-radius:999px;
   --button-look-edge:var(--line-strong);
   --button-look-fill:var(--surface-3);
-  --button-look-primary:color-mix(in srgb,var(--accent) 21%,var(--surface-3));
+  --button-look-primary:#0062d5;
+  --button-look-secondary-ink:#0756bc;
+  --button-look-primary-ink:#fff;
+  --button-look-primary-press:#061f48;
+  --button-look-state-ink:#062f69;
   --button-look-image:none;
   --button-look-shadow:none;
+  --button-look-ring:#0062d5;
+}
+:root:not([data-mode="light"]) [data-button-style="capsule"],
+:root[data-button-style="capsule"]:not([data-mode="light"]) {
+  --button-look-secondary-ink:#b8d8ff;
+  --button-look-state-ink:#eef6ff;
+  --button-look-ring:#95c5ff;
 }
 [data-button-style="frosted"] {
   --button-look-radius:16px;
@@ -47,25 +58,57 @@
   --button-look-shadow:inset 0 1px var(--highlight),0 0 12px color-mix(in srgb,var(--accent) 23%,transparent);
 }
 
-:root[data-button-style]:not([data-button-style="classic"]) button:is(.primary-button,.compact-action,.install-action,.quiet-button,.control-button,.surface-action,.surface-tab,.account-button,.material-icon,.material-preview-button):not(.destructive) {
-  border-radius:var(--button-look-radius);
+:root[data-button-style]:not([data-button-style="classic"]) {
+  & button:is(.primary-button,.compact-action,.install-action,.quiet-button,.control-button,.surface-action,.surface-tab,.account-button,.material-icon):not(.destructive) {
+    border-radius:var(--button-look-radius);
+  }
 }
-:root[data-button-style]:not([data-button-style="classic"],[data-focus="true"],[data-reduce-transparency="true"],[data-quality="low"]) button:is(.primary-button,.compact-action,.install-action,.quiet-button,.control-button,.surface-action,.surface-tab,.account-button,.material-icon,.material-preview-button):where(:not(.destructive,:disabled,[aria-pressed="true"],[aria-selected="true"],.selected)),
+:root[data-button-style]:not([data-button-style="classic"],[data-focus="true"],[data-reduce-transparency="true"],[data-quality="low"]) {
+  & button:is(.primary-button,.compact-action,.install-action,.quiet-button,.control-button,.surface-action,.surface-tab,.account-button,.material-icon):where(:not(.destructive,:disabled)) {
+    --button-face:var(--button-look-fill);
+    --button-ink:var(--button-look-secondary-ink,var(--text));
+
+    &:is(.primary-button,.play-action,.install-action) {
+      --button-face:var(--button-look-primary);
+      --button-ink:var(--button-look-primary-ink,var(--text));
+      --button-hover-tint:var(--button-look-primary-press,var(--text));
+    }
+    &:where([aria-pressed="true"],[aria-selected="true"],[aria-expanded="true"],.selected) {
+      --button-face:color-mix(in srgb,var(--button-look-ring,var(--accent)) 20%,var(--surface-2));
+      --button-ink:var(--button-look-state-ink,var(--text));
+      --button-hover-tint:var(--text);
+    }
+
+    background:var(--button-look-image),var(--button-face);
+    border-color:var(--button-look-edge);
+    box-shadow:var(--button-look-shadow);
+    color:var(--button-ink);
+
+    &:hover {
+      background-color:color-mix(in srgb,var(--button-hover-tint,var(--text)) 11%,var(--button-face));
+      border-color:var(--button-look-ring,var(--accent));
+    }
+    &:active {
+      background-color:color-mix(in srgb,var(--button-hover-tint,var(--text)) 18%,var(--button-face));
+    }
+    &:focus-visible {
+      outline-color:var(--button-look-ring,var(--focus-ring));
+    }
+  }
+}
 .button-look {
-  --button-face:var(--button-look-fill);
-  background:var(--button-look-image),var(--button-face);
-  border-color:var(--button-look-edge);
+  background:var(--button-look-image),var(--button-look-fill);
+  color:var(--button-look-secondary-ink,var(--text));
   box-shadow:var(--button-look-shadow);
-  color:var(--text);
 }
-:root[data-button-style]:not([data-button-style="classic"],[data-focus="true"],[data-reduce-transparency="true"],[data-quality="low"]) button:is(.primary-button,.play-action,.install-action):where(:not(.destructive,:disabled)),
-.button-look-primary { --button-face:var(--button-look-primary); }
-:root[data-button-style]:not([data-button-style="classic"],[data-focus="true"],[data-reduce-transparency="true"],[data-quality="low"]) button:is(.primary-button,.compact-action,.install-action,.quiet-button,.control-button,.surface-action,.surface-tab,.account-button,.material-icon):where(:hover,:focus-visible):where(:not(.destructive,:disabled,[aria-pressed="true"],[aria-selected="true"],.selected)) {
-  background-color:color-mix(in srgb,var(--accent) 13%,var(--button-face,var(--surface-3)));
-  border-color:var(--accent);
+.button-look-primary {
+  background:var(--button-look-image),var(--button-look-primary);
+  color:var(--button-look-primary-ink,var(--text));
 }
-:root[data-button-style]:not([data-button-style="classic"],[data-focus="true"],[data-reduce-transparency="true"],[data-quality="low"]) button:is(.primary-button,.compact-action,.install-action,.quiet-button,.control-button,.surface-action,.surface-tab,.account-button,.material-icon):where(:active):where(:not(.destructive,:disabled)) {
-  background-color:color-mix(in srgb,var(--accent) 24%,var(--button-face,var(--surface-3)));
+@media (prefers-reduced-motion:no-preference) {
+  :root[data-button-style="capsule"]:not([data-motion="reduced"],[data-focus="true"],[data-quality="low"]) button:is(.primary-button,.play-action,.install-action):not(:disabled,.destructive):active {
+    transform:scale(.98);
+  }
 }
 
 .button-style-grid { display:grid; grid-template-columns:repeat(auto-fill,minmax(min(100%,135px),1fr)); gap:9px; }
@@ -75,15 +118,19 @@
 }
 :root .button-style-option:is(:hover,[aria-pressed="true"]) { border-color:var(--accent); }
 .button-style-option strong { padding-inline:3px; overflow-wrap:anywhere; }
+.button-style-samples:not([data-button-style="capsule"]) {
+  --button-look-primary-ink:var(--text);
+  --button-look-secondary-ink:var(--text);
+}
 .button-style-samples {
   display:flex; gap:5px; align-items:center; justify-content:center;
   padding:8px 3px; min-height:51px; border-radius:7px; background:var(--surface);
 }
 .button-look {
-  display:inline-grid; width:28px; height:26px; place-items:center;
+  display:inline-grid; width:28px; height:29px; place-items:center; padding:0 5px;
   border:1px solid var(--button-look-edge); border-radius:var(--button-look-radius);
 }
-.button-look-primary { width:39px; }
+.button-look-primary { width:auto; padding-inline:10px; font-size:11px; font-weight:700; }
 .button-style-check { position:absolute; inset:9px 9px auto auto; color:var(--accent); }
 
 @media (forced-colors:active) {

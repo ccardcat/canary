@@ -642,6 +642,7 @@ function App() {
               ) : page === "Home" ? (
                 <HomePage
                   russian={lang === "ru"}
+                  viceCity={resolvedPreset==="viceCity" && visual.app===viceCityWallpaper && visual.backgroundSource==="canary" && visual.heroFollowWallpaper}
                   t={t}
                   lib={homeLibrary}
                   projects={community}
@@ -790,6 +791,7 @@ function AccountPopover({ t, onClose }: { t: T; onClose: () => void }) {
 function HomePage({
   t,
   russian,
+  viceCity,
   lib,
   projects,
   communityError,
@@ -801,6 +803,7 @@ function HomePage({
 }: {
   t: T;
   russian: boolean;
+  viceCity: boolean;
   lib: Project[];
   projects: Project[];
   communityError: boolean;
@@ -823,9 +826,9 @@ function HomePage({
           const [title, subtitle] =
             heroCopy[russian ? "ru" : "en"][copyIndex];
           return (
-            <div className="hero-content">
-              <h2>{title}</h2>
-              <p>{subtitle}</p>
+            <div className="hero-content" data-vice-city={viceCity||undefined}>
+              <h2>{viceCity?"Vice City":title}</h2>
+              <p>{viceCity?(russian?"Майами после заката":"Miami after sunset"):subtitle}</p>
               <button className="primary-button" onClick={onDiscover}>
                 <Compass size={17} />
                 {t("browse")}

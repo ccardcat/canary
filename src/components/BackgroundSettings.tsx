@@ -52,9 +52,9 @@ export function BackgroundSettings({russian,target:fixedTarget}:{russian:boolean
    <div className="background-primary-controls">
     {range(label("Видимость изображения","Wallpaper visibility"),sidebar?value.sidebarIntensity:value.intensity,0,100,n=>sidebar?{sidebarIntensity:n}:{intensity:n})}
     {range(label("Размытие изображения","Wallpaper blur"),sidebar?value.sidebarBlur:value.blur,0,sidebar?20:32,n=>sidebar?{sidebarBlur:n}:{blur:n}," px")}
-    {range(label(sidebar?"Тонирование панели":"Затемнение фона",sidebar?"Sidebar tint":"Background shading"),treatment.overlay,0,100,n=>patch("overlay",n))}
+    {range(label(sidebar?"Тонирование панели":"Тонирование фона",sidebar?"Sidebar tint":"Background shading"),treatment.overlay,0,100,n=>patch("overlay",n))}
    </div>
-   <p className="settings-note">{label("Больше видимости — ярче картинка. Размытие смягчает детали. Затемнение помогает читать текст.","More visibility reveals the picture. Blur softens details. Shading keeps text readable.")}</p>
+   <p className="settings-note">{label("Видимость и размытие меняют изображение. Тонирование усиливает цвет темы, чтобы текст хорошо читался.","More visibility reveals the picture. Blur softens details. Shading keeps text readable.")}</p>
    <h4>{label("Выбрать изображение","Choose wallpaper")}</h4>
    <BackgroundGallery russian={russian} selected={sidebar?value.sidebar:value.app} onSelect={choose} images={sidebar?registry.filter(p=>p.sidebar).map(p=>({...p,app:undefined})):registry.filter(p=>p.app)}/>
    <details className="polish-disclosure"><summary>{label("Цвет и кадрирование","Color and framing")}</summary><div className="polish-range-grid">

@@ -1748,6 +1748,22 @@ img {
       transparent 65%
     );
 }
+:root .home-hero:not(:has(.hero-content[data-vice-city]))::after {
+  background:linear-gradient(90deg,
+    color-mix(in srgb,var(--surface) 96%,transparent),
+    color-mix(in srgb,var(--surface) 87%,transparent) 64%,
+    color-mix(in srgb,var(--surface) 24%,transparent)
+  );
+}
+@media (max-width:760px) {
+  :root .home-hero:not(:has(.hero-content[data-vice-city]))::after {
+    background:linear-gradient(180deg,
+      color-mix(in srgb,var(--surface) 96%,transparent),
+      color-mix(in srgb,var(--surface) 86%,transparent) 76%,
+      color-mix(in srgb,var(--surface) 64%,transparent)
+    );
+  }
+}
 .hero-content {
   max-width: 510px;
   width: 70%;
