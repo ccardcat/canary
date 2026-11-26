@@ -1,6 +1,6 @@
 Canary desktop launcher for Windows x64 and Linux x64.
 
-Version **0.1.8** includes native Windows Acrylic/Mica/Mica Alt with supported fallbacks, configurable glass materials, titlebar styles, improved snow/sakura/autumn effects, rotating Home artwork, keyboard-accessible glass dropdowns and local `.mrpack` preview/import. F11 restores normal window geometry or maximized state; instance creation closes after success and shows the new Library card. Microsoft authentication and CurseForge failures now identify the failed stage or key/service problem. Existing providers, content management, storage migration, Minecraft/Java preparation and graceful stopping are retained.
+Version **0.2.2** adds the Vice City theme, six button styles, saved appearance profiles, quick search, and remembered library filters. It improves wallpaper contrast across all palettes and preserves reduced transparency when changing materials.
 
 This release preparation softens decorative borders and shadows, makes glass/soft surfaces lighter, allows zero material border strength, removes technical search keywords from Settings, and fixes clicks inside dialog padding and wrapped-log error navigation. Browser and native checks now run on pull requests before merge. See [release readiness](https://github.com/ccardcat/canary/blob/v0.1.8/docs/RELEASE_READINESS.md) for the exact validation status.
 
