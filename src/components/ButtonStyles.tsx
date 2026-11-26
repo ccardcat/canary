@@ -24,7 +24,7 @@ export function ButtonStyles({russian}: {russian: boolean}) {
           onClick={() => update({buttonStyle})}>
           <span className="button-style-samples" data-button-style={buttonStyle} aria-hidden="true">
             <span className="button-look button-look-primary">{russian?"Играть":"Play"}</span>
-            <span className={buttonStyle==="capsule"?"button-look button-look-glass":"button-look"}><ArrowRight size={13}/></span>
+            <span className="button-look"><ArrowRight size={13}/></span>
           </span>
           <strong>{names[buttonStyle][russian ? 0 : 1]}</strong>
           {selected && <Check size={16} className="button-style-check" aria-hidden="true"/>}

@@ -152,9 +152,28 @@ test("all button finishes remain distinct on real controls during pointer and ke
   const control=page.locator(".library-intro .primary-button");
   const face=()=>control.evaluate(node=>{
     const css=getComputedStyle(node);
+    const canvas=document.createElement("canvas");
+    canvas.width=canvas.height=1;
+    const ctx=canvas.getContext("2d")!;
+    const rgb=(color:string)=>{
+      ctx.clearRect(0,0,1,1);
+      ctx.fillStyle=color;
+      ctx.fillRect(0,0,1,1);
+      return [...ctx.getImageData(0,0,1,1).data];
+    };
+    const background=rgb(css.backgroundColor);
+    const base=rgb(getComputedStyle(document.documentElement).getPropertyValue("--bg").trim());
+    const alpha=background[3]/255;
+    const luminance=(channels:number[])=>channels.slice(0,3).reduce((sum,channel,index)=>{
+      const value=channel/255;
+      return sum+[.2126,.7152,.0722][index]*(value<=.04045?value/12.92:((value+.055)/1.055)**2.4);
+    },0);
+    const text=luminance(rgb(css.color));
+    const fill=luminance(background.slice(0,3).map((channel,index)=>channel*alpha+base[index]*(1-alpha)));
     return {
       background:css.backgroundColor, color:css.color, shadow:css.boxShadow,
       radius:css.borderRadius, outline:css.outlineStyle,
+      contrast:(Math.max(text,fill)+.05)/(Math.min(text,fill)+.05), alpha,
     };
   });
   for (const mode of ["Light","Dark"]) {
@@ -181,7 +200,11 @@ test("all button finishes remain distinct on real controls during pointer and ke
       await page.keyboard.press("Tab");
       await control.focus();
       expect((await face()).outline).toBe("solid");
-      if (label==="Capsules") expect(normal).toMatchObject({color:"rgb(255, 255, 255)",radius:"999px",background:"rgb(0, 98, 213)"});
+      if (label==="Capsules") expect(normal.radius).toBe("999px");
+      if (label!=="Classic") {
+        expect(normal.alpha,label).toBeLessThan(.65);
+        expect(normal.contrast,label).toBeGreaterThanOrEqual(4.5);
+      }
       signatures.push([normal.background,normal.radius,normal.shadow].join("/"));
     }
     expect(new Set(signatures).size).toBe(buttonStyles.length);

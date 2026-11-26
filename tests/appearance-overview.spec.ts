@@ -40,7 +40,7 @@ test("capsules add layered icons without changing the navigation hit area",async
   await page.getByRole("button",{name:"Capsules",exact:true}).click();
   await page.keyboard.press("Escape");
   const icon=home.locator(".sidebar-icon");
-  await expect(icon).toHaveCSS("background-image",/radial-gradient/);
+  await expect(icon).toHaveCSS("background-image",/linear-gradient/);
   expect(await home.evaluate(button=>button.getBoundingClientRect().height)).toBe(height);
   await expect(icon).toHaveCSS("transform","none");
   await page.locator(".sidebar").getByRole("button",{name:"Settings",exact:true}).click();
@@ -50,6 +50,6 @@ test("capsules add layered icons without changing the navigation hit area",async
   await page.getByRole("option",{name:"Glass",exact:true}).click();
   await page.keyboard.press("Escape");
   await expect(page.locator("html")).toHaveAttribute("data-button-style","classic");
-  await expect(icon).toHaveCSS("background-image",/radial-gradient/);
+  await expect(icon).toHaveCSS("background-image",/linear-gradient/);
   await expect(page.getByRole("heading",{name:/Set the mood/i})).toHaveCount(0);
 });

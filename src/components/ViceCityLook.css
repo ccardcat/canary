@@ -17,10 +17,18 @@
 }
 .vice-city-preview p { color:#f4d9f7; margin-block:5px 15px; overflow-wrap:anywhere; }
 .vice-city-preview-actions { display:flex; flex-wrap:wrap; gap:8px; }
-:root[data-button-style] .vice-city-preview button.primary-button { background:linear-gradient(120deg,#ffc6a4,#f69dcf); border-color:#ffd5e6; color:#241329; }
-:root[data-button-style] .vice-city-preview button.primary-button:hover { background:linear-gradient(120deg,#ffdbc4,#ffc0e0); }
-:root[data-button-style] .vice-city-preview button.quiet-button { background:#2b1c3e; color:#fff6fc; border-color:#e2b1ef84; }
-:root[data-button-style] .vice-city-preview button.quiet-button:hover { background:#423052; }
+:root[data-button-style] .vice-city-preview :is(button.primary-button,button.quiet-button) {
+  background:rgb(26 16 44 / .72);
+  border-color:#f1c6f079;
+  color:#fff6fc;
+  box-shadow:none;
+}
+:root[data-button-style] .vice-city-preview :is(button.primary-button,button.quiet-button):hover {
+  background:rgb(57 35 74 / .86);
+}
+:root[data-button-style]:is([data-reduce-transparency="true"],[data-focus="true"],[data-quality="low"]) .vice-city-preview :is(button.primary-button,button.quiet-button) {
+  background:#2b1c3e;
+}
 :root .vice-city-preview button:focus-visible { outline-color:#fff6fc; }
 
 :root[data-preset="viceCity"] .topbar {
@@ -45,11 +53,4 @@
 }
 :root[data-preset="viceCity"] .window-titlebar {
   box-shadow:inset 0 -1px color-mix(in srgb,var(--accent) 36%,var(--line));
-}
-:root[data-preset="viceCity"][data-button-style="neon"]:not([data-focus="true"],[data-quality="low"],[data-reduce-transparency="true"]) .home-hero .primary-button {
-  background:linear-gradient(115deg,#ffbf97,#f594ca 70%,#e0b6fa);
-  border-color:#ffdaeb; color:#251426;
-}
-:root[data-preset="viceCity"][data-button-style="neon"]:not([data-focus="true"],[data-quality="low"],[data-reduce-transparency="true"]) .home-hero .primary-button:hover {
-  background:linear-gradient(115deg,#ffdbc4,#ffbfdc 70%,#eed8fc);
 }
