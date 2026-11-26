@@ -1,0 +1,55 @@
+import {expect,test} from "@playwright/test";
+import {settingsSection} from "./helpers/settings";
+
+test("appearance shortcuts, independent blur, and the return path work at narrow width",async ({page})=>{
+  await page.setViewportSize({width:610,height:520});
+  await page.emulateMedia({reducedMotion:"reduce"});
+  await page.goto("/");
+  await page.locator(".sidebar").getByRole("button",{name:"Settings",exact:true}).click();
+  const section=page.locator(".settings-content");
+  await expect(section.getByRole("button",{name:"Apply Vice City theme"})).toBeVisible();
+  await section.getByRole("button",{name:"Materials and blur",exact:true}).click();
+  await section.getByRole("combobox",{name:"Material preset",exact:true}).click();
+  await page.getByRole("option",{name:"Glass",exact:true}).click();
+  await section.getByText("Blur by surface",{exact:true}).click();
+  const blur=(target:string)=>page.locator("html").evaluate((root,target)=>root.style.getPropertyValue("--mat-"+target+"-blur"),target);
+  const original=await blur("dialogs");
+  const cards=section.getByRole("slider",{name:"Cards",exact:true});
+  await cards.press("Home");
+  expect(await blur("cards")).toBe("0.0px");
+  expect(await blur("dialogs")).toBe(original);
+  await page.reload();
+  await page.locator(".sidebar").getByRole("button",{name:"Settings",exact:true}).click();
+  await settingsSection(page,"materials");
+  await section.getByText("Blur by surface",{exact:true}).click();
+  await expect(cards).toHaveValue("0");
+  await section.getByRole("checkbox",{name:"Reduce transparency"}).check();
+  await expect(cards).toBeDisabled();
+  await section.getByRole("button",{name:"Appearance",exact:true}).click();
+  await expect(section.getByRole("button",{name:"Materials and blur",exact:true})).toBeVisible();
+  await expect(section.locator(".settings-section-entry")).toHaveCSS("animation-name","none");
+});
+
+test("capsules add layered icons without changing the navigation hit area",async ({page})=>{
+  await page.emulateMedia({reducedMotion:"reduce"});
+  await page.goto("/");
+  const home=page.locator(".sidebar nav").getByRole("button",{name:"Home",exact:true});
+  const height=await home.evaluate(button=>button.getBoundingClientRect().height);
+  await page.locator(".sidebar").getByRole("button",{name:"Settings",exact:true}).click();
+  await page.locator(".appearance-shortcuts").getByRole("button",{name:"Button style",exact:true}).click();
+  await page.getByRole("button",{name:"Capsules",exact:true}).click();
+  await page.keyboard.press("Escape");
+  const icon=home.locator(".sidebar-icon");
+  await expect(icon).toHaveCSS("background-image",/radial-gradient/);
+  expect(await home.evaluate(button=>button.getBoundingClientRect().height)).toBe(height);
+  await expect(icon).toHaveCSS("transform","none");
+  await page.locator(".sidebar").getByRole("button",{name:"Settings",exact:true}).click();
+  await page.locator(".appearance-shortcuts").getByRole("button",{name:"Button style",exact:true}).click();
+  await page.getByRole("button",{name:"Classic",exact:true}).click();
+  await page.getByRole("combobox",{name:"Navigation icons"}).click();
+  await page.getByRole("option",{name:"Glass",exact:true}).click();
+  await page.keyboard.press("Escape");
+  await expect(page.locator("html")).toHaveAttribute("data-button-style","classic");
+  await expect(icon).toHaveCSS("background-image",/radial-gradient/);
+  await expect(page.getByRole("heading",{name:/Set the mood/i})).toHaveCount(0);
+});

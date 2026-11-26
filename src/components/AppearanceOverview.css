@@ -1,0 +1,62 @@
+.appearance-shortcuts {
+  display:grid;
+  grid-template-columns:repeat(2,minmax(0,1fr));
+  gap:8px;
+}
+:root .appearance-shortcuts button.quiet-button {
+  display:grid;
+  grid-template-columns:auto minmax(0,1fr) auto;
+  align-items:center;
+  text-align:start;
+  gap:8px;
+  min-height:42px;
+  padding:8px 10px;
+  overflow-wrap:anywhere;
+  border:1px solid var(--border-default);
+  background-color:var(--surface-2);
+}
+:root .appearance-shortcuts button.quiet-button:hover { background-color:var(--surface-hover); }
+.appearance-shortcuts button>svg:last-child { color:var(--muted); }
+.appearance-settings .appearance-vice-tile {
+  min-height:0;
+  margin-block:14px 20px;
+  padding:14px 16px;
+}
+:root .vice-city-preview.appearance-vice-tile h4 {
+  font-size:calc(23px * var(--ui-font-scale,1));
+  margin:0;
+}
+.appearance-vice-tile .vice-city-preview-image { object-position:75% 55%; }
+.appearance-vice-tile .vice-city-preview-actions { margin-top:7px; }
+.appearance-disclosure > summary { cursor:pointer; }
+:root .settings-breadcrumb .appearance-back {
+  color:var(--text-primary);
+  background:transparent;
+  border:0;
+  box-shadow:none;
+  padding:2px 0;
+  text-decoration:underline;
+  text-underline-offset:3px;
+}
+
+@media (max-width:650px) {
+  .appearance-shortcuts { grid-template-columns:minmax(0,1fr); }
+  :root .appearance-shortcuts button.quiet-button { min-height:38px; }
+}
+
+@media (prefers-reduced-motion:no-preference) {
+  :root:not([data-motion="reduced"],[data-focus="true"],[data-quality="low"]) {
+    & .appearance-shortcuts button>svg:last-child {
+      transition:translate 180ms var(--view-enter-ease);
+    }
+    & .appearance-shortcuts button:is(:hover,:focus-visible)>svg:last-child {
+      translate:3px 0;
+    }
+    & .button-style-check { animation:canary-choice-in 200ms var(--view-enter-ease); }
+    & .appearance-disclosure[open]>.material-controls { animation:canary-view-in 220ms var(--view-enter-ease); }
+    & :is(.quick-search-results,.appearance-profile-grid) { animation:canary-view-fade 160ms ease-out; }
+    & .instance-summary[open]>textarea { animation:canary-view-in 180ms var(--view-enter-ease); }
+    & .settings-top>button svg { transition:rotate 180ms var(--view-enter-ease); }
+    & .settings-top>button:hover svg { rotate:12deg; }
+  }
+}

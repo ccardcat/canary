@@ -20,7 +20,7 @@ import {
   useState,
   type ReactNode,
 } from "react";
-import { AnimatePresence, MotionConfig, motion } from "motion/react";
+import { AnimatePresence, MotionConfig, motion, useReducedMotion } from "motion/react";
 import {isTerminal,projectInstallTask} from "./services/activity";
 import {isProjectInstalled} from "./services/library";
 import ProjectCard from "./components/ProjectCard";
@@ -72,7 +72,7 @@ import "./Scrollbars.css";
 
 import TitleBar from "./components/TitleBar";
 import HomeGreeting from "./components/HomeGreeting";
-import {heroCopy} from "./components/homeCopy";
+import "./components/AppearanceOverview.css";
 import {DiscordSettings,useDiscordPresence,type DiscordStatus} from "./components/DiscordPresence";
 import {HeroCarousel,HeroSettings} from "./components/HeroCarousel";
 import {StorageSettings} from "./components/StorageSettings";
@@ -818,24 +818,16 @@ function HomePage({
   const {snapshot}=useBackend();
   const lastServerInstance=snapshot?.instances.filter(i=>!i.internal&&i.last_server).sort((a,b)=>(b.last_server?.joined_at||0)-(a.last_server?.joined_at||0))[0];
   const lastServerProject=lastServerInstance?lib.find(p=>p.native_instance_id===lastServerInstance.id):undefined;
-  const [copyIndex] = useState(() => Math.floor(Math.random() * heroCopy.en.length));
   return (
     <section className="home-page">
       {value.showHero && <HeroCarousel russian={russian}>
-        {() => {
-          const [title, subtitle] =
-            heroCopy[russian ? "ru" : "en"][copyIndex];
-          return (
             <div className="hero-content" data-vice-city={viceCity||undefined}>
-              <h2>{viceCity?"Vice City":title}</h2>
-              <p>{viceCity?(russian?"Майами после заката":"Miami after sunset"):subtitle}</p>
+              <h2>{viceCity?"Vice City":russian?"Каталог Minecraft":"Minecraft catalog"}</h2>
               <button className="primary-button" onClick={onDiscover}>
                 <Compass size={17} />
                 {t("browse")}
               </button>
             </div>
-          );
-        }}
       </HeroCarousel>}
       <section className="home-section" aria-label={t("continue")}>
         <div className="home-section-head">
@@ -1591,6 +1583,7 @@ function SettingsModal({
   setPreset: (x: string) => void;
 }) {
   const panel = useRef<HTMLDivElement>(null);
+  const instant = useReducedMotion() || reduceMotion;
   const [search,setSearch]=useState("");
   useEffect(() => {
     const previous = document.activeElement as HTMLElement | null;
@@ -1632,6 +1625,7 @@ function SettingsModal({
       initial={{ opacity: 0 }}
       animate={{ opacity: 1 }}
       exit={{ opacity: 0 }}
+      transition={{duration:instant?0:0.18}}
       onMouseDown={(e) => {
         if (e.target === e.currentTarget) onClose();
       }}
@@ -1642,10 +1636,10 @@ function SettingsModal({
         role="dialog"
         aria-label={t("settings")}
         aria-modal="true"
-        initial={{ opacity: 0, scale: 0.98, y: 8 }}
+        initial={instant?false:{ opacity: 0, scale: 0.985, y: 8 }}
         animate={{ opacity: 1, scale: 1, y: 0 }}
         exit={{ opacity: 0, scale: 0.98, y: 8 }}
-        transition={{ duration: 0.26 }}
+        transition={{ duration: instant?0:0.24, ease:[.2,.8,.2,1] }}
       >
         <div className="settings-top">
           <div>
@@ -1662,10 +1656,16 @@ function SettingsModal({
           </nav>
           <div className="settings-content" ref={content}>
             <div key={tab} className="settings-section-entry">
-                {!search.trim()&&selected&&<div className="settings-breadcrumb"><span>{selected.group}<ChevronRight size={12}/>{selected.label}</span><p>{selected.description}</p></div>}
+                {!search.trim()&&selected&&<div className="settings-breadcrumb"><span>
+                  {tab!=="appearance"&&groups[0].sections.some(section=>section.id===tab)
+                    ?<button type="button" className="appearance-back" onClick={()=>setTab("appearance")}>{selected.group}</button>
+                    :selected.group}
+                  <ChevronRight size={12}/>{selected.label}
+                </span></div>}
                 {search.trim()?<div className="settings-results">{results.length?results.map(section=>{const Icon=section.icon;return <button key={section.id} data-settings-result={section.id} onClick={()=>{setTab(section.id);setSearch("");}}><Icon size={17}/><span><b>{section.label}</b><small>{section.group} · {section.description}</small></span></button>;}):<p>{russian?"Настройки не найдены":"No settings found"}</p>}</div>:tab === "buttonStyles" ? <ButtonStyles russian={russian}/> :tab === "appearanceProfiles" ? profilePanel :tab === "discord" ? <DiscordSettings russian={russian} status={discordStatus}/> :tab === "window" ? <WindowPreferencesPanel russian={russian}/> :tab === "background" ? <><VisualPreferences russian={russian} group="background"/><HeroSettings russian={russian}/></> :tab === "effects" ? <EffectsPreferences russian={russian}><MotionPreference t={t} reduceMotion={reduceMotion} setReduceMotion={setReduceMotion}/></EffectsPreferences> :tab === "typography" ? <VisualPreferences russian={russian} group="typography"/> :tab === "materials" ? <MaterialPreferencesPanel russian={russian}/> :tab === "sidebar" ? <SidebarSettings russian={russian} compact={compact} setCompact={setCompact}/> :tab === "layout" ? <><VisualPreferences russian={russian} group="layout"/><InterfaceVisibilityPanel russian={russian}/></> :tab === "quality" ? <VisualQuality russian={russian}/> :tab === "storage" ? <StorageSettings russian={russian}/> :tab === "minecraft"?<RuntimeSettingsPanel russian={russian} section="minecraft"/> :tab === "downloads"?<RuntimeSettingsPanel russian={russian} section="downloads"/> :tab === "appearance" ? (
                   <Appearance
                     featuredLook={featuredLook}
+                    onOpenSection={setTab}
                     t={t}
                     mode={mode}
                     setMode={setMode}
@@ -1723,6 +1723,7 @@ function SettingsModal({
 }
 function Appearance({
   featuredLook,
+  onOpenSection,
   t,
   mode,
   setMode,
@@ -1735,6 +1736,7 @@ function Appearance({
   setPreset,
 }: {
   featuredLook:ReactNode;
+  onOpenSection:(id:string)=>void;
   t: T;
   mode: Mode;
   setMode: (x: Mode) => void;
@@ -1751,10 +1753,16 @@ function Appearance({
   const russian = t("home") === "Главная";
   return (
     <div className="appearance-settings">
-      <div className="setting-intro">
-        <h3>{t("home")==="Главная"?"Тема и цвета":"Theme & colors"}</h3>
-        <p>{t("appearanceSub")}</p>
+      <h3>{russian?"Оформление":"Appearance"}</h3>
+      <div className="appearance-shortcuts">
+        {settingsGroups(russian)[0].sections.filter(section=>["background","materials","buttonStyles","appearanceProfiles"].includes(section.id)).map(section=>{
+          const Icon=section.icon;
+          return <button key={section.id} type="button" className="quiet-button" onClick={()=>onOpenSection(section.id)}>
+            <Icon size={16}/><span>{section.id==="materials"?(russian?"Материалы и размытие":"Materials and blur"):section.label}</span><ChevronRight size={13}/>
+          </button>;
+        })}
       </div>
+      {featuredLook}
       <h4>{t("mode")}</h4>
       <div className="mode-grid">
         {modes.map((m) => {
@@ -1804,9 +1812,7 @@ function Appearance({
         <button className="quiet-button" type="button" aria-pressed={accent === "custom"} onClick={() => setAccent("custom")}>{russian ? "Использовать" : "Use color"}</button>
         <span className="accent-sample">{russian ? "Пример" : "Preview"}</span>
       </div>
-      {featuredLook}
       <AppearanceScenes russian={russian}/>
-      <p className="settings-note">{t("storedLocally")}</p>
     </div>
   );
 }

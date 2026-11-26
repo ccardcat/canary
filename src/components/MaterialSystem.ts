@@ -2,6 +2,8 @@ export const materialStyles = ['solid', 'soft', 'vibrancy', 'glass', 'clear', 'l
 export type SurfaceMaterial = typeof materialStyles[number];
 export const materialCategories = ['cards', 'buttons', 'sidebar', 'popovers', 'dialogs', 'inputs', 'titlebar', 'floating'] as const;
 export type MaterialCategory = typeof materialCategories[number];
+export const adjustableBlurCategories = ["cards","sidebar","popovers","dialogs"] as const;
+type BlurCategory = typeof adjustableBlurCategories[number];
 export type MaterialPreferences = {
   materialPreset: MaterialPreset | 'custom'; materialLinked: boolean; materialStyle: SurfaceMaterial;
   materialCategories: Record<MaterialCategory, SurfaceMaterial>;
@@ -10,6 +12,7 @@ export type MaterialPreferences = {
   materialShadow: number; materialAccent: boolean;
   sidebarMaterialIntensity: number; titlebarMaterialIntensity: number;
   reduceTransparency: boolean;
+  blurByCategory: Record<BlurCategory,number>;
 };
 // Layout is persisted beside materials for compatibility, but never applied by a preset.
 export type LayoutPreferences = {
@@ -26,6 +29,7 @@ export const materialDefaults: MaterialPreferences = {
   materialIntensity:50, materialSaturation:100, materialBrightness:100, materialContrast:100,
   materialHighlight:100, materialBorder:100, materialShadow:100,
   materialAccent:false, sidebarMaterialIntensity:100, titlebarMaterialIntensity:100, reduceTransparency:false,
+  blurByCategory:{cards:100,sidebar:100,popovers:100,dialogs:100},
 };
 export type MaterialValues = MaterialPreferences & {surfaceOpacity:number; surfaceBlur:number};
 export const materialPresets = {
@@ -61,9 +65,16 @@ export function normalizeLayout(saved:Record<string,unknown>):LayoutPreferences 
 }
 const clamp=(n:number,min:number,max:number)=>Math.min(max,Math.max(min,n));
 export function normalizeMaterials(saved:Record<string,unknown>):MaterialPreferences {
-  const result={...materialDefaults,materialCategories:{...categories}};
+  const result={...materialDefaults,materialCategories:{...categories},blurByCategory:{...materialDefaults.blurByCategory}};
   const fields=result as unknown as Record<string,unknown>;
-  for(const key of Object.keys(result))if(typeof saved[key]===typeof fields[key]&&key!=='materialCategories')fields[key]=saved[key];
+  for(const key of Object.keys(result))if(typeof saved[key]===typeof fields[key]&&key!=='materialCategories'&&key!=='blurByCategory')fields[key]=saved[key];
+  const blur=saved.blurByCategory;
+  if (blur && typeof blur==="object") {
+    for (const category of adjustableBlurCategories) {
+      const amount=(blur as Record<string,unknown>)[category];
+      if (typeof amount==="number"&&Number.isFinite(amount)) result.blurByCategory[category]=clamp(amount,0,200);
+    }
+  }
   const valid=(s:unknown):s is SurfaceMaterial=>materialStyles.includes(s as SurfaceMaterial);
   if(!valid(result.materialStyle))result.materialStyle='glass';
   const input=saved.materialCategories&&typeof saved.materialCategories==='object'?saved.materialCategories as Record<string,unknown>:{};
@@ -106,7 +117,9 @@ export function applyMaterialTokens(root:HTMLElement,value:TokenPreferences){
     const desktop=value.backgroundSource==='desktop';
     const transparencyScale=desktop?.72:1;
     const opacity=fallback?100:style==='solid'?100:clamp((p.opacity*value.surfaceOpacity/82+(0.5-strength)*8)*transparencyScale,4,98);
-    const blur=fallback||foreground?0:clamp(value.surfaceBlur*p.blur*d*(.75+strength*.5),0,32);
+    const localBlur=adjustableBlurCategories.find(key=>key===category);
+    const blurStrength=localBlur?(value.blurByCategory?.[localBlur]??100)/100:1;
+    const blur=fallback||foreground?0:clamp(value.surfaceBlur*p.blur*d*(.75+strength*.5)*blurStrength,0,32);
     const light=clamp(p.light*(.65+strength)*value.materialHighlight/100*(.7+value.glassIntensity/70),0,.14);
     const shadow=clamp(p.shadow*(.4+strength)*d*value.materialShadow/100,0,.18);
     const edge=clamp(Math.max(p.edge,desktop?.04:0)*(.7+strength*.4)*value.materialBorder/100,0,.16);

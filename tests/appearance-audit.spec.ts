@@ -62,7 +62,7 @@ for (const theme of themeCases) test(`${theme.mode}/${theme.preset} fits every p
   expect(problems).toEqual([]);
 });
 
-const wallpaperSelectors=[".home-greeting > span:last-child",".topbar-sub",".hero-content h2",".hero-content p",".sidebar nav .nav-label",".sidebar-bottom .nav-label"];
+const wallpaperSelectors=[".home-greeting > span:last-child",".topbar-sub",".hero-content h2",".sidebar nav .nav-label",".sidebar-bottom .nav-label"];
 const wallpaperThemes=themeCases.filter(theme=>theme.mode!=="system");
 
 for (const theme of wallpaperThemes) test(`${theme.mode}/${theme.preset}: every wallpaper keeps text readable`,async ({page})=>{

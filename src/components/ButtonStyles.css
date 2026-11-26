@@ -137,3 +137,43 @@
   :root[data-button-style] button:focus-visible { outline:2px solid Highlight; }
   .button-look { border-color:ButtonText; }
 }
+
+/* Icon tiles share the existing control hit areas and work without backdrop blur. */
+:root[data-icon-style="glass"] {
+  --icon-glass-ink:#0756bc;
+  --icon-glass-core:#dceaff;
+  --icon-glass-rim:#82aefa;
+  --icon-glass-light:#ffffffdb;
+}
+:root[data-icon-style="glass"]:not([data-mode="light"]) {
+  --icon-glass-ink:#deedff;
+  --icon-glass-core:#28446e;
+  --icon-glass-rim:#78a8f999;
+  --icon-glass-light:#deedff55;
+}
+@media (forced-colors:none) {
+  :root[data-icon-style="glass"]:not([data-focus="true"],[data-quality="low"],[data-reduce-transparency="true"]) {
+    & :is(.sidebar-icon,.quick-search-trigger,.button-look-glass) {
+      color:var(--icon-glass-ink);
+      border-radius:32%;
+      background:
+        radial-gradient(ellipse at 28% 0%,var(--icon-glass-light),transparent 57%),
+        linear-gradient(145deg,var(--icon-glass-core),color-mix(in srgb,var(--icon-glass-core) 65%,var(--surface)));
+      box-shadow:inset 0 1px var(--icon-glass-light),inset 0 0 0 1px var(--icon-glass-rim),0 2px 4px #09172a24;
+    }
+    & .sidebar-icon { width:30px; height:30px; flex-basis:30px; }
+    &[data-button-style="capsule"] .quick-search-trigger { border-radius:999px; }
+    & .sidebar .sidebar-icon svg { width:17px; height:17px; }
+    & .sidebar-content button[aria-current="page"] .sidebar-icon {
+      background:radial-gradient(ellipse at 20% 0%,#96d3ffb0,transparent 65%),linear-gradient(150deg,#086bd6,#16479a);
+      color:white;
+    }
+  }
+}
+@media (prefers-reduced-motion:no-preference) {
+  :root[data-icon-style="glass"]:not([data-motion="reduced"],[data-focus="true"],[data-quality="low"]) {
+    & .sidebar-icon { transition:transform 200ms var(--view-enter-ease); }
+    & .sidebar-content button:hover .sidebar-icon { transform:translateY(-1px); }
+    & .sidebar-content button:active .sidebar-icon { transform:scale(.94); }
+  }
+}

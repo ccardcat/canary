@@ -25,15 +25,15 @@ export function viceCityLook(current:AppearanceSnapshot):AppearanceSnapshot {
 export function ViceCityLook({russian,active,onApply,onUndo}:{
   russian:boolean; active:boolean; onApply:()=>void; onUndo?:()=>void;
 }) {
-  return <section className="vice-city-preview" aria-label="Vice City">
+  return <section className="vice-city-preview appearance-vice-tile" aria-label="Vice City">
     <img className="vice-city-preview-image" src="/backgrounds/vice-city.webp" alt="" loading="lazy"/>
     <div className="vice-city-preview-copy">
       <h4>Vice City</h4>
-      <p>{russian?"Майами после заката. Розовый неон, тёмное стекло и огни набережной.":"Miami after sunset. Pink neon, dark glass, and a glowing waterfront."}</p>
       <div className="vice-city-preview-actions">
-        <button type="button" className="primary-button" aria-pressed={active} onClick={onApply}>
+        <button type="button" className="primary-button" aria-pressed={active} onClick={onApply}
+          aria-label={active?undefined:(russian?"Применить тему Vice City":"Apply Vice City theme")}>
           {active?<Check size={16}/>:<Palette size={16}/>}
-          {active?(russian?"Тема включена":"Theme applied"):(russian?"Применить тему Vice City":"Apply Vice City theme")}
+          {active?(russian?"Включена":"Theme applied"):(russian?"Включить":"Apply")}
         </button>
         {onUndo&&<button type="button" className="quiet-button" onClick={onUndo}>
           <Undo2 size={16}/>{russian?"Вернуть оформление":"Restore previous look"}
