@@ -1,6 +1,6 @@
 Canary desktop launcher for Windows x64 and Linux x64.
 
-Version **0.2.2** adds the Vice City theme, six button styles, saved appearance profiles, quick search, and remembered library filters. It improves wallpaper contrast across all palettes and preserves reduced transparency when changing materials.
+Version **0.2.3** refines all seven surface materials with softer corners, lighter outlines and simpler glass highlights. Appearance settings include side-by-side material previews, and small text has better contrast in light palettes. The Vice City Home banner gives more room to the artwork.
 
 This release preparation softens decorative borders and shadows, makes glass/soft surfaces lighter, allows zero material border strength, removes technical search keywords from Settings, and fixes clicks inside dialog padding and wrapped-log error navigation. Browser and native checks now run on pull requests before merge. See [release readiness](https://github.com/ccardcat/canary/blob/v0.1.8/docs/RELEASE_READINESS.md) for the exact validation status.
 
